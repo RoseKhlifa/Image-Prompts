@@ -38,7 +38,7 @@ export default function HomePage() {
         ) : (
           <Masonry
             breakpointCols={BREAKPOINTS}
-            className="flex gap-4 p-6"
+            className="flex gap-1 p-2"
             columnClassName="flex flex-col"
           >
             {list.data.items.map((p) => (

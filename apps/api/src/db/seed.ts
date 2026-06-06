@@ -12,14 +12,27 @@ import { sql } from "drizzle-orm";
 async function main() {
   console.log("Seeding…");
 
-  // Idempotent: skip if any prompts already exist.
-  const existing = await db.execute(sql`SELECT count(*)::int AS n FROM prompts`);
-  const promptCount = Number((existing.rows[0] as { n: number }).n);
-  if (promptCount > 0) {
-    console.log(`Prompts already exist (${promptCount}). Skip seed.`);
-    await pool.end();
-    return;
-  }
+  // Idempotent via wipe: TRUNCATE the demo-owned tables on every run so the
+  // script is safe to re-execute (and re-runs pick up any new DEMO_PROMPTS
+  // additions). CASCADE handles dependent rows; we explicitly leave audit_log
+  // and users alone so dev-created accounts survive a re-seed.
+  console.log("Wiping existing data…");
+  await db.execute(sql`
+    TRUNCATE TABLE
+      prompt_images,
+      prompt_tags,
+      likes,
+      favorites,
+      import_tokens,
+      submissions,
+      prompts,
+      tags,
+      categories,
+      r2_accounts,
+      site_settings
+    RESTART IDENTITY CASCADE;
+  `);
+  console.log("Seeding fresh data…");
 
   // R2 account (must come first — prompt_images references it; we'll seed 1 placeholder).
   const [r2] = await db
@@ -90,15 +103,17 @@ async function main() {
       await db.insert(schema.promptTags).values({ promptId: prompt.id, tagId: tag.id });
     }
 
-    // One placeholder image per prompt
+    // One Picsum-shaped image per prompt: resolveImageUrl will compose
+    // `${publicUrl}/${r2Key}` → https://picsum.photos/seed/{slug}/{w}/{h}
+    // which returns a deterministic real photo at the requested size.
     await db.insert(schema.promptImages).values({
       promptId: prompt.id,
       r2AccountId: r2.id,
-      r2Key: `prompts/${prompt.id}/0.svg`,
+      r2Key: `seed/${p.slug}/${p.width}/${p.height}`,
       order: 0,
       altText: p.titleEn,
-      width: 1280,
-      height: 720,
+      width: p.width,
+      height: p.height,
       lqip: null,
     });
   }
