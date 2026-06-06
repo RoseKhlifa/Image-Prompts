@@ -1,0 +1,16 @@
+# Visual companion / brainstorm session artifacts
+.superpowers/
+
+# Logs
+*.log
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env
+.env
+.env.local
+.env.*.local
