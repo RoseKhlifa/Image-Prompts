@@ -3,6 +3,7 @@ import LocaleRedirect from "./locale-redirect";
 import LocaleLayout from "./locale-layout";
 import HomePage from "../pages/HomePage";
 import PromptListPage from "../pages/PromptListPage";
+import PromptDetailPage from "../pages/PromptDetailPage";
 
 function ComingSoon({ name }: { name: string }) {
   return (
@@ -21,7 +22,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: "prompts", element: <PromptListPage /> },
-      { path: "prompts/:slug", element: <ComingSoon name="Detail (Task 13)" /> },
+      { path: "prompts/:slug", element: <PromptDetailPage /> },
       { path: "categories/:slug", element: <ComingSoon name="Category (later)" /> },
       { path: "about", element: <ComingSoon name="About (Task 14)" /> },
     ],
