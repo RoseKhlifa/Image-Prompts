@@ -9,6 +9,7 @@
     "search_placeholder": "搜索提示词",
     "loading": "加载中…",
     "empty": "暂无内容",
+    "error": "出错了",
     "retry": "重试",
     "not_found_title": "找不到此提示词",
     "not_found_body": "可能已删除或未通过审核。",

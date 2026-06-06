@@ -10,7 +10,7 @@ export default function ErrorState({
   const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
-      <p className="text-sm text-danger">{message ?? "Error"}</p>
+      <p className="text-sm text-danger">{message ?? t("common.error")}</p>
       {onRetry && (
         <button
           type="button"

@@ -9,6 +9,7 @@
     "search_placeholder": "Search prompts",
     "loading": "Loading…",
     "empty": "Nothing here yet",
+    "error": "Something went wrong",
     "retry": "Retry",
     "not_found_title": "Prompt not found",
     "not_found_body": "It may have been removed or is still pending review.",

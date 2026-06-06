@@ -12,7 +12,7 @@ export async function initI18n(locale: Locale = DEFAULT_LOCALE) {
     },
     lng: locale,
     fallbackLng: DEFAULT_LOCALE,
-    interpolation: { escapeValue: false },
+    interpolation: { escapeValue: false, prefix: "{", suffix: "}" },
     returnNull: false,
     react: { useSuspense: false },
   });
