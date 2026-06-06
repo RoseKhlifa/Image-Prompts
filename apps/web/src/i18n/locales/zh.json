@@ -21,7 +21,7 @@
   },
   "home": {
     "hero_title": "生图提示词聚合",
-    "hero_subtitle": "{count}+ 条精选提示词 · 一键送到 Image-Studio",
+    "hero_subtitle": "{formattedCount}+ 条精选提示词 · 一键送到 Image-Studio",
     "start_browsing": "开始浏览 →"
   },
   "list": {

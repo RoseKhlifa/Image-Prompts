@@ -21,7 +21,7 @@
   },
   "home": {
     "hero_title": "Prompts for Image-Studio",
-    "hero_subtitle": "{count}+ curated prompts · one click to Image-Studio",
+    "hero_subtitle": "{formattedCount}+ curated prompts · one click to Image-Studio",
     "start_browsing": "Start browsing →"
   },
   "list": {
