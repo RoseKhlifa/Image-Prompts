@@ -17,3 +17,24 @@ Thumbs.db
 
 # Git worktrees (subagent-driven workspace isolation)
 .worktrees/
+
+# Node / pnpm
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.vitest-cache/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Drizzle
+drizzle/meta/_journal.json.bak
