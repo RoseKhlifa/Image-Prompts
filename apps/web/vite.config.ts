@@ -33,6 +33,16 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       setupFiles: ["./src/test/setup.ts"],
       include: ["src/**/*.test.{ts,tsx}"],
+      // Node 22+ ships experimental Web Storage that overrides jsdom's
+      // localStorage on globalThis with a broken implementation (missing
+      // Storage.prototype methods like clear()). Disable it inside the
+      // forked test workers so jsdom's localStorage wins.
+      pool: "forks",
+      poolOptions: {
+        forks: {
+          execArgv: ["--no-experimental-webstorage"],
+        },
+      },
     },
   };
 });

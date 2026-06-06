@@ -1,0 +1,59 @@
+{
+  "nav": {
+    "browse": "Browse",
+    "categories": "Categories",
+    "submit": "Submit",
+    "about": "About"
+  },
+  "common": {
+    "search_placeholder": "Search prompts",
+    "loading": "Loading…",
+    "empty": "Nothing here yet",
+    "retry": "Retry",
+    "not_found_title": "Prompt not found",
+    "not_found_body": "It may have been removed or is still pending review.",
+    "back_home": "Back to home",
+    "no_en_version": "No English version; showing Chinese",
+    "no_zh_version": "No Chinese version; showing English",
+    "language": "Language",
+    "theme": "Theme",
+    "all": "All"
+  },
+  "home": {
+    "hero_title": "Prompts for Image-Studio",
+    "hero_subtitle": "{count}+ curated prompts · one click to Image-Studio",
+    "start_browsing": "Start browsing →"
+  },
+  "list": {
+    "sort_latest": "Latest",
+    "sort_popular": "Popular",
+    "sort_liked": "Liked",
+    "sort_sent": "Most Sent",
+    "total": "{count} prompts"
+  },
+  "detail": {
+    "send_to_studio": "Send to Image-Studio",
+    "copy_prompt": "Copy",
+    "favorite": "Favorite",
+    "more": "More",
+    "prompt": "Prompt",
+    "negative_prompt": "Negative Prompt",
+    "suggested_params": "Suggested Parameters",
+    "aspect_ratio": "Aspect Ratio",
+    "related": "Related Prompts",
+    "category": "Category",
+    "tags": "Tags",
+    "no_suggestions": "No suggestions; uses Image-Studio defaults"
+  },
+  "about": {
+    "title": "About Image-Prompts",
+    "body": "Image-Prompts is a prompt aggregator paired with Image-Studio. Anyone can browse, favorite, like, and share; logged-in users can submit; moderators review.",
+    "credits_title": "Credits",
+    "credits_body": "Initial seed content (2,380 prompts) was migrated from unknowlei's open-source nanobanana-website (github.com/unknowlei/nanobanana-website), translated into bilingual (zh/en) via AI assistance, and curated by this site. Original content belongs to nanobanana community contributors; attribution follows the spirit of CC-BY-4.0."
+  },
+  "theme_modes": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "nav": {
+    "browse": "浏览",
+    "categories": "分类",
+    "submit": "投稿",
+    "about": "关于"
+  },
+  "common": {
+    "search_placeholder": "搜索提示词",
+    "loading": "加载中…",
+    "empty": "暂无内容",
+    "retry": "重试",
+    "not_found_title": "找不到此提示词",
+    "not_found_body": "可能已删除或未通过审核。",
+    "back_home": "返回首页",
+    "no_en_version": "暂无英文版,显示中文",
+    "no_zh_version": "暂无中文版,显示英文",
+    "language": "语言",
+    "theme": "主题",
+    "all": "全部"
+  },
+  "home": {
+    "hero_title": "生图提示词聚合",
+    "hero_subtitle": "{count}+ 条精选提示词 · 一键送到 Image-Studio",
+    "start_browsing": "开始浏览 →"
+  },
+  "list": {
+    "sort_latest": "最新",
+    "sort_popular": "最热",
+    "sort_liked": "最赞",
+    "sort_sent": "最多送",
+    "total": "共 {count} 条"
+  },
+  "detail": {
+    "send_to_studio": "Send to Image-Studio",
+    "copy_prompt": "复制",
+    "favorite": "收藏",
+    "more": "更多",
+    "prompt": "Prompt",
+    "negative_prompt": "负向提示词",
+    "suggested_params": "作者建议参数",
+    "aspect_ratio": "比例",
+    "related": "相关提示词",
+    "category": "分类",
+    "tags": "标签",
+    "no_suggestions": "未指定建议参数, 沿用 Image-Studio 默认值"
+  },
+  "about": {
+    "title": "关于 Image-Prompts",
+    "body": "Image-Prompts 是 Image-Studio 配套的生图提示词聚合站。任何人都能浏览、收藏、点赞、分享;已登录用户可以投稿,管理员审核后公开。",
+    "credits_title": "数据来源致谢",
+    "credits_body": "本站初始内容(2380 条提示词种子数据)迁移自 unknowlei 的开源项目 nanobanana-website (github.com/unknowlei/nanobanana-website),经 AI 辅助翻译为中英双语后由本站维护与扩展。原内容版权归 nanobanana 社区贡献者所有,本站按 CC-BY-4.0 精神标注来源。"
+  },
+  "theme_modes": {
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  }
+}
