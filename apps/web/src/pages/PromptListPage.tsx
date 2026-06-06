@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
+import Masonry from "react-masonry-css";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
 import Toolbar from "../components/Toolbar";
@@ -12,6 +13,15 @@ import type { SortOption, AspectRatio } from "@ip/shared";
 
 const SORT_VALUES: readonly SortOption[] = ["latest", "popular", "liked", "sent"];
 const ASPECT_VALUES: readonly AspectRatio[] = ["auto", "1:1", "3:2", "2:3", "16:9", "9:16"];
+
+const BREAKPOINTS = {
+  default: 5,
+  1280: 5,
+  1024: 4,
+  768: 3,
+  640: 2,
+  0: 1,
+};
 
 function asSort(v: string | null): SortOption {
   return SORT_VALUES.includes(v as SortOption) ? (v as SortOption) : "latest";
@@ -67,11 +77,15 @@ export default function PromptListPage() {
           <EmptyState />
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <Masonry
+              breakpointCols={BREAKPOINTS}
+              className="flex gap-4 p-6"
+              columnClassName="flex flex-col"
+            >
               {list.data.items.map((p) => (
                 <PromptCard key={p.id} prompt={p} />
               ))}
-            </div>
+            </Masonry>
             <Pagination
               page={page}
               hasMore={list.data.hasMore}

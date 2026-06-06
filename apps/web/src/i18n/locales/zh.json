@@ -18,7 +18,8 @@
     "no_zh_version": "暂无中文版,显示英文",
     "language": "语言",
     "theme": "主题",
-    "all": "全部"
+    "all": "全部",
+    "anonymous": "匿名"
   },
   "home": {
     "hero_title": "生图提示词聚合",

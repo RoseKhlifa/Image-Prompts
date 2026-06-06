@@ -1,3 +1,4 @@
+import Masonry from "react-masonry-css";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
 import Hero from "../components/Hero";
@@ -6,6 +7,15 @@ import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { usePromptList } from "../lib/hooks/usePromptList";
+
+const BREAKPOINTS = {
+  default: 4,
+  1280: 4,
+  1024: 3,
+  768: 2,
+  640: 2,
+  0: 1,
+};
 
 export default function HomePage() {
   const list = usePromptList({ sort: "latest", page: 1, pageSize: 12 });
@@ -26,11 +36,15 @@ export default function HomePage() {
         (list.data.items.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <Masonry
+            breakpointCols={BREAKPOINTS}
+            className="flex gap-4 p-6"
+            columnClassName="flex flex-col"
+          >
             {list.data.items.map((p) => (
               <PromptCard key={p.id} prompt={p} />
             ))}
-          </div>
+          </Masonry>
         ))}
     </AppShell>
   );

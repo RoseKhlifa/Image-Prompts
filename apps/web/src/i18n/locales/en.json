@@ -18,7 +18,8 @@
     "no_zh_version": "No Chinese version; showing English",
     "language": "Language",
     "theme": "Theme",
-    "all": "All"
+    "all": "All",
+    "anonymous": "Anonymous"
   },
   "home": {
     "hero_title": "Prompts for Image-Studio",
