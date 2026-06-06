@@ -16,7 +16,7 @@ This is a pnpm monorepo:
 ## Prerequisites
 
 - Node.js 22 LTS (`nvm use`)
-- pnpm 9 (`npm i -g pnpm@9`)
+- pnpm 10 (`npm i -g pnpm@10`)
 - PostgreSQL 16 running locally on `localhost:5432`
 - A dev database: `createdb image_prompts_dev`
 
