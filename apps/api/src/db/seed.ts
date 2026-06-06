@@ -9,6 +9,14 @@ import {
 } from "./seed-data.ts";
 import { sql } from "drizzle-orm";
 
+// Prompts that get 2 extra images each so the Gallery's multi-image thumb
+// strip is visible during demo. These slugs must exist in DEMO_PROMPTS.
+const MULTI_IMAGE_SLUGS = new Set([
+  "cyberpunk-neon-cat",
+  "purple-minimal-portrait",
+  "japanese-zen-garden",
+]);
+
 async function main() {
   console.log("Seeding…");
 
@@ -116,6 +124,29 @@ async function main() {
       height: p.height,
       lqip: null,
     });
+
+    // Multi-image demo: a few prompts get 2 extra images so the Gallery
+    // thumb strip is visible during the demo. Same Picsum convention —
+    // different seeds (suffixed slug) produce different photos.
+    if (MULTI_IMAGE_SLUGS.has(p.slug)) {
+      const extraDims = [
+        { w: 500, h: 700 },
+        { w: 800, h: 600 },
+      ];
+      for (let i = 0; i < extraDims.length; i++) {
+        const e = extraDims[i]!;
+        await db.insert(schema.promptImages).values({
+          promptId: prompt.id,
+          r2AccountId: r2.id,
+          r2Key: `seed/${p.slug}-${i + 1}/${e.w}/${e.h}`,
+          order: i + 1,
+          altText: `${p.titleEn} (alt ${i + 1})`,
+          width: e.w,
+          height: e.h,
+          lqip: null,
+        });
+      }
+    }
   }
 
   // Update tag usage_count

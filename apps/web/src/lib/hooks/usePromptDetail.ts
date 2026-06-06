@@ -15,6 +15,7 @@ export type PromptDetailWithRelated = PromptDetail & {
       | "sendCount"
       | "favoriteCount"
       | "approvedAt"
+      | "primaryImage"
     >
   >;
 };

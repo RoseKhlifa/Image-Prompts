@@ -269,5 +269,44 @@ export async function listRelatedPrompts(promptId: string, categoryId: string, l
     .where(and(eq(prompts.categoryId, categoryId), sql`${prompts.id} <> ${promptId}`))
     .orderBy(desc(prompts.likeCount), desc(prompts.approvedAt))
     .limit(limit);
-  return rows;
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.id);
+
+  // Fetch primary images (smallest order) for all related prompts
+  const images = await db
+    .select({
+      promptId: promptImages.promptId,
+      r2AccountId: promptImages.r2AccountId,
+      r2Key: promptImages.r2Key,
+      width: promptImages.width,
+      height: promptImages.height,
+      lqip: promptImages.lqip,
+      order: promptImages.order,
+    })
+    .from(promptImages)
+    .where(inArray(promptImages.promptId, ids))
+    .orderBy(asc(promptImages.order));
+
+  const firstImageByPrompt = new Map<string, (typeof images)[number]>();
+  for (const img of images) {
+    if (!firstImageByPrompt.has(img.promptId)) firstImageByPrompt.set(img.promptId, img);
+  }
+
+  return rows.map((r) => {
+    const img = firstImageByPrompt.get(r.id) ?? null;
+    return {
+      ...r,
+      primaryImage: img
+        ? {
+            r2AccountId: img.r2AccountId,
+            r2Key: img.r2Key,
+            width: img.width,
+            height: img.height,
+            lqip: img.lqip,
+          }
+        : null,
+    };
+  });
 }

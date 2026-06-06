@@ -17,7 +17,7 @@ app.get("/:slug", async (c) => {
   const detail = await getPromptBySlug(slug);
   if (!detail) throw new HTTPException(404, { message: "prompt_not_found" });
 
-  const related = await listRelatedPrompts(detail.id, detail.category.id, 6);
+  const related = await listRelatedPrompts(detail.id, detail.category.id, 12);
   return c.json({
     ...detail,
     related: related.map((r) => ({
@@ -30,6 +30,7 @@ app.get("/:slug", async (c) => {
       sendCount: r.sendCount,
       favoriteCount: r.favoriteCount,
       approvedAt: r.approvedAt.toISOString(),
+      primaryImage: r.primaryImage,
     })),
   });
 });
