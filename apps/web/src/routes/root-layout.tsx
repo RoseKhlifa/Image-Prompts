@@ -2,6 +2,7 @@ import { Link, Outlet, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { isLocale, type Locale } from "@ip/shared";
 import LangSwitcher from "../components/LangSwitcher";
+import ThemeSwitcher from "../components/ThemeSwitcher";
 import { withLocale } from "../lib/locale";
 
 /**
@@ -30,6 +31,7 @@ function Header() {
         </Link>
       </nav>
       <div className="flex items-center gap-2">
+        <ThemeSwitcher />
         <LangSwitcher />
       </div>
     </header>
