@@ -1,12 +1,21 @@
-import Masonry from "react-masonry-css";
+import { useSearchParams } from "react-router";
+import type { SortOption } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
 import Hero from "../components/Hero";
+import Toolbar from "../components/Toolbar";
 import PromptCard from "../components/PromptCard";
 import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { usePromptList } from "../lib/hooks/usePromptList";
+import Masonry from "react-masonry-css";
+
+const SORT_VALUES: readonly SortOption[] = ["latest", "popular", "liked", "sent"];
+
+function asSort(v: string | null): SortOption {
+  return SORT_VALUES.includes(v as SortOption) ? (v as SortOption) : "latest";
+}
 
 const BREAKPOINTS = {
   default: 4,
@@ -18,22 +27,30 @@ const BREAKPOINTS = {
 };
 
 export default function HomePage() {
-  const list = usePromptList({ sort: "latest", page: 1, pageSize: 12 });
+  const [params, setParams] = useSearchParams();
+  const sort = asSort(params.get("sort"));
+
+  const list = usePromptList({ sort, page: 1, pageSize: 24 });
+
+  function setSort(next: SortOption) {
+    const updated = new URLSearchParams(params);
+    updated.set("sort", next);
+    setParams(updated);
+  }
 
   return (
     <AppShell sidebar={<Sidebar />}>
       <Hero promptCount={list.data?.total ?? 0} />
-      {list.isLoading && <CardGridSkeleton count={8} />}
+      <Toolbar total={list.data?.total ?? 0} sort={sort} onSortChange={setSort} />
+      {list.isLoading && <CardGridSkeleton count={12} />}
       {list.isError && (
         <ErrorState
           message={list.error instanceof Error ? list.error.message : undefined}
           onRetry={() => list.refetch()}
         />
       )}
-      {!list.isLoading &&
-        !list.isError &&
-        list.data &&
-        (list.data.items.length === 0 ? (
+      {!list.isLoading && !list.isError && list.data && (
+        list.data.items.length === 0 ? (
           <EmptyState />
         ) : (
           <Masonry
@@ -45,7 +62,8 @@ export default function HomePage() {
               <PromptCard key={p.id} prompt={p} />
             ))}
           </Masonry>
-        ))}
+        )
+      )}
     </AppShell>
   );
 }
