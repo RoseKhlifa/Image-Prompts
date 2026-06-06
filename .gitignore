@@ -14,3 +14,6 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Git worktrees (subagent-driven workspace isolation)
+.worktrees/
