@@ -16,7 +16,7 @@ export default function HomePage() {
       {list.isLoading && <CardGridSkeleton count={8} />}
       {list.isError && (
         <ErrorState
-          message={list.error instanceof Error ? list.error.message : "Error"}
+          message={list.error instanceof Error ? list.error.message : undefined}
           onRetry={() => list.refetch()}
         />
       )}

@@ -4,7 +4,7 @@ export default function ErrorState({
   message,
   onRetry,
 }: {
-  message?: string;
+  message?: string | undefined;
   onRetry?: () => void;
 }) {
   const { t } = useTranslation();

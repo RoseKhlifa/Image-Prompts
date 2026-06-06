@@ -7,7 +7,7 @@ function ComingSoon({ name }: { name: string }) {
   return (
     <div className="mx-auto max-w-2xl px-6 py-16">
       <h1 className="text-3xl font-semibold tracking-tight">{name}</h1>
-      <p className="mt-2 text-text-muted">Replaced by the real page in later tasks.</p>
+      <p className="mt-2 text-ink-muted">Replaced by the real page in later tasks.</p>
     </div>
   );
 }
