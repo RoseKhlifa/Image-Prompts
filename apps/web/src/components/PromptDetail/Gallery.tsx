@@ -46,7 +46,7 @@ export default function Gallery({
           />
         </button>
         {images.length > 1 && (
-          <div className="mt-2 grid grid-cols-4 gap-2">
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
             {images.map((img, i) => (
               <button
                 key={img.id}
@@ -54,14 +54,14 @@ export default function Gallery({
                 onClick={() => setActive(i)}
                 aria-pressed={i === active}
                 className={[
-                  "overflow-hidden rounded-md border-2 transition-colors",
+                  "shrink-0 overflow-hidden rounded-md border-2 transition-colors",
                   i === active ? "border-accent" : "border-transparent hover:border-border",
                 ].join(" ")}
               >
                 <img
                   src={resolveImageUrl(img, map)}
                   alt=""
-                  className="aspect-square w-full object-cover"
+                  className="h-16 w-16 object-cover sm:h-20 sm:w-20"
                 />
               </button>
             ))}

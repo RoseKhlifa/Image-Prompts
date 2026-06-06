@@ -30,7 +30,7 @@ export default function RelatedRow({ items }: { items: PromptDetailWithRelated["
               title={title}
               className="group relative block overflow-hidden rounded-md border border-border-soft bg-panel transition-colors hover:border-accent/40"
             >
-              <div className="aspect-square w-full overflow-hidden bg-surface">
+              <div className="relative aspect-square w-full overflow-hidden bg-surface">
                 <img
                   src={imageUrl}
                   alt={title}
@@ -39,12 +39,15 @@ export default function RelatedRow({ items }: { items: PromptDetailWithRelated["
                   height={r.primaryImage?.height ?? undefined}
                   className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
                 />
+                {r.likeCount > 0 && (
+                  <span className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
+                    <Heart size={8} aria-hidden /> {r.likeCount}
+                  </span>
+                )}
               </div>
-              {r.likeCount > 0 && (
-                <span className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
-                  <Heart size={8} aria-hidden /> {r.likeCount}
-                </span>
-              )}
+              <div className="line-clamp-1 px-1.5 py-1 text-[10.5px] text-ink">
+                {title}
+              </div>
             </Link>
           );
         })}
