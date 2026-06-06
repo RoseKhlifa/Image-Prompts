@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-unit:
+    name: lint + typecheck + unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - name: Unit tests (exclude integration)
+        run: |
+          pnpm --filter @ip/shared test
+          pnpm --filter @ip/web test
+
+  api-integration:
+    name: api integration (with PG service)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: image_prompts_test
+          POSTGRES_USER: ip_app
+          POSTGRES_PASSWORD: testpassword
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U ip_app -d image_prompts_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      HOST: 127.0.0.1
+      SITE_URL: http://localhost:5173
+      API_URL: http://localhost:3000
+      LOG_LEVEL: warn
+      DATABASE_URL: postgres://ip_app:testpassword@localhost:5432/image_prompts_test
+      AUTH_SECRET: ci_secret_at_least_32_chars_long_xxxxxxxx
+      R2_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - name: Apply migrations
+        run: pnpm --filter @ip/api run db:migrate
+      - name: Seed demo data
+        run: pnpm --filter @ip/api run db:seed
+      - name: Run api integration tests
+        run: pnpm --filter @ip/api test

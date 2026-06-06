@@ -9,13 +9,18 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
+    "dev": "pnpm -r --parallel --filter @ip/api --filter @ip/web run dev",
+    "dev:api": "pnpm --filter @ip/api run dev",
+    "dev:web": "pnpm --filter @ip/web run dev",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "db:migrate": "pnpm --filter @ip/api run db:migrate",
+    "db:seed": "pnpm --filter @ip/api run db:seed",
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
