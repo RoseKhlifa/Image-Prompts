@@ -1,0 +1,79 @@
+/*
+ * Image-Prompts design tokens.
+ * Lifted verbatim from spec §11. Apple HIG style.
+ *
+ * Light mode: var(--accent) = #007aff
+ * Dark mode applied when html has class "dark": var(--accent) = #0a84ff
+ */
+:root {
+  /* brand (single color) */
+  --accent: #007aff;
+  --accent-2: #409cff;
+  --accent-soft: rgb(0 122 255 / 0.1);
+
+  /* backgrounds */
+  --bg: #f5f5f7;
+  --bg-2: #ececf1;
+  --panel: #ffffff;
+  --panel-2: #fbfbfd;
+  --surface: #f2f2f7;
+  --surface-2: #e5e5ea;
+
+  /* text */
+  --text: #111111;
+  --text-muted: rgb(60 60 67 / 0.72);
+  --text-dim: rgb(60 60 67 / 0.48);
+
+  /* borders */
+  --border: rgb(60 60 67 / 0.16);
+  --border-soft: rgb(60 60 67 / 0.08);
+
+  /* state (used sparingly) */
+  --danger: #ff3b30;
+  --success: #34c759;
+
+  /* radii */
+  --radius-pill: 999px;
+  --radius-card: 18px;
+  --radius-control: 12px;
+
+  /* shadow */
+  --shadow-card: 0 10px 30px rgb(15 23 42 / 0.06);
+  --shadow-card-hover: 0 18px 48px rgb(15 23 42 / 0.09);
+}
+
+:root.dark {
+  --accent: #0a84ff;
+  --accent-2: #5eb0ff;
+  --accent-soft: rgb(10 132 255 / 0.18);
+
+  --bg: #131315;
+  --bg-2: #1c1c1e;
+  --panel: #232326;
+  --panel-2: #1c1c1f;
+  --surface: #2c2c2f;
+  --surface-2: #3a3a3d;
+
+  --text: #f5f5f7;
+  --text-muted: rgb(235 235 245 / 0.78);
+  --text-dim: rgb(235 235 245 / 0.54);
+
+  --border: rgb(84 84 88 / 0.52);
+  --border-soft: rgb(84 84 88 / 0.28);
+
+  --danger: #ff453a;
+  --success: #30d158;
+
+  --shadow-card: 0 18px 46px rgb(0 0 0 / 0.38);
+  --shadow-card-hover: 0 24px 60px rgb(0 0 0 / 0.46);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

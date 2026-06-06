@@ -1,0 +1,81 @@
+@import "./tokens.css";
+@import "./fonts.css";
+@import "tailwindcss";
+
+@theme {
+  /* Tailwind 4 theme block: expose CSS vars as named utilities */
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+
+  --radius-pill: var(--radius-pill);
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+
+  --font-sans:
+    "Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+}
+
+/* Custom dark variant — apply when html has class "dark" */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv01", "cv11";
+  letter-spacing: -0.011em;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Scrollbar — slim, Apple-ish */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(155 155 160 / 0.5);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(155 155 160 / 0.75);
+  background-clip: padding-box;
+}
+html.dark *::-webkit-scrollbar-thumb {
+  background: rgb(155 155 160 / 0.32);
+  background-clip: padding-box;
+}
+html.dark *::-webkit-scrollbar-thumb:hover {
+  background: rgb(155 155 160 / 0.5);
+  background-clip: padding-box;
+}

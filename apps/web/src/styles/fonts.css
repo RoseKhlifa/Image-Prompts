@@ -1,0 +1,41 @@
+/*
+ * Self-hosted Inter (variable) + Noto Sans SC subset.
+ * Files live in /public/fonts/.
+ *
+ * Inter Variable: https://github.com/rsms/inter/releases (woff2, ~30 KB).
+ * Noto Sans SC subset: use a tool like fontmin or harfbuzz subset for ~3500 common chars.
+ *
+ * If files are missing on first dev run, browsers fall back to system fonts
+ * (the next family in the stack) — no crash, just a slight visual mismatch.
+ */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/inter-variable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("/fonts/noto-sans-sc-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("/fonts/noto-sans-sc-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Noto Sans SC";
+  src: url("/fonts/noto-sans-sc-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
