@@ -7,15 +7,15 @@
   --color-accent: var(--accent);
   --color-accent-2: var(--accent-2);
   --color-accent-soft: var(--accent-soft);
-  --color-bg: var(--bg);
+  --color-canvas: var(--canvas);
   --color-bg-2: var(--bg-2);
   --color-panel: var(--panel);
   --color-panel-2: var(--panel-2);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
-  --color-text: var(--text);
-  --color-text-muted: var(--text-muted);
-  --color-text-dim: var(--text-dim);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-dim: var(--ink-dim);
   --color-border: var(--border);
   --color-border-soft: var(--border-soft);
   --color-danger: var(--danger);
@@ -42,8 +42,8 @@ body,
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv01", "cv11";
   letter-spacing: -0.011em;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--canvas);
+  color: var(--ink);
 }
 
 body {
@@ -53,7 +53,7 @@ body {
 
 ::selection {
   background: var(--accent-soft);
-  color: var(--text);
+  color: var(--ink);
 }
 
 /* Scrollbar — slim, Apple-ish */

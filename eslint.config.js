@@ -10,6 +10,9 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.next/**",
       "**/.superpowers/**",
+      // tsc -b composite emit for vite.config.ts (apps/web)
+      "apps/web/vite.config.js",
+      "apps/web/vite.config.d.ts",
     ],
   },
   js.configs.recommended,

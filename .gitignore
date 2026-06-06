@@ -26,6 +26,11 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# tsc -b composite emit for vite.config.ts (apps/web)
+apps/web/vite.config.js
+apps/web/vite.config.js.map
+apps/web/vite.config.d.ts
+apps/web/vite.config.d.ts.map
 
 # Test coverage
 coverage/
