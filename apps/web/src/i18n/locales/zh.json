@@ -30,7 +30,7 @@
     "sort_latest": "最新",
     "sort_popular": "最热",
     "sort_liked": "最赞",
-    "sort_sent": "最多送",
+    "sort_sent": "最多使用",
     "total": "共 {count} 条"
   },
   "detail": {
@@ -45,7 +45,8 @@
     "related": "相关提示词",
     "category": "分类",
     "tags": "标签",
-    "no_suggestions": "未指定建议参数, 沿用 Image-Studio 默认值"
+    "no_suggestions": "未指定建议参数, 沿用 Image-Studio 默认值",
+    "coming_in_m2": "M2 即将上线"
   },
   "about": {
     "title": "关于 Image-Prompts",

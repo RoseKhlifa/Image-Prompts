@@ -54,7 +54,7 @@ export default function PromptDetailPage() {
 
   return (
     <AppShell>
-      <article className="mx-auto max-w-6xl px-6 py-6">
+      <article className="mx-auto max-w-screen-2xl px-4 py-6 lg:px-8">
         {/* breadcrumb */}
         <nav aria-label="breadcrumb" className="mb-4 text-[12.5px] text-ink-dim">
           <Link to={withLocale(locale, "/prompts")} className="hover:text-ink">
@@ -64,10 +64,19 @@ export default function PromptDetailPage() {
           <span>{pickBilingual(d.category.name, locale) ?? d.category.slug}</span>
         </nav>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
-          <Gallery images={d.images} title={title} />
+        {/* main two-column grid; right column sticky */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          {/* LEFT column: gallery + prompt blocks */}
+          <div className="flex min-w-0 flex-col gap-4">
+            <Gallery images={d.images} title={title} />
+            <PromptTextBlock label={t("detail.prompt")} value={d.prompt} />
+            {d.negativePrompt && (
+              <PromptTextBlock label={t("detail.negative_prompt")} value={d.negativePrompt} />
+            )}
+          </div>
 
-          <aside className="flex flex-col gap-4">
+          {/* RIGHT column: title, meta, CTAs, params */}
+          <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
             <div>
               <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-ink">
                 {title}
@@ -95,7 +104,7 @@ export default function PromptDetailPage() {
             <button
               type="button"
               disabled
-              title="Implemented in M2"
+              title={t("detail.coming_in_m2")}
               className="inline-flex items-center justify-center gap-2 rounded-pill bg-accent px-4 py-2.5 text-[13px] font-medium text-white opacity-60"
             >
               <Send size={14} aria-hidden />
@@ -106,7 +115,7 @@ export default function PromptDetailPage() {
               <button
                 type="button"
                 disabled
-                title="Implemented in M2"
+                title={t("detail.coming_in_m2")}
                 className="rounded-pill border border-border-soft bg-surface px-3 py-2 text-ink-muted opacity-60"
               >
                 {t("detail.copy_prompt")}
@@ -114,15 +123,15 @@ export default function PromptDetailPage() {
               <button
                 type="button"
                 disabled
-                title="Implemented in M2"
+                title={t("detail.coming_in_m2")}
                 className="inline-flex items-center justify-center gap-1.5 rounded-pill border border-border-soft bg-surface px-3 py-2 text-ink-muted opacity-60"
               >
-                <Heart size={12} /> {t("detail.favorite")}
+                <Heart size={12} aria-hidden /> {t("detail.favorite")}
               </button>
               <button
                 type="button"
                 disabled
-                title="Implemented in M2"
+                title={t("detail.coming_in_m2")}
                 className="rounded-pill border border-border-soft bg-surface px-3 py-2 text-ink-muted opacity-60"
               >
                 {t("detail.more")}
@@ -131,13 +140,6 @@ export default function PromptDetailPage() {
 
             <SuggestedParams aspect={d.aspectRatio} />
           </aside>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-4">
-          <PromptTextBlock label={t("detail.prompt")} value={d.prompt} />
-          {d.negativePrompt && (
-            <PromptTextBlock label={t("detail.negative_prompt")} value={d.negativePrompt} />
-          )}
         </div>
 
         <RelatedRow items={d.related} />

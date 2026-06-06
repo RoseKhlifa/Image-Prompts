@@ -30,7 +30,7 @@
     "sort_latest": "Latest",
     "sort_popular": "Popular",
     "sort_liked": "Liked",
-    "sort_sent": "Most Sent",
+    "sort_sent": "Most Used",
     "total": "{count} prompts"
   },
   "detail": {
@@ -45,7 +45,8 @@
     "related": "Related Prompts",
     "category": "Category",
     "tags": "Tags",
-    "no_suggestions": "No suggestions; uses Image-Studio defaults"
+    "no_suggestions": "No suggestions; uses Image-Studio defaults",
+    "coming_in_m2": "Coming in M2"
   },
   "about": {
     "title": "About Image-Prompts",
