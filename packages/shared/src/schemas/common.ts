@@ -20,25 +20,41 @@ export const SortOptionSchema = z.enum(SORT_OPTIONS);
 export const ThemeModeSchema = z.enum(THEME_MODES);
 
 /**
+ * A single bilingual leaf: trimmed string of at most 4000 chars, or absent.
+ * Empty / whitespace-only inputs are normalized to absent so downstream
+ * existence checks and the DB CHECK constraint agree on "no value".
+ */
+const TrimmedOptionalString = z
+  .string()
+  .trim()
+  .max(4000)
+  .transform((s) => (s.length === 0 ? undefined : s))
+  .optional();
+
+/**
  * Bilingual text where at least one of zh / en is a non-empty string after trimming.
  * Maximum length per language is 4000 chars to bound payload size.
+ *
+ * Empty / whitespace-only fields are normalized to absent (not "").
  */
 export const BilingualTextSchema = z
   .object({
-    zh: z.string().trim().max(4000).optional(),
-    en: z.string().trim().max(4000).optional(),
+    zh: TrimmedOptionalString,
+    en: TrimmedOptionalString,
   })
-  .refine((v) => (v.zh && v.zh.length > 0) || (v.en && v.en.length > 0), {
+  .refine((v) => v.zh !== undefined || v.en !== undefined, {
     message: "at_least_one_language_required",
   });
 
 /**
- * Optional bilingual text — both zh and en may be empty / undefined.
+ * Optional bilingual text — both zh and en may be absent.
  * Used for negative_prompt and notes.
+ *
+ * Empty / whitespace-only fields are normalized to absent (not "").
  */
 export const OptionalBilingualTextSchema = z.object({
-  zh: z.string().trim().max(4000).optional(),
-  en: z.string().trim().max(4000).optional(),
+  zh: TrimmedOptionalString,
+  en: TrimmedOptionalString,
 });
 
 export const UuidSchema = z.string().uuid();

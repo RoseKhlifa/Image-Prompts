@@ -9,6 +9,16 @@ export type BilingualText = {
   en?: string;
 };
 
+/**
+ * Bilingual text without the "at least one language" invariant.
+ * Both zh and en may be absent. Used for optional fields like
+ * negative_prompt and notes.
+ */
+export type OptionalBilingualText = {
+  zh?: string;
+  en?: string;
+};
+
 export const ASPECT_RATIOS = ["auto", "1:1", "3:2", "2:3", "16:9", "9:16"] as const;
 export type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
@@ -57,8 +67,8 @@ export type PromptSummary = {
 
 export type PromptDetail = PromptSummary & {
   prompt: BilingualText;
-  negativePrompt: BilingualText | null;
-  notes: BilingualText | null;
+  negativePrompt: OptionalBilingualText | null;
+  notes: OptionalBilingualText | null;
   contributor: {
     id: string;
     name: string | null;

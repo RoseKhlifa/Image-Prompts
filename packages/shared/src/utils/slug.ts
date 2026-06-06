@@ -26,7 +26,7 @@ export function generateBase62Token(length = 8): string {
   crypto.getRandomValues(bytes);
   let out = "";
   for (const byte of bytes) {
-    out += BASE62[byte % 62];
+    out += BASE62.charAt(byte % 62);
   }
   return out;
 }
