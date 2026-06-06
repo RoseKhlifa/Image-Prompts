@@ -54,7 +54,7 @@ export default function PromptDetailPage() {
 
   return (
     <AppShell>
-      <article className="mx-auto max-w-screen-2xl px-4 py-6 lg:px-8">
+      <article className="w-full px-4 py-6 lg:px-6">
         {/* breadcrumb */}
         <nav aria-label="breadcrumb" className="mb-4 text-[12.5px] text-ink-dim">
           <Link to={withLocale(locale, "/prompts")} className="hover:text-ink">
@@ -65,18 +65,14 @@ export default function PromptDetailPage() {
         </nav>
 
         {/* main two-column grid; right column sticky */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          {/* LEFT column: gallery + prompt blocks */}
-          <div className="flex min-w-0 flex-col gap-4">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_480px]">
+          {/* LEFT column: gallery (includes its own multi-image thumb strip) */}
+          <div className="min-w-0">
             <Gallery images={d.images} title={title} />
-            <PromptTextBlock label={t("detail.prompt")} value={d.prompt} />
-            {d.negativePrompt && (
-              <PromptTextBlock label={t("detail.negative_prompt")} value={d.negativePrompt} />
-            )}
           </div>
 
-          {/* RIGHT column: title, meta, CTAs, params */}
-          <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+          {/* RIGHT column: title, meta, CTAs, params, prompts */}
+          <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
             <div>
               <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-ink">
                 {title}
@@ -139,6 +135,11 @@ export default function PromptDetailPage() {
             </div>
 
             <SuggestedParams aspect={d.aspectRatio} />
+
+            <PromptTextBlock label={t("detail.prompt")} value={d.prompt} />
+            {d.negativePrompt && (
+              <PromptTextBlock label={t("detail.negative_prompt")} value={d.negativePrompt} />
+            )}
           </aside>
         </div>
 
