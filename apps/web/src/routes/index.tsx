@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from "react-router";
 import LocaleRedirect from "./locale-redirect";
 import LocaleLayout from "./locale-layout";
 import HomePage from "../pages/HomePage";
+import PromptListPage from "../pages/PromptListPage";
 
 function ComingSoon({ name }: { name: string }) {
   return (
@@ -19,7 +20,7 @@ export const router = createBrowserRouter([
     element: <LocaleLayout />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: "prompts", element: <ComingSoon name="List (Task 12)" /> },
+      { path: "prompts", element: <PromptListPage /> },
       { path: "prompts/:slug", element: <ComingSoon name="Detail (Task 13)" /> },
       { path: "categories/:slug", element: <ComingSoon name="Category (later)" /> },
       { path: "about", element: <ComingSoon name="About (Task 14)" /> },
