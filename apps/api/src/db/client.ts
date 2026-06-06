@@ -13,7 +13,6 @@ export const pool = new Pool({
 
 pool.on("error", (err) => {
   // Log fatal pool errors; allow process to die so the supervisor restarts.
-  // eslint-disable-next-line no-console
   console.error("[pg-pool] unexpected error", err);
   process.exit(1);
 });

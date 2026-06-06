@@ -13,7 +13,6 @@ export const errorHandler: ErrorHandler = (err, c) => {
     }
     return c.json({ error: "validation_error", fields }, 400);
   }
-  // eslint-disable-next-line no-console
   console.error("[server] unhandled error", err);
   return c.json({ error: "internal_error" }, 500);
 };
