@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, timestamp, integer, primaryKey } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "moderator", "admin"]);
 
@@ -39,8 +39,14 @@ export const sessions = pgTable("sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
-export const verificationTokens = pgTable("verification_tokens", {
-  identifier: text().notNull(),
-  token: text().notNull().unique(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-});
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    identifier: text().notNull(),
+    token: text().notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ name: "verification_tokens_pkey", columns: [t.identifier, t.token] }),
+  }),
+);

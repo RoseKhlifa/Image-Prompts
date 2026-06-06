@@ -11,7 +11,7 @@ import {
   check,
   primaryKey,
 } from "drizzle-orm/pg-core";
-import { categories } from "./taxonomy.ts";
+import { categories, tags } from "./taxonomy.ts";
 import { users } from "./auth.ts";
 
 export const submissionStatusEnum = pgEnum("submission_status", [
@@ -63,8 +63,12 @@ export const prompts = pgTable(
 export const promptTags = pgTable(
   "prompt_tags",
   {
-    promptId: uuid("prompt_id").notNull(),
-    tagId: uuid("tag_id").notNull(),
+    promptId: uuid("prompt_id")
+      .notNull()
+      .references(() => prompts.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
   },
   (t) => ({
     pk: primaryKey({ name: "prompt_tags_pkey", columns: [t.promptId, t.tagId] }),
