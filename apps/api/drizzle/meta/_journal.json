@@ -15,6 +15,13 @@
       "when": 1780738725820,
       "tag": "0001_regular_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780742237952,
+      "tag": "0002_lush_annihilus",
+      "breakpoints": true
     }
   ]
 }

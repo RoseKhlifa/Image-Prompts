@@ -20,6 +20,8 @@ export const submissionStatusEnum = pgEnum("submission_status", [
   "rejected",
 ]);
 
+export const promptSourceEnum = pgEnum("prompt_source", ["site", "nanobanana_seed"]);
+
 const bilingualCheck = (field: string) =>
   sql.raw(
     `((${field} ->> 'zh') IS NOT NULL AND length(${field} ->> 'zh') > 0) ` +
@@ -40,7 +42,7 @@ export const prompts = pgTable(
       .notNull()
       .references(() => categories.id),
     contributorId: uuid("contributor_id").references(() => users.id),
-    source: text().notNull().default("site"),
+    source: promptSourceEnum().notNull().default("site"),
     viewCount: integer("view_count").notNull().default(0),
     favoriteCount: integer("favorite_count").notNull().default(0),
     likeCount: integer("like_count").notNull().default(0),

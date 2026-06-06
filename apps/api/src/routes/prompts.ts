@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { zValidator } from "@hono/zod-validator";
 import { PromptListQuerySchema } from "@ip/shared";
+import { zv } from "../lib/validate.ts";
 import { getPromptBySlug, listPrompts, listRelatedPrompts } from "../repositories/prompts.ts";
 
 const app = new Hono();
 
-app.get("/", zValidator("query", PromptListQuerySchema), async (c) => {
+app.get("/", zv("query", PromptListQuerySchema), async (c) => {
   const query = c.req.valid("query");
   const result = await listPrompts(query);
   return c.json(result);

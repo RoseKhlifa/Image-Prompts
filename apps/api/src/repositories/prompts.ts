@@ -243,7 +243,7 @@ export async function getPromptBySlug(slug: string) {
     likeCount: row.likeCount,
     sendCount: row.sendCount,
     favoriteCount: row.favoriteCount,
-    source: row.source as "site" | "nanobanana_seed",
+    source: row.source,
     approvedAt: row.approvedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
