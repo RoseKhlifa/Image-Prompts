@@ -7,7 +7,7 @@ import { db } from "../db/client.ts";
 import { accounts, sessions, users, verificationTokens } from "../db/schema/auth.ts";
 import { env } from "../env.ts";
 
-function enabledProviders(): Provider[] {
+function buildEnabledProviders(): Provider[] {
   const out: Provider[] = [];
   if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
     out.push(
@@ -32,6 +32,9 @@ function enabledProviders(): Provider[] {
   return out;
 }
 
+// Built once at module import — providers and warn-logs do NOT repeat per request.
+const PROVIDERS: Provider[] = buildEnabledProviders();
+
 export const authConfig = initAuthConfig(() => ({
   secret: env.AUTH_SECRET,
   adapter: DrizzleAdapter(db, {
@@ -41,7 +44,7 @@ export const authConfig = initAuthConfig(() => ({
     verificationTokensTable: verificationTokens,
   }),
   session: { strategy: "database" },
-  providers: enabledProviders(),
+  providers: PROVIDERS,
   callbacks: {
     async session({ session, user }) {
       if (session.user) {
