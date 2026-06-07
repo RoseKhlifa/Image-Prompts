@@ -1,13 +1,53 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { like } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { db, pool } from "../db/client.ts";
 import { users, sessions } from "../db/schema/auth.ts";
 import { favorites } from "../db/schema/interactions.ts";
 import { prompts } from "../db/schema/prompts.ts";
+import { categories, submissions } from "../db/schema/index.ts";
 import { createServer } from "../server.ts";
 import { createTestSession } from "../auth/test-session.ts";
 
 const app = createServer();
+
+const TEST_EMAIL_PREFIX = "test-";
+const TEST_CATEGORY_SLUG_PREFIX_TASK20 = "task20-cat-";
+
+async function getTestUserIds(): Promise<string[]> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(like(users.email, `${TEST_EMAIL_PREFIX}%@example.com`));
+  return rows.map((u) => u.id);
+}
+
+async function cleanupTask20() {
+  const testUserIds = await getTestUserIds();
+  for (const id of testUserIds) {
+    await db.delete(submissions).where(eq(submissions.contributorId, id));
+  }
+  await db
+    .delete(categories)
+    .where(like(categories.slug, `${TEST_CATEGORY_SLUG_PREFIX_TASK20}%`));
+}
+
+async function seedCategory() {
+  const [c] = await db
+    .insert(categories)
+    .values({
+      slug: `${TEST_CATEGORY_SLUG_PREFIX_TASK20}c-${Math.random()
+        .toString(36)
+        .slice(2)}`,
+      name: { zh: "c", en: "c" },
+    })
+    .returning();
+  return c!;
+}
+
+const img = {
+  r2AccountId: "11111111-1111-1111-1111-111111111111",
+  r2Key: "submissions/u/x.jpg",
+};
 
 beforeEach(async () => {
   await db.delete(favorites);
@@ -15,8 +55,9 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await db.delete(favorites);
+  await cleanupTask20();
   await db.delete(sessions);
-  await db.delete(users).where(like(users.email, "test-%@example.com"));
+  await db.delete(users).where(like(users.email, `${TEST_EMAIL_PREFIX}%@example.com`));
   await pool.end();
 });
 
@@ -61,5 +102,113 @@ describe("GET /api/me/favorites", () => {
     expect(body.items.length).toBe(2);
     expect(body.pageSize).toBe(2);
     expect(body.hasMore).toBe(true);
+  });
+});
+
+describe("PATCH /api/me/community-guidelines", () => {
+  beforeEach(cleanupTask20);
+
+  it("requires auth (401)", async () => {
+    const res = await app.request("/api/me/community-guidelines", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1 }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("updates the user's accepted version", async () => {
+    const sess = await createTestSession();
+    const res = await app.request("/api/me/community-guidelines", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({ version: 1 }),
+    });
+    expect(res.status).toBe(200);
+    const [r] = await db.select().from(users).where(eq(users.id, sess.userId));
+    expect(r!.communityGuidelinesVersion).toBe(1);
+  });
+
+  it("rejects invalid body (400)", async () => {
+    const sess = await createTestSession();
+    const res = await app.request("/api/me/community-guidelines", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({ version: 0 }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/me/submissions", () => {
+  beforeEach(cleanupTask20);
+
+  it("requires auth (401)", async () => {
+    const res = await app.request("/api/me/submissions");
+    expect(res.status).toBe(401);
+  });
+
+  it("returns paginated list for the authenticated user", async () => {
+    const sess = await createTestSession();
+    const c = await seedCategory();
+    for (let i = 0; i < 3; i++) {
+      await db.insert(submissions).values({
+        contributorId: sess.userId,
+        title: { zh: `t${i}` },
+        prompt: { zh: "p" },
+        categoryId: c.id,
+        imageKeys: [img],
+        tagSlugs: [],
+        agreedGuidelinesVersion: 1,
+        status: "pending",
+      });
+      await new Promise((r) => setTimeout(r, 3));
+    }
+    const res = await app.request("/api/me/submissions", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      items: Array<{ titleZh: string | null }>;
+      nextCursor: string | null;
+    };
+    expect(body.items).toHaveLength(3);
+    expect(body.items[0]!.titleZh).toBe("t2");
+  });
+
+  it("filters by status", async () => {
+    const sess = await createTestSession();
+    const c = await seedCategory();
+    const [pending] = await db
+      .insert(submissions)
+      .values({
+        contributorId: sess.userId,
+        title: { zh: "p" },
+        prompt: { zh: "p" },
+        categoryId: c.id,
+        imageKeys: [img],
+        tagSlugs: [],
+        agreedGuidelinesVersion: 1,
+        status: "pending",
+      })
+      .returning();
+    await db.insert(submissions).values({
+      contributorId: sess.userId,
+      title: { zh: "r" },
+      prompt: { zh: "p" },
+      categoryId: c.id,
+      imageKeys: [img],
+      tagSlugs: [],
+      agreedGuidelinesVersion: 1,
+      status: "rejected",
+      rejectReason: "x".repeat(10),
+    });
+    const res = await app.request("/api/me/submissions?status=pending", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: Array<{ id: string }> };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]!.id).toBe(pending!.id);
   });
 });
