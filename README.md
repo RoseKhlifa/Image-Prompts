@@ -56,6 +56,32 @@ pnpm db:migrate     # apply pending migrations
 pnpm db:seed        # idempotent dev seed
 ```
 
+## OAuth dev setup (M3+)
+
+Auth.js needs Google + GitHub OAuth credentials to enable sign-in locally.
+
+### Google
+1. https://console.cloud.google.com → APIs & Services → Credentials → Create OAuth Client ID
+2. Application type: **Web application**
+3. Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+4. Copy Client ID + Secret into `apps/api/.env`
+
+### GitHub
+1. https://github.com/settings/developers → OAuth Apps → New OAuth App
+2. Homepage URL: `http://localhost:5173`
+3. Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
+4. Copy Client ID + Secret into `apps/api/.env`
+
+### AUTH_SECRET
+
+```bash
+openssl rand -base64 32  # paste output as AUTH_SECRET in .env
+```
+
+If either provider's creds are blank, the API still boots — that provider is simply
+filtered out at runtime (a `[auth] provider <name> disabled: missing creds` warning
+appears in the log).
+
 ## CI
 
 GitHub Actions runs `pnpm check` plus an integration test job (PG service container) on every PR.

@@ -12,6 +12,14 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   DATABASE_URL: z.string().url(),
   AUTH_SECRET: z.string().min(32),
+  // M3: OAuth provider credentials. Optional so dev/CI can boot without them;
+  // the auth/index.ts module filters out any provider whose creds are missing
+  // and logs a warning.
+  AUTH_URL: z.string().url().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
   R2_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, "must be 32-byte hex"),
 });
 

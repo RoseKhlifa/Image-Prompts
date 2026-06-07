@@ -56,6 +56,7 @@ jobs:
       LOG_LEVEL: warn
       DATABASE_URL: postgres://ip_app:testpassword@localhost:5432/image_prompts_test
       AUTH_SECRET: ci_secret_at_least_32_chars_long_xxxxxxxx
+      AUTH_URL: http://localhost:3000
       R2_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
     steps:
       - uses: actions/checkout@v4
