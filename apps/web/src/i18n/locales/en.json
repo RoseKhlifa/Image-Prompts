@@ -46,6 +46,7 @@
   "detail": {
     "send_to_studio": "Send to Image-Studio",
     "signin_required": "Sign in to use this",
+    "signin_to_use": "Click to sign in",
     "copy_prompt": "Copy",
     "favorite": "Favorite",
     "more": "More",

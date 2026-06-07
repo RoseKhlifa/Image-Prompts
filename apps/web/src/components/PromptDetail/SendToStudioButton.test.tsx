@@ -44,15 +44,20 @@ afterEach(() => {
 });
 
 describe("SendToStudioButton", () => {
-  it("shows disabled state with tooltip when guest", () => {
+  it("shows sign-in CTA underneath the action label and opens SignInModal when guest", () => {
     (useSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
       data: null,
       isLoading: false,
     });
     renderButton();
+    // Button stays live (not disabled) so users still discover the action.
+    // The main label keeps explaining what the button does; a small subline
+    // tells them about the auth gate without hiding the affordance.
     const btn = screen.getByRole("button", { name: /send to image-studio/i });
-    expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute("title");
+    expect(btn).not.toBeDisabled();
+    expect(btn.textContent ?? "").toMatch(/click to sign in/i);
+    fireEvent.click(btn);
+    expect(screen.getByRole("dialog", { name: /sign in/i })).toBeTruthy();
   });
 
   it("is enabled when logged in", () => {

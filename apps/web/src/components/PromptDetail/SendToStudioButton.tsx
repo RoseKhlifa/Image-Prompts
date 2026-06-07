@@ -1,11 +1,12 @@
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, LogIn } from "lucide-react";
 import type { ImportTokenPayload, ImportTokenResponse } from "@ip/shared";
 import { useSession } from "../../lib/hooks/useSession";
 import { apiFetch, ApiError } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import StudioNotInstalledModal from "../modals/StudioNotInstalledModal";
+import SignInModal from "../auth/SignInModal";
 
 type Props = {
   promptId: string;
@@ -21,13 +22,20 @@ export default function SendToStudioButton({ promptId, payload }: Props) {
   const session = useSession();
   const [state, setState] = useState<State>("idle");
   const [showFallback, setShowFallback] = useState(false);
+  const [showSignIn, setShowSignIn] = useState(false);
 
   const isGuest = !session.isLoading && !session.data;
   const isBusy = state !== "idle";
-  const disabled = session.isLoading || isGuest || isBusy;
+  // Only `creating`/`launching` and the brief session-loading window block clicks.
+  // Guests get a live button that opens the SignInModal instead — no disabled state.
+  const disabled = session.isLoading || isBusy;
 
   async function handleClick() {
     if (disabled) return;
+    if (isGuest) {
+      setShowSignIn(true);
+      return;
+    }
     setState("creating");
     try {
       const res = await apiFetch<ImportTokenResponse>("/api/import-tokens", {
@@ -57,30 +65,37 @@ export default function SendToStudioButton({ promptId, payload }: Props) {
     }
   }
 
-  const title = isGuest ? t("auth.signin_required") : undefined;
+  const Icon = isBusy ? Loader2 : Send;
 
   return (
     <>
       <button
         type="button"
         disabled={disabled}
-        title={title}
         onClick={handleClick}
-        className="inline-flex items-center justify-center gap-2 rounded-pill bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition disabled:opacity-50"
-        style={{ minWidth: 160 } as CSSProperties}
+        className="inline-flex w-full flex-col items-center justify-center gap-0.5 rounded-card bg-accent px-5 py-2.5 text-white transition hover:bg-accent/90 disabled:opacity-50"
       >
-        {isBusy ? (
-          <Loader2 size={14} className="animate-spin" aria-hidden />
-        ) : (
-          <Send size={14} aria-hidden />
+        <span className="inline-flex items-center gap-2 text-[13px] font-medium">
+          <Icon
+            size={14}
+            className={isBusy ? "animate-spin" : undefined}
+            aria-hidden
+          />
+          {t("detail.send_to_studio")}
+        </span>
+        {isGuest && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-normal text-white/80">
+            <LogIn size={10} aria-hidden />
+            {t("detail.signin_to_use")}
+          </span>
         )}
-        {t("detail.send_to_studio")}
       </button>
       <StudioNotInstalledModal
         open={showFallback}
         onClose={() => setShowFallback(false)}
         prompt={payload.prompt}
       />
+      <SignInModal open={showSignIn} onClose={() => setShowSignIn(false)} />
     </>
   );
 }
