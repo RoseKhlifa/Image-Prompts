@@ -54,7 +54,9 @@ describe("GET /api/me/favorites", () => {
       await db.insert(favorites).values({ userId: sess.userId, promptId: r.id });
     }
 
-    const res = await app.request("/api/me/favorites?page=1&pageSize=2", { headers: { Cookie: sess.cookie } });
+    const res = await app.request("/api/me/favorites?page=1&pageSize=2", {
+      headers: { Cookie: sess.cookie },
+    });
     const body = await res.json();
     expect(body.items.length).toBe(2);
     expect(body.pageSize).toBe(2);

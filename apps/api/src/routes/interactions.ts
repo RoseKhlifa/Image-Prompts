@@ -22,9 +22,7 @@ const viewIpLimiter = createRateLimiter({ limit: 120, windowMs: 60_000 });
 
 function clientIp(c: { req: { header: (k: string) => string | undefined } }): string {
   return (
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-    c.req.header("x-real-ip") ??
-    "unknown"
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? c.req.header("x-real-ip") ?? "unknown"
   );
 }
 

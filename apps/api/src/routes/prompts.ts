@@ -12,9 +12,7 @@ async function currentUserId(c: Context): Promise<string | undefined> {
   // Public endpoints: session is optional. Use getAuthUser (non-throwing) instead
   // of verifyAuth() so anonymous requests still succeed.
   try {
-    const authUser = (await getAuthUser(c)) as
-      | { session?: { user?: { id?: string } } }
-      | null;
+    const authUser = (await getAuthUser(c)) as { session?: { user?: { id?: string } } } | null;
     return authUser?.session?.user?.id;
   } catch {
     return undefined;

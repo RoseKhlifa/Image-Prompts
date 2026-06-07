@@ -119,10 +119,7 @@ export default function PromptDetailPage() {
                 initial={{ liked: d.userLiked ?? false, count: d.likeCount }}
                 variant="full"
               />
-              <FavoriteButton
-                promptId={d.id}
-                initial={{ favorited: d.userFavorited ?? false }}
-              />
+              <FavoriteButton promptId={d.id} initial={{ favorited: d.userFavorited ?? false }} />
             </div>
 
             <div className="flex justify-end">

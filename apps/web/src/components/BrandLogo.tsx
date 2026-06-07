@@ -14,9 +14,7 @@ type Props = {
 
 export default function BrandLogo({ size = 24, showWordmark = false, className }: Props) {
   return (
-    <span
-      className={["inline-flex items-center gap-2", className ?? ""].join(" ").trim()}
-    >
+    <span className={["inline-flex items-center gap-2", className ?? ""].join(" ").trim()}>
       <img
         src="/logo.png"
         alt="Image-Prompts"

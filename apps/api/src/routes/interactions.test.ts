@@ -62,8 +62,14 @@ describe("POST /api/prompts/:id/like", () => {
   it("returns 409 already_liked on double-like", async () => {
     const sess = await createTestSession();
     const id = await anyPromptId();
-    await app.request(`/api/prompts/${id}/like`, { method: "POST", headers: { Cookie: sess.cookie } });
-    const res = await app.request(`/api/prompts/${id}/like`, { method: "POST", headers: { Cookie: sess.cookie } });
+    await app.request(`/api/prompts/${id}/like`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    const res = await app.request(`/api/prompts/${id}/like`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toBe("already_liked");
@@ -74,8 +80,14 @@ describe("DELETE /api/prompts/:id/like", () => {
   it("returns 200 + liked:false after removing", async () => {
     const sess = await createTestSession();
     const id = await anyPromptId();
-    await app.request(`/api/prompts/${id}/like`, { method: "POST", headers: { Cookie: sess.cookie } });
-    const res = await app.request(`/api/prompts/${id}/like`, { method: "DELETE", headers: { Cookie: sess.cookie } });
+    await app.request(`/api/prompts/${id}/like`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    const res = await app.request(`/api/prompts/${id}/like`, {
+      method: "DELETE",
+      headers: { Cookie: sess.cookie },
+    });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.liked).toBe(false);
@@ -84,7 +96,10 @@ describe("DELETE /api/prompts/:id/like", () => {
   it("returns 404 like_not_found when not liked", async () => {
     const sess = await createTestSession();
     const id = await anyPromptId();
-    const res = await app.request(`/api/prompts/${id}/like`, { method: "DELETE", headers: { Cookie: sess.cookie } });
+    const res = await app.request(`/api/prompts/${id}/like`, {
+      method: "DELETE",
+      headers: { Cookie: sess.cookie },
+    });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toBe("like_not_found");
@@ -109,8 +124,14 @@ describe("DELETE /api/prompts/:id/favorite", () => {
   it("returns favorited:false after removing", async () => {
     const sess = await createTestSession();
     const id = await anyPromptId();
-    await app.request(`/api/prompts/${id}/favorite`, { method: "POST", headers: { Cookie: sess.cookie } });
-    const res = await app.request(`/api/prompts/${id}/favorite`, { method: "DELETE", headers: { Cookie: sess.cookie } });
+    await app.request(`/api/prompts/${id}/favorite`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    const res = await app.request(`/api/prompts/${id}/favorite`, {
+      method: "DELETE",
+      headers: { Cookie: sess.cookie },
+    });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.favorited).toBe(false);

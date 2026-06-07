@@ -14,10 +14,9 @@ export function useMyFavorites(page: number, pageSize = 24) {
   return useQuery<MyFavoritesResponse>({
     queryKey: ["me", "favorites", { page, pageSize }],
     queryFn: ({ signal }) =>
-      apiFetch<MyFavoritesResponse>(
-        `/api/me/favorites?page=${page}&pageSize=${pageSize}`,
-        { signal },
-      ),
+      apiFetch<MyFavoritesResponse>(`/api/me/favorites?page=${page}&pageSize=${pageSize}`, {
+        signal,
+      }),
     staleTime: 30 * 1000,
   });
 }

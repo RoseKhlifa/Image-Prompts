@@ -76,11 +76,7 @@ export default function SendToStudioButton({ promptId, payload }: Props) {
         className="inline-flex w-full flex-col items-center justify-center gap-0.5 rounded-card bg-accent px-5 py-2.5 text-white transition hover:bg-accent/90 disabled:opacity-50"
       >
         <span className="inline-flex items-center gap-2 text-[13px] font-medium">
-          <Icon
-            size={14}
-            className={isBusy ? "animate-spin" : undefined}
-            aria-hidden
-          />
+          <Icon size={14} className={isBusy ? "animate-spin" : undefined} aria-hidden />
           {t("detail.send_to_studio")}
         </span>
         {isGuest && (

@@ -7,8 +7,8 @@ import { UuidSchema } from "./common.ts";
  * request.
  */
 export const ToggleResultSchema = z.object({
-  liked: z.boolean().optional(),       // present on like routes
-  favorited: z.boolean().optional(),   // present on favorite routes
+  liked: z.boolean().optional(), // present on like routes
+  favorited: z.boolean().optional(), // present on favorite routes
   like_count: z.number().int().nonnegative().optional(),
   favorite_count: z.number().int().nonnegative().optional(),
 });

@@ -31,7 +31,9 @@ describe("GET /api/prompts/:slug session-aware", () => {
     const [row] = await db.select({ id: prompts.id, slug: prompts.slug }).from(prompts).limit(1);
     await db.insert(likes).values({ userId: sess.userId, promptId: row!.id }).onConflictDoNothing();
 
-    const res = await app.request(`/api/prompts/${row!.slug}`, { headers: { Cookie: sess.cookie } });
+    const res = await app.request(`/api/prompts/${row!.slug}`, {
+      headers: { Cookie: sess.cookie },
+    });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.userLiked).toBe(true);

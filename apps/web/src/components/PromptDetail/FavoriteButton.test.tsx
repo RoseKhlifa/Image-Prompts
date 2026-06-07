@@ -17,10 +17,7 @@ function setup(initial = { favorited: false }) {
     <MemoryRouter>
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={qc}>
-          <FavoriteButton
-            promptId="550e8400-e29b-41d4-a716-446655440000"
-            initial={initial}
-          />
+          <FavoriteButton promptId="550e8400-e29b-41d4-a716-446655440000" initial={initial} />
         </QueryClientProvider>
       </I18nextProvider>
     </MemoryRouter>,
