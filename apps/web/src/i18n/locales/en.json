@@ -61,7 +61,11 @@
     "no_suggestions": "No suggested parameters — Image-Studio defaults apply",
     "coming_in_m2": "Coming in M2",
     "rate_limited": "Too many requests, please slow down",
-    "send_failed": "Service unavailable, please retry"
+    "send_failed": "Service unavailable, please retry",
+    "copied": "Copied",
+    "copy_failed": "Copy failed — please select manually",
+    "report": "Report",
+    "report_coming_soon": "Reporting is coming soon"
   },
   "studio_modal": {
     "title": "Image-Studio not detected",
@@ -75,7 +79,20 @@
   },
   "profile": {
     "page_title": "Profile",
-    "sign_out_button": "Sign Out"
+    "sign_out_button": "Sign Out",
+    "tab_profile": "Profile",
+    "tab_favorites": "My Favorites",
+    "no_favorites": "No favorites yet",
+    "no_favorites_hint": "Click ⭐ on any prompt card or detail page to save it here"
+  },
+  "interactions": {
+    "liked": "Liked",
+    "unliked": "Unliked",
+    "favorited": "Saved to favorites",
+    "unfavorited": "Removed from favorites",
+    "session_expired": "Your session expired — please sign in again",
+    "rate_limited": "Too many actions — please slow down",
+    "generic_error": "Action failed, please retry"
   },
   "about": {
     "title": "About Image-Prompts",

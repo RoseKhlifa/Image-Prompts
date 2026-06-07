@@ -61,7 +61,11 @@
     "no_suggestions": "未指定建议参数, 沿用 Image-Studio 默认值",
     "coming_in_m2": "M2 即将上线",
     "rate_limited": "操作过于频繁,请稍后再试",
-    "send_failed": "服务暂时不可用,请重试"
+    "send_failed": "服务暂时不可用,请重试",
+    "copied": "已复制",
+    "copy_failed": "复制失败,请手动选择",
+    "report": "举报",
+    "report_coming_soon": "举报功能即将上线"
   },
   "studio_modal": {
     "title": "未检测到 Image-Studio",
@@ -75,7 +79,20 @@
   },
   "profile": {
     "page_title": "个人资料",
-    "sign_out_button": "退出登录"
+    "sign_out_button": "退出登录",
+    "tab_profile": "资料",
+    "tab_favorites": "我的收藏",
+    "no_favorites": "暂无收藏",
+    "no_favorites_hint": "在任意提示词卡片或详情页点 ⭐ 收藏起来"
+  },
+  "interactions": {
+    "liked": "已点赞",
+    "unliked": "已取消点赞",
+    "favorited": "已收藏",
+    "unfavorited": "已取消收藏",
+    "session_expired": "登录已过期,请重新登录",
+    "rate_limited": "操作过频,请稍候",
+    "generic_error": "操作失败,请重试"
   },
   "about": {
     "title": "关于 Image-Prompts",
