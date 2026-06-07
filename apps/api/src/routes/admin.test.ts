@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import { eq, like, inArray } from "drizzle-orm";
+import { mockClient } from "aws-sdk-client-mock";
+import {
+  S3Client,
+  CopyObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { createServer } from "../server.ts";
 import { db } from "../db/client.ts";
 import {
@@ -7,6 +13,12 @@ import {
   submissions,
   categories,
   r2Accounts,
+  tags,
+  prompts,
+  promptImages,
+  notifications,
+  auditLog,
+  promptTags,
 } from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret } from "../lib/crypto.ts";
@@ -19,10 +31,33 @@ beforeAll(() => {
 const TEST_EMAIL_PREFIX = "admin-route-test-";
 const TEST_CATEGORY_SLUG_PREFIX = "admin-test-cat-";
 const TEST_R2_NAME = "admin-test-r2";
+const TEST_TAG_SLUG_PREFIX = "task23-tag-";
+const TEST_PROMPT_SLUG_PREFIX = "task23-";
 
 const img = { r2AccountId: "11111111-1111-1111-1111-111111111111", r2Key: "submissions/x/1.jpg" };
 
 async function cleanup() {
+  // Task 23 created prompts/prompt_images/prompt_tags/notifications/audit rows
+  // that hold FKs to categories+users we're about to delete. Resolve those
+  // chains FIRST so the categories+users deletes below don't 23503.
+  const testPromptIds = (await db
+    .select({ id: prompts.id })
+    .from(prompts)
+    .where(like(prompts.slug, `${TEST_PROMPT_SLUG_PREFIX}%`))
+  ).map((p) => p.id);
+  if (testPromptIds.length > 0) {
+    await db.delete(promptTags).where(inArray(promptTags.promptId, testPromptIds));
+    await db.delete(promptImages).where(inArray(promptImages.promptId, testPromptIds));
+    // submissions.promotedTo FKs prompts; clear before deleting the prompt.
+    await db
+      .update(submissions)
+      .set({ promotedTo: null })
+      .where(inArray(submissions.promotedTo, testPromptIds));
+    await db.delete(prompts).where(inArray(prompts.id, testPromptIds));
+  }
+  await db.delete(tags).where(like(tags.slug, `${TEST_TAG_SLUG_PREFIX}%`));
+  await db.delete(auditLog).where(eq(auditLog.action, "submission.approve"));
+
   // Delete submissions linked to our test categories FIRST (regardless of
   // contributor). Contributors created via createTestSession() use the default
   // `test-{uuid}@example.com` prefix and aren't covered by the
@@ -44,6 +79,11 @@ async function cleanup() {
   ).map((u) => u.id);
   if (testUserIds.length > 0) {
     await db.delete(submissions).where(inArray(submissions.contributorId, testUserIds));
+  }
+  // Notifications cascade-delete with users, but audit_log.actor_id does not
+  // — purge audit rows actor'd by test users explicitly.
+  if (testUserIds.length > 0) {
+    await db.delete(auditLog).where(inArray(auditLog.actorId, testUserIds));
   }
   await db.delete(categories).where(like(categories.slug, `${TEST_CATEGORY_SLUG_PREFIX}%`));
   await db.delete(users).where(like(users.email, `${TEST_EMAIL_PREFIX}%@example.com`));
@@ -87,6 +127,11 @@ async function makeUserWithRole(role: "user" | "moderator" | "admin", suffix = "
 
 beforeEach(setup);
 afterAll(cleanup);
+
+// S3 stub: presigned PUT in submissions tests doesn't reach the network,
+// and for approve tests we set per-test behavior on CopyObjectCommand /
+// DeleteObjectCommand. The Task 22 list/detail tests don't touch S3.
+const s3Mock = mockClient(S3Client);
 
 const app = createServer();
 
@@ -162,5 +207,128 @@ describe("GET /api/admin/submissions", () => {
       headers: { Cookie: a.cookie },
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/admin/submissions/:id/approve", () => {
+  // The module-level `beforeEach(setup)` already cleans + reseeds for each
+  // test, including the Task 23 prompts/tags/audit additions in cleanup().
+  // We just need to reset the S3 mock so per-test on(CopyObjectCommand)
+  // expectations don't leak across tests.
+  beforeEach(() => {
+    s3Mock.reset();
+  });
+
+  async function seedApproveFixture(
+    c: { id: string },
+    overrides: { titleZh?: string; titleEn?: string; tagSlugs?: string[] } = {},
+  ) {
+    const contrib = await createTestSession({
+      email: `${TEST_EMAIL_PREFIX}contrib-${Math.random().toString(36).slice(2)}@example.com`,
+    });
+    // The image's r2AccountId must match a real account, otherwise the
+    // post-tx migration's accMap lookup fails. Use the test r2 account.
+    const [acc] = await db.select().from(r2Accounts).where(eq(r2Accounts.name, TEST_R2_NAME));
+    const fixtureImg = {
+      r2AccountId: acc!.id,
+      r2Key: `submissions/${contrib.userId}/abc.jpg`,
+    };
+    const title: { zh: string; en?: string } = {
+      zh: overrides.titleZh ?? "task23-t",
+    };
+    if (overrides.titleEn !== undefined) title.en = overrides.titleEn;
+    const [sub] = await db.insert(submissions).values({
+      contributorId: contrib.userId,
+      title,
+      prompt: { zh: "p" },
+      categoryId: c.id,
+      imageKeys: [fixtureImg],
+      tagSlugs: overrides.tagSlugs ?? [],
+      agreedGuidelinesVersion: 1,
+      status: "pending",
+    }).returning();
+    return { contrib, sub: sub! };
+  }
+
+  it("rejects moderator with non-empty edits (edits_require_admin)", async () => {
+    const c = await setup();
+    const mod = await makeUserWithRole("moderator");
+    await db.insert(tags).values({ slug: `${TEST_TAG_SLUG_PREFIX}a`, name: { zh: "标a", en: "Tag A" } });
+    const { sub } = await seedApproveFixture(c, { tagSlugs: [`${TEST_TAG_SLUG_PREFIX}a`] });
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const res = await app.request(`/api/admin/submissions/${sub.id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: mod.cookie },
+      body: JSON.stringify({ edits: { titleZh: "改" } }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("moderator can approve with no edits", async () => {
+    const c = await setup();
+    const mod = await makeUserWithRole("moderator");
+    await db.insert(tags).values({ slug: `${TEST_TAG_SLUG_PREFIX}a`, name: { zh: "标a", en: "Tag A" } });
+    const { sub } = await seedApproveFixture(c, { tagSlugs: [`${TEST_TAG_SLUG_PREFIX}a`] });
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const res = await app.request(`/api/admin/submissions/${sub.id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: mod.cookie },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { promptId: string; slug: string };
+    expect(body.promptId).toBeTruthy();
+    expect(body.slug).toBeTruthy();
+    const promptImg = await db
+      .select()
+      .from(promptImages)
+      .where(eq(promptImages.promptId, body.promptId));
+    expect(promptImg).toHaveLength(1);
+    expect(promptImg[0]!.r2Key).toMatch(/^prompts\/.+\/0\.jpg$/);
+  });
+
+  it("admin can approve with edits", async () => {
+    const c = await setup();
+    const a = await makeUserWithRole("admin");
+    await db.insert(tags).values({ slug: `${TEST_TAG_SLUG_PREFIX}a`, name: { zh: "标a", en: "Tag A" } });
+    const { sub } = await seedApproveFixture(c, {
+      titleZh: "task23-原",
+      tagSlugs: [`${TEST_TAG_SLUG_PREFIX}a`],
+    });
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const res = await app.request(`/api/admin/submissions/${sub.id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: a.cookie },
+      body: JSON.stringify({ edits: { titleZh: "task23-新" } }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { promptId: string };
+    const [p] = await db.select().from(prompts).where(eq(prompts.id, body.promptId));
+    expect(p!.title).toMatchObject({ zh: "task23-新" });
+  });
+
+  it("returns 409 when submission already resolved", async () => {
+    const c = await setup();
+    const a = await makeUserWithRole("admin");
+    const contrib = await createTestSession({
+      email: `${TEST_EMAIL_PREFIX}contrib-${Math.random().toString(36).slice(2)}@example.com`,
+    });
+    const [acc] = await db.select().from(r2Accounts).where(eq(r2Accounts.name, TEST_R2_NAME));
+    const [sub] = await db.insert(submissions).values({
+      contributorId: contrib.userId,
+      title: { zh: "task23-t" }, prompt: { zh: "p" },
+      categoryId: c.id,
+      imageKeys: [{ r2AccountId: acc!.id, r2Key: `submissions/${contrib.userId}/x.jpg` }],
+      tagSlugs: [], agreedGuidelinesVersion: 1, status: "approved",
+    }).returning();
+    const res = await app.request(`/api/admin/submissions/${sub!.id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: a.cookie },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(409);
   });
 });

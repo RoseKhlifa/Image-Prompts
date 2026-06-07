@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { verifyAuth } from "@hono/auth-js";
 import { z } from "zod";
 import { CommunityGuidelinesAcceptSchema, MyFavoritesQuerySchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
+import { requireUserId } from "../middleware/auth.ts";
 import { listMyFavorites } from "../repositories/interactions.ts";
 import { setCommunityGuidelinesVersion } from "../repositories/users.ts";
 import { listForUser } from "../repositories/submissions.ts";
@@ -14,16 +14,6 @@ import {
   markRead,
   markAllRead,
 } from "../repositories/notifications.ts";
-
-function requireUserId(c: Context): string {
-  const authUser = c.get("authUser") as
-    | { session?: { user?: { id?: string } } }
-    | null
-    | undefined;
-  const id = authUser?.session?.user?.id;
-  if (!id) throw new HTTPException(401, { message: "unauthorized" });
-  return id;
-}
 
 const SubmissionsQuerySchema = z.object({
   status: z.enum(["pending", "approved", "rejected"]).optional(),

@@ -5,6 +5,7 @@ import { verifyAuth } from "@hono/auth-js";
 import { eq } from "drizzle-orm";
 import { PresignRequestSchema, SubmissionInputSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
+import { requireUserId } from "../middleware/auth.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { pickWriteAccount } from "../lib/r2-scheduler.ts";
 import { presignPut, headObject } from "../lib/r2-ops.ts";
@@ -38,16 +39,6 @@ function clientIp(c: Context): string {
     c.req.header("x-real-ip") ??
     "unknown"
   );
-}
-
-function requireUserId(c: Context): string {
-  const authUser = c.get("authUser") as
-    | { session?: { user?: { id?: string } } }
-    | null
-    | undefined;
-  const id = authUser?.session?.user?.id;
-  if (!id) throw new HTTPException(401, { message: "unauthorized" });
-  return id;
 }
 
 const app = new Hono();

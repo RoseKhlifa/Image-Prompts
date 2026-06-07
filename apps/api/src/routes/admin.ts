@@ -1,51 +1,27 @@
 import { Hono } from "hono";
-import type { Context, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { getAuthUser } from "@hono/auth-js";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { ApproveInputSchema } from "@ip/shared";
 import { requireRole } from "../middleware/role.ts";
+import { softAuth, requireUserId, getRole } from "../middleware/auth.ts";
 import { zv } from "../lib/validate.ts";
 import {
   listForAdmin,
   getSubmissionById,
+  approveSubmission,
+  AlreadyResolvedError,
+  NotFoundError,
 } from "../repositories/submissions.ts";
-
-/**
- * Resolves the session user id, throwing 401 if absent. Not used in Task 22's
- * read-only list/detail endpoints (which only need the role check from
- * `requireRole`), but kept here because Tasks 23/24 (approve/reject) will need
- * it to log the actor on the audit-log row.
- */
-export function _requireUserId(c: Context): string {
-  const authUser = c.get("authUser") as
-    | { session?: { user?: { id?: string; role?: string } } }
-    | null
-    | undefined;
-  const id = authUser?.session?.user?.id;
-  if (!id) throw new HTTPException(401, { message: "unauthenticated" });
-  return id;
-}
-
-/**
- * Soft auth-population middleware. Populates `c.var.authUser` from the session
- * cookie if one exists, but does NOT throw 401 when no session is present.
- *
- * We deliberately avoid `verifyAuth()` here: it throws 401 on missing session,
- * but Task 9's contract for admin endpoints is to return 403 for BOTH
- * unauthenticated and unauthorised requests — so that the frontend can't tell
- * "you're not logged in" from "you're logged in but lack the role". `requireRole`
- * 403s when `authUser` is null or the role doesn't match.
- */
-const softAuth: MiddlewareHandler = async (c, next) => {
-  const authUser = await getAuthUser(c);
-  if (authUser) c.set("authUser", authUser);
-  await next();
-};
+import { copyObject, deleteObject } from "../lib/r2-ops.ts";
+import { buildPromptKey } from "../lib/r2-keys.ts";
+import { db } from "../db/client.ts";
+import { r2Accounts, promptImages, submissions } from "../db/schema/index.ts";
 
 const app = new Hono();
 
 // All admin routes require admin or moderator role
-app.use("*", softAuth, requireRole("admin", "moderator"));
+app.use("*", softAuth(), requireRole("admin", "moderator"));
 
 const ListQuerySchema = z.object({
   status: z.enum(["pending", "approved", "rejected"]).optional(),
@@ -76,6 +52,121 @@ app.get(
     const sub = await getSubmissionById(c.req.valid("param").id);
     if (!sub) throw new HTTPException(404, { message: "not_found" });
     return c.json(sub);
+  },
+);
+
+// POST /api/admin/submissions/:id/approve — promote a pending submission to a
+// published prompt and migrate its images out of submissions/ into prompts/.
+//
+// Authorization:
+//   - The `app.use("*", softAuth(), requireRole("admin", "moderator"))` above
+//     already gates this to admin+moderator. The role re-check below is
+//     defense in depth so the edits gate has a guaranteed role string.
+//
+// Edits gate:
+//   - The optional `edits` partial overrides submission fields when the
+//     prompt row is created. Moderators may NOT pass any edits — that's
+//     admin-only (the audit-log row records hadEdits + the edits object).
+//
+// Failure modes:
+//   - NotFoundError    -> 404 not_found
+//   - AlreadyResolvedError -> 409 not_pending  (idempotent re-call after
+//     approve/reject already happened)
+//   - any other repo error -> propagates as 500
+//
+// Image migration runs AFTER the approve transaction commits. The repo
+// already INSERTed the prompts row and UPDATEd the submission to "approved"
+// in a single tx; image copy is intentionally outside that tx because S3
+// CopyObject can be slow and we don't want to hold a long-running DB tx.
+// Failure here leaves a dirty state (prompt row exists but prompt_images
+// is partial or empty) — per spec we surface 500 image_migration_failed
+// and let an operator clean up; nothing here auto-rolls-back.
+app.post(
+  "/submissions/:id/approve",
+  zv("param", UuidParamSchema),
+  zv("json", ApproveInputSchema),
+  async (c) => {
+    const actorId = requireUserId(c);
+    const role = getRole(c);
+    if (role !== "admin" && role !== "moderator") {
+      // softAuth + requireRole already gated this, but defense-in-depth
+      // ensures the `edits` check below sees a known role.
+      throw new HTTPException(403, { message: "forbidden" });
+    }
+    const subId = c.req.valid("param").id;
+    const body = c.req.valid("json");
+
+    // Strip undefined-valued keys: zod with optional() produces `{k: undefined}`
+    // which `exactOptionalPropertyTypes: true` rejects when assigning to
+    // Partial<{k: T}>. Also lets `hasEdits` reflect actually-supplied fields.
+    const editsRaw = body.edits ?? {};
+    const edits: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(editsRaw)) {
+      if (v !== undefined) edits[k] = v;
+    }
+    const hasEdits = Object.keys(edits).length > 0;
+    if (hasEdits && role !== "admin") {
+      throw new HTTPException(403, { message: "edits_require_admin" });
+    }
+
+    let promptId: string;
+    let slug: string;
+    try {
+      ({ promptId, slug } = await approveSubmission({
+        submissionId: subId,
+        actorId,
+        actorRole: role,
+        edits: edits as Parameters<typeof approveSubmission>[0]["edits"],
+      }));
+    } catch (e: unknown) {
+      if (e instanceof NotFoundError) {
+        throw new HTTPException(404, { message: "not_found" });
+      }
+      if (e instanceof AlreadyResolvedError) {
+        throw new HTTPException(409, { message: "not_pending" });
+      }
+      throw e;
+    }
+
+    // Post-transaction image migration. Each image is copied from
+    // submissions/<user>/<uuid>.<ext> to prompts/<promptId>/<idx>.<ext>,
+    // then an INSERT into prompt_images is performed, then the original is
+    // best-effort deleted (a failed delete logs but does not fail the
+    // request — orphan submission objects are tolerable).
+    try {
+      const [subRow] = await db
+        .select()
+        .from(submissions)
+        .where(eq(submissions.id, subId))
+        .limit(1);
+      const imageKeys = subRow!.imageKeys;
+      const accRows = await db.select().from(r2Accounts);
+      const accMap = new Map(accRows.map((a) => [a.id, a]));
+      for (const [idx, img] of imageKeys.entries()) {
+        const account = accMap.get(img.r2AccountId);
+        if (!account) throw new Error(`unknown account ${img.r2AccountId}`);
+        const ext = img.r2Key.split(".").pop() ?? "jpg";
+        const newKey = buildPromptKey(promptId, idx, ext);
+        await copyObject(account, img.r2Key, newKey);
+        await db.insert(promptImages).values({
+          promptId,
+          r2AccountId: img.r2AccountId,
+          r2Key: newKey,
+          altText: img.altText ?? null,
+          order: idx,
+        });
+        try {
+          await deleteObject(account, img.r2Key);
+        } catch (e) {
+          console.warn("[approve] delete original failed", img.r2Key, e);
+        }
+      }
+    } catch (e: unknown) {
+      console.error("[approve] image migration failed", { subId, promptId, e });
+      throw new HTTPException(500, { message: "image_migration_failed" });
+    }
+
+    return c.json({ promptId, slug });
   },
 );
 
