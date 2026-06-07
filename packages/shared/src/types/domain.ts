@@ -19,7 +19,14 @@ export type OptionalBilingualText = {
   en?: string;
 };
 
-export const ASPECT_RATIOS = ["auto", "1:1", "3:2", "2:3", "16:9", "9:16"] as const;
+export const ASPECT_RATIOS = [
+  "auto",
+  "1:1",
+  "3:2", "2:3",
+  "16:9", "9:16",
+  "4:3", "3:4",
+  "21:9", "9:21",
+] as const;
 export type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
 export const USER_ROLES = ["user", "moderator", "admin"] as const;
