@@ -1,10 +1,10 @@
 import { Link, useParams } from "react-router";
-import { Heart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isLocale, pickBilingual, type Locale, type PromptSummary } from "@ip/shared";
 import { resolveImageUrl } from "../lib/imageUrl";
 import { useR2PoolMap } from "../lib/hooks/useR2Pool";
 import { withLocale } from "../lib/locale";
+import LikeButton from "./PromptDetail/LikeButton";
 
 export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
   const { locale: param } = useParams<{ locale: string }>();
@@ -33,9 +33,11 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
             <div className="h-6 w-6 rounded-full bg-white/20" aria-hidden />
             <span className="line-clamp-1">{t("common.anonymous")}</span>
           </div>
-          <span className="flex items-center gap-0.5">
-            <Heart size={12} aria-hidden /> {prompt.likeCount}
-          </span>
+          <LikeButton
+            promptId={prompt.id}
+            initial={{ liked: prompt.userLiked ?? false, count: prompt.likeCount }}
+            variant="compact"
+          />
         </div>
         <div className="mt-1 line-clamp-1 text-sm font-medium text-white">{title}</div>
       </div>
