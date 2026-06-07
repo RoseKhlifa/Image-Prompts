@@ -1,6 +1,5 @@
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Heart } from "lucide-react";
 import { isLocale, pickBilingual, type Locale } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import { usePromptDetail } from "../lib/hooks/usePromptDetail";
@@ -10,6 +9,10 @@ import PromptTextBlock from "../components/PromptDetail/PromptTextBlock";
 import SuggestedParams from "../components/PromptDetail/SuggestedParams";
 import RelatedRow from "../components/PromptDetail/RelatedRow";
 import SendToStudioButton from "../components/PromptDetail/SendToStudioButton";
+import CopyPromptButton from "../components/PromptDetail/CopyPromptButton";
+import LikeButton from "../components/PromptDetail/LikeButton";
+import FavoriteButton from "../components/PromptDetail/FavoriteButton";
+import MoreMenu from "../components/PromptDetail/MoreMenu";
 import { Skeleton } from "../components/Skeleton";
 
 export default function PromptDetailPage() {
@@ -108,30 +111,20 @@ export default function PromptDetailPage() {
             />
 
             <div className="grid grid-cols-3 gap-2 text-[12.5px]">
-              <button
-                type="button"
-                disabled
-                title={t("detail.coming_in_m2")}
-                className="rounded-pill border border-border-soft bg-surface px-3 py-2 text-ink-muted opacity-60"
-              >
-                {t("detail.copy_prompt")}
-              </button>
-              <button
-                type="button"
-                disabled
-                title={t("detail.coming_in_m2")}
-                className="inline-flex items-center justify-center gap-1.5 rounded-pill border border-border-soft bg-surface px-3 py-2 text-ink-muted opacity-60"
-              >
-                <Heart size={12} aria-hidden /> {t("detail.favorite")}
-              </button>
-              <button
-                type="button"
-                disabled
-                title={t("detail.coming_in_m2")}
-                className="rounded-pill border border-border-soft bg-surface px-3 py-2 text-ink-muted opacity-60"
-              >
-                {t("detail.more")}
-              </button>
+              <CopyPromptButton prompt={d.prompt} />
+              <LikeButton
+                promptId={d.id}
+                initial={{ liked: d.userLiked ?? false, count: d.likeCount }}
+                variant="full"
+              />
+              <FavoriteButton
+                promptId={d.id}
+                initial={{ favorited: d.userFavorited ?? false }}
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <MoreMenu promptId={d.id} />
             </div>
 
             <SuggestedParams aspect={d.aspectRatio} />
