@@ -12,6 +12,8 @@ import categoriesRoute from "./routes/categories.ts";
 import tagsRoute from "./routes/tags.ts";
 import publicRoute from "./routes/public.ts";
 import importTokensRoute from "./routes/import-tokens.ts";
+import interactionsRoute from "./routes/interactions.ts";
+import meRoute from "./routes/me.ts";
 
 export function createServer() {
   const app = new Hono();
@@ -43,6 +45,10 @@ export function createServer() {
   app.route("/api/tags", tagsRoute);
   app.route("/api/public", publicRoute);
   app.route("/api/import-tokens", importTokensRoute);
+  // ★ M5: like/favorite/view toggles share the /api/prompts prefix with
+  //   listing — Hono dispatches per-method so they don't conflict.
+  app.route("/api/prompts", interactionsRoute);
+  app.route("/api/me", meRoute);
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
   app.onError(errorHandler);

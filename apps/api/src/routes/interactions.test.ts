@@ -5,11 +5,9 @@ import { users, sessions } from "../db/schema/auth.ts";
 import { likes, favorites, viewLog } from "../db/schema/interactions.ts";
 import { prompts } from "../db/schema/prompts.ts";
 import { createServer } from "../server.ts";
-import interactionsRoute from "./interactions.ts";
 import { createTestSession } from "../auth/test-session.ts";
 
 const app = createServer();
-app.route("/api/prompts", interactionsRoute);
 
 async function anyPromptId(): Promise<string> {
   const [row] = await db.select({ id: prompts.id }).from(prompts).limit(1);

@@ -5,11 +5,9 @@ import { users, sessions } from "../db/schema/auth.ts";
 import { favorites } from "../db/schema/interactions.ts";
 import { prompts } from "../db/schema/prompts.ts";
 import { createServer } from "../server.ts";
-import meRoute from "./me.ts";
 import { createTestSession } from "../auth/test-session.ts";
 
 const app = createServer();
-app.route("/api/me", meRoute);
 
 beforeEach(async () => {
   await db.delete(favorites);
