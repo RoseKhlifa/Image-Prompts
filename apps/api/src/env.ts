@@ -22,6 +22,15 @@ const EnvSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   ADMIN_EMAILS: z.string().optional(),
   R2_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, "must be 32-byte hex"),
+  // M4: optional dev R2 creds. Used only by the seed:r2 script to insert the
+  // first row of r2_accounts; runtime code reads decrypted creds from the DB.
+  // The url() vars accept "" as well so dev .env files can leave them blank
+  // without tripping Zod's URL validator.
+  R2_DEV_ENDPOINT: z.union([z.string().url(), z.literal("")]).optional(),
+  R2_DEV_ACCESS_KEY_ID: z.string().optional(),
+  R2_DEV_ACCESS_KEY_SECRET: z.string().optional(),
+  R2_DEV_BUCKET: z.string().optional(),
+  R2_DEV_PUBLIC_URL: z.union([z.string().url(), z.literal("")]).optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
