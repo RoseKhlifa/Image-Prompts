@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Heart, Send } from "lucide-react";
+import { Heart } from "lucide-react";
 import { isLocale, pickBilingual, type Locale } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import { usePromptDetail } from "../lib/hooks/usePromptDetail";
@@ -9,6 +9,7 @@ import Gallery from "../components/PromptDetail/Gallery";
 import PromptTextBlock from "../components/PromptDetail/PromptTextBlock";
 import SuggestedParams from "../components/PromptDetail/SuggestedParams";
 import RelatedRow from "../components/PromptDetail/RelatedRow";
+import SendToStudioButton from "../components/PromptDetail/SendToStudioButton";
 import { Skeleton } from "../components/Skeleton";
 
 export default function PromptDetailPage() {
@@ -96,16 +97,15 @@ export default function PromptDetailPage() {
               </div>
             </div>
 
-            {/* Send to Studio CTA — M2 wires it. M1 button is disabled-but-visible placeholder. */}
-            <button
-              type="button"
-              disabled
-              title={t("detail.coming_in_m2")}
-              className="inline-flex items-center justify-center gap-2 rounded-pill bg-accent px-4 py-2.5 text-[13px] font-medium text-white opacity-60"
-            >
-              <Send size={14} aria-hidden />
-              {t("detail.send_to_studio")}
-            </button>
+            {/* Send to Studio CTA — M3 wires it to /api/import-tokens + scheme launch. */}
+            <SendToStudioButton
+              promptId={d.id}
+              payload={{
+                prompt: d.prompt,
+                ...(d.negativePrompt ? { negative_prompt: d.negativePrompt } : {}),
+                ...(d.aspectRatio ? { aspect_ratio: d.aspectRatio } : {}),
+              }}
+            />
 
             <div className="grid grid-cols-3 gap-2 text-[12.5px]">
               <button
