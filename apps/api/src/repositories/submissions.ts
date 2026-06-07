@@ -179,18 +179,16 @@ export async function listForAdmin(opts: ListOpts) {
     })
     .from(submissions)
     .leftJoin(promptsTable, eq(submissions.promotedTo, promptsTable.id))
-    .leftJoin(users, eq(submissions.contributorId, users.id))
+    .innerJoin(users, eq(submissions.contributorId, users.id))
     .where(where)
     .orderBy(desc(submissions.createdAt))
     .limit(opts.limit + 1);
   const trimmed = rows.slice(0, opts.limit);
   return {
-    items: trimmed
-      .filter((r) => r.contributor !== null)
-      .map((r) => ({
-        ...listItem(r.s, r.promotedSlug),
-        contributor: r.contributor!,
-      })),
+    items: trimmed.map((r) => ({
+      ...listItem(r.s, r.promotedSlug),
+      contributor: r.contributor,
+    })),
     nextCursor:
       rows.length > opts.limit
         ? trimmed[trimmed.length - 1]!.s.createdAt.toISOString()

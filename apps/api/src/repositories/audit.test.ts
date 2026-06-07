@@ -7,15 +7,15 @@ import { recordAudit } from "./audit.ts";
 const TEST_EMAIL_PREFIX = "audit-repo-test-";
 
 beforeEach(async () => {
-  // Delete audit rows for our test users first (they have FK to users)
-  // We don't have a way to find by email directly, so delete by joining…
-  // Simpler: cascade isn't enabled on audit_log.actor_id (it's NO ACTION),
-  // so we have to delete audit rows manually before deleting users.
+  // audit_log.actor_id has FK NO ACTION (no cascade), so delete audit rows
+  // for our test actions before deleting the test users.
   await db.delete(auditLog).where(like(auditLog.action, `task14-test-%`));
   await db.delete(users).where(like(users.email, `${TEST_EMAIL_PREFIX}%@example.com`));
 });
 
 afterAll(async () => {
+  // audit_log.actor_id has FK NO ACTION (no cascade), so delete audit rows
+  // for our test actions before deleting the test users.
   await db.delete(auditLog).where(like(auditLog.action, `task14-test-%`));
   await db.delete(users).where(like(users.email, `${TEST_EMAIL_PREFIX}%@example.com`));
 });

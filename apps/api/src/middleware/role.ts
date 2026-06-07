@@ -14,7 +14,7 @@ export type Role = "admin" | "moderator" | "user";
  */
 export function requireRole(...roles: ReadonlyArray<Role>): MiddlewareHandler {
   return async (c, next) => {
-    const authUser = c.get("authUser" as never) as
+    const authUser = c.get("authUser") as
       | { session?: { user?: { role?: string } } }
       | null
       | undefined;
