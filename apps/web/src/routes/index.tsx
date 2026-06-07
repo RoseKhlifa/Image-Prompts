@@ -5,6 +5,7 @@ import HomePage from "../pages/HomePage";
 import PromptListPage from "../pages/PromptListPage";
 import PromptDetailPage from "../pages/PromptDetailPage";
 import AboutPage from "../pages/AboutPage";
+import ProfilePage from "../pages/ProfilePage";
 import NotFoundPage from "../pages/NotFoundPage";
 
 export const router = createBrowserRouter([
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: "prompts/:slug", element: <PromptDetailPage /> },
       { path: "categories/:slug", element: <PromptListPage /> },
       { path: "about", element: <AboutPage /> },
+      { path: "profile", element: <ProfilePage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
