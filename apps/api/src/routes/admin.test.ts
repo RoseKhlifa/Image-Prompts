@@ -57,6 +57,7 @@ async function cleanup() {
   }
   await db.delete(tags).where(like(tags.slug, `${TEST_TAG_SLUG_PREFIX}%`));
   await db.delete(auditLog).where(eq(auditLog.action, "submission.approve"));
+  await db.delete(auditLog).where(eq(auditLog.action, "submission.reject"));
 
   // Delete submissions linked to our test categories FIRST (regardless of
   // contributor). Contributors created via createTestSession() use the default
@@ -330,5 +331,94 @@ describe("POST /api/admin/submissions/:id/approve", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("POST /api/admin/submissions/:id/reject", () => {
+  beforeEach(async () => {
+    // setup() in the outer beforeEach already cleans + seeds R2 and category
+    s3Mock.reset();
+  });
+
+  it("requires reason >= 10 chars (400)", async () => {
+    const c = await setup();
+    const contrib = await createTestSession({ email: `${TEST_EMAIL_PREFIX}contrib-r-${Date.now()}@example.com` });
+    const a = await makeUserWithRole("admin");
+    const [sub] = await db.insert(submissions).values({
+      contributorId: contrib.userId,
+      title: { zh: "task24-t" }, prompt: { zh: "p" },
+      categoryId: c.id, imageKeys: [img], tagSlugs: [],
+      agreedGuidelinesVersion: 1, status: "pending",
+    }).returning();
+    const res = await app.request(`/api/admin/submissions/${sub!.id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: a.cookie },
+      body: JSON.stringify({ reason: "短" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("succeeds with valid reason — flips status, bumps rejectedCount, notifies", async () => {
+    const c = await setup();
+    const contrib = await createTestSession({ email: `${TEST_EMAIL_PREFIX}contrib-r-${Date.now()}@example.com` });
+    const a = await makeUserWithRole("admin");
+    const [sub] = await db.insert(submissions).values({
+      contributorId: contrib.userId,
+      title: { zh: "task24-标" }, prompt: { zh: "p" },
+      categoryId: c.id, imageKeys: [img], tagSlugs: [],
+      agreedGuidelinesVersion: 1, status: "pending",
+    }).returning();
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const res = await app.request(`/api/admin/submissions/${sub!.id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: a.cookie },
+      body: JSON.stringify({ reason: "违反社区准则的图片内容" }),
+    });
+    expect(res.status).toBe(200);
+    const [reread] = await db.select().from(submissions).where(eq(submissions.id, sub!.id));
+    expect(reread!.status).toBe("rejected");
+    expect(reread!.rejectReason).toBe("违反社区准则的图片内容");
+    const [contribAfter] = await db.select().from(users).where(eq(users.id, contrib.userId));
+    expect(contribAfter!.rejectedCount).toBe(1);
+    const notifs = await db.select().from(notifications).where(eq(notifications.userId, contrib.userId));
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0]!.type).toBe("submission_rejected");
+  });
+
+  it("returns 409 when already resolved (not_pending)", async () => {
+    const c = await setup();
+    const contrib = await createTestSession({ email: `${TEST_EMAIL_PREFIX}contrib-r-${Date.now()}@example.com` });
+    const a = await makeUserWithRole("admin");
+    const [sub] = await db.insert(submissions).values({
+      contributorId: contrib.userId,
+      title: { zh: "task24-t" }, prompt: { zh: "p" },
+      categoryId: c.id, imageKeys: [img], tagSlugs: [],
+      agreedGuidelinesVersion: 1, status: "rejected", rejectReason: "x".repeat(10),
+    }).returning();
+    const res = await app.request(`/api/admin/submissions/${sub!.id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: a.cookie },
+      body: JSON.stringify({ reason: "this is a valid reject reason" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("moderator can reject (no admin-only restriction on reject)", async () => {
+    const c = await setup();
+    const contrib = await createTestSession({ email: `${TEST_EMAIL_PREFIX}contrib-r-${Date.now()}@example.com` });
+    const mod = await makeUserWithRole("moderator");
+    const [sub] = await db.insert(submissions).values({
+      contributorId: contrib.userId,
+      title: { zh: "task24-t" }, prompt: { zh: "p" },
+      categoryId: c.id, imageKeys: [img], tagSlugs: [],
+      agreedGuidelinesVersion: 1, status: "pending",
+    }).returning();
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const res = await app.request(`/api/admin/submissions/${sub!.id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: mod.cookie },
+      body: JSON.stringify({ reason: "moderator rejection reason" }),
+    });
+    expect(res.status).toBe(200);
   });
 });

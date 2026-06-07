@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { ApproveInputSchema } from "@ip/shared";
+import { ApproveInputSchema, RejectInputSchema } from "@ip/shared";
 import { requireRole } from "../middleware/role.ts";
 import { softAuth, requireUserId, getRole } from "../middleware/auth.ts";
 import { zv } from "../lib/validate.ts";
@@ -10,6 +10,7 @@ import {
   listForAdmin,
   getSubmissionById,
   approveSubmission,
+  rejectSubmission,
   AlreadyResolvedError,
   NotFoundError,
 } from "../repositories/submissions.ts";
@@ -167,6 +168,73 @@ app.post(
     }
 
     return c.json({ promptId, slug });
+  },
+);
+
+// POST /api/admin/submissions/:id/reject — flip a pending submission to
+// rejected, bump the contributor's rejectedCount, fire a submission_rejected
+// notification, and append an audit row.
+//
+// Authorization:
+//   - `app.use("*", softAuth(), requireRole("admin", "moderator"))` already
+//     gates this to admin+moderator. Unlike approve, there is NO
+//     admin-only restriction on reject — moderators may reject too.
+//
+// Failure modes:
+//   - NotFoundError         -> 404 not_found
+//   - AlreadyResolvedError  -> 409 not_pending
+//
+// R2 cleanup runs AFTER the reject transaction commits. Each image delete
+// is best-effort (own try/catch) so one failure doesn't skip the rest;
+// the outer try/catch covers DB read failure. Failed deletes are logged
+// only — bucket lifecycle eventually evicts orphaned submission objects.
+app.post(
+  "/submissions/:id/reject",
+  zv("param", UuidParamSchema),
+  zv("json", RejectInputSchema),
+  async (c) => {
+    const actorId = requireUserId(c);
+    const subId = c.req.valid("param").id;
+    const { reason } = c.req.valid("json");
+
+    try {
+      await rejectSubmission({ submissionId: subId, actorId, reason });
+    } catch (e: unknown) {
+      if (e instanceof NotFoundError) {
+        throw new HTTPException(404, { message: "not_found" });
+      }
+      if (e instanceof AlreadyResolvedError) {
+        throw new HTTPException(409, { message: "not_pending" });
+      }
+      throw e;
+    }
+
+    // Best-effort cleanup of R2 objects (don't block on failure).
+    try {
+      const [subRow] = await db
+        .select()
+        .from(submissions)
+        .where(eq(submissions.id, subId))
+        .limit(1);
+      if (subRow) {
+        const accRows = await db.select().from(r2Accounts);
+        const accMap = new Map(accRows.map((a) => [a.id, a]));
+        for (const img of subRow.imageKeys) {
+          const account = accMap.get(img.r2AccountId);
+          if (account) {
+            try {
+              await deleteObject(account, img.r2Key);
+            } catch (e) {
+              console.warn("[reject] delete failed", img.r2Key, e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[reject] R2 cleanup error", e);
+    }
+
+    return c.json({ ok: true });
   },
 );
 
