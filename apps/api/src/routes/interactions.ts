@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { verifyAuth } from "@hono/auth-js";
+import { verifyAuth, getAuthUser } from "@hono/auth-js";
 import { PromptIdParamSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
@@ -101,8 +101,14 @@ app.post("/:id/view", zv("param", PromptIdParamSchema), async (c) => {
     return c.json({ recorded: false }, 200);
   }
   const { id } = c.req.valid("param");
-  const authUser = c.get("authUser") as { session?: { user?: { id?: string } } } | undefined;
-  const userId = authUser?.session?.user?.id ?? null;
+  let userId: string | null = null;
+  try {
+    const authUser = await getAuthUser(c);
+    userId = (authUser?.session?.user?.id as string | undefined) ?? null;
+  } catch {
+    // Session lookup failed — treat as guest.
+    userId = null;
+  }
   const ipHash = userId ? null : hashIp(ip === "unknown" ? null : ip, env.AUTH_SECRET);
 
   try {

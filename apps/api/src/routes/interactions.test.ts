@@ -148,4 +148,26 @@ describe("POST /api/prompts/:id/view", () => {
     const body = await res.json();
     expect(body.recorded).toBe(false);
   });
+
+  it("records as logged-in user (not IP-based) when session is present", async () => {
+    const sess = await createTestSession();
+    const id = await anyPromptId();
+    // First call from this user with no IP at all → must succeed via user_id
+    const first = await app.request(`/api/prompts/${id}/view`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    expect(first.status).toBe(200);
+    const firstBody = await first.json();
+    expect(firstBody.recorded).toBe(true);
+
+    // Second call same user same day → dedup via user_id (no IP needed)
+    const second = await app.request(`/api/prompts/${id}/view`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    expect(second.status).toBe(200);
+    const secondBody = await second.json();
+    expect(secondBody.recorded).toBe(false);
+  });
 });
