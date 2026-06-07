@@ -53,8 +53,7 @@ export const authConfig = initAuthConfig(() => ({
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
-        (session.user as { role?: string }).role =
-          (user as { role?: string }).role ?? "user";
+        (session.user as { role?: string }).role = (user as { role?: string }).role ?? "user";
       }
       return session;
     },

@@ -3,21 +3,23 @@ import { eq } from "drizzle-orm";
 import { db, pool } from "../db/client.ts";
 import { users } from "../db/schema/auth.ts";
 import { importTokens } from "../db/schema/system.ts";
-import {
-  createImportToken,
-  consumeImportToken,
-  ConsumeError,
-} from "./import-tokens.ts";
+import { createImportToken, consumeImportToken } from "./import-tokens.ts";
 
 const TEST_USER_EMAIL = "test-import-tokens@example.com";
 
 async function ensureTestUser(): Promise<string> {
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, TEST_USER_EMAIL));
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, TEST_USER_EMAIL));
   if (existing) return existing.id;
-  const [inserted] = await db.insert(users).values({
-    email: TEST_USER_EMAIL,
-    name: "Test User",
-  }).returning({ id: users.id });
+  const [inserted] = await db
+    .insert(users)
+    .values({
+      email: TEST_USER_EMAIL,
+      name: "Test User",
+    })
+    .returning({ id: users.id });
   return inserted!.id;
 }
 
@@ -60,7 +62,10 @@ describe("consumeImportToken", () => {
     const userId = await ensureTestUser();
 
     const { prompts: promptsTable } = await import("../db/schema/prompts.ts");
-    const [anyPrompt] = await db.select({ id: promptsTable.id, sendCount: promptsTable.sendCount }).from(promptsTable).limit(1);
+    const [anyPrompt] = await db
+      .select({ id: promptsTable.id, sendCount: promptsTable.sendCount })
+      .from(promptsTable)
+      .limit(1);
 
     const created = await createImportToken({
       userId,
@@ -72,7 +77,10 @@ describe("consumeImportToken", () => {
     expect(payload).toEqual({ prompt: { en: "consume test" } });
 
     if (anyPrompt) {
-      const [after] = await db.select({ sendCount: promptsTable.sendCount }).from(promptsTable).where(eq(promptsTable.id, anyPrompt.id));
+      const [after] = await db
+        .select({ sendCount: promptsTable.sendCount })
+        .from(promptsTable)
+        .where(eq(promptsTable.id, anyPrompt.id));
       expect(after!.sendCount).toBe(anyPrompt.sendCount + 1);
     }
   });

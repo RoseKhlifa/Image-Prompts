@@ -45,9 +45,7 @@ export default function RelatedRow({ items }: { items: PromptDetailWithRelated["
                   </span>
                 )}
               </div>
-              <div className="line-clamp-1 px-1.5 py-1 text-[10.5px] text-ink">
-                {title}
-              </div>
+              <div className="line-clamp-1 px-1.5 py-1 text-[10.5px] text-ink">{title}</div>
             </Link>
           );
         })}

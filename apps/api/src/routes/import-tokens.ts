@@ -5,7 +5,11 @@ import { verifyAuth } from "@hono/auth-js";
 import { ImportTokenRequestSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
-import { consumeImportToken, ConsumeError, createImportToken } from "../repositories/import-tokens.ts";
+import {
+  consumeImportToken,
+  ConsumeError,
+  createImportToken,
+} from "../repositories/import-tokens.ts";
 
 const app = new Hono();
 
@@ -28,7 +32,10 @@ app.post(
       throw new HTTPException(401, { message: "unauthorized" });
     }
     const userId = authUser.session.user.id as string;
-    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? c.req.header("x-real-ip") ?? "unknown";
+    const ip =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+      c.req.header("x-real-ip") ??
+      "unknown";
 
     if (!userLimiter.check(userId)) {
       throw new HTTPException(429, { message: "rate_limit" });

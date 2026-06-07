@@ -9,7 +9,11 @@ function renderModal(open = true, onClose = vi.fn()) {
   return render(
     <MemoryRouter>
       <I18nextProvider i18n={i18n}>
-        <StudioNotInstalledModal open={open} onClose={onClose} prompt={{ en: "test prompt body" }} />
+        <StudioNotInstalledModal
+          open={open}
+          onClose={onClose}
+          prompt={{ en: "test prompt body" }}
+        />
       </I18nextProvider>
     </MemoryRouter>,
   );

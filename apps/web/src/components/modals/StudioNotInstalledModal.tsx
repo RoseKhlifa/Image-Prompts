@@ -49,7 +49,12 @@ export default function StudioNotInstalledModal({ open, onClose, prompt }: Props
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("studio_modal.title")} closeLabel={t("studio_modal.close")}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t("studio_modal.title")}
+      closeLabel={t("studio_modal.close")}
+    >
       <p className="text-[13px] leading-relaxed text-ink-muted">{t("studio_modal.body")}</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <a

@@ -34,7 +34,9 @@ export default function ProfilePage() {
   if (session.isLoading || !session.data) {
     return (
       <AppShell>
-        <div className="mx-auto max-w-md px-6 py-12 text-center text-ink-dim">{t("common.loading")}</div>
+        <div className="mx-auto max-w-md px-6 py-12 text-center text-ink-dim">
+          {t("common.loading")}
+        </div>
       </AppShell>
     );
   }

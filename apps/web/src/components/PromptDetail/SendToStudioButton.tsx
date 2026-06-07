@@ -69,7 +69,11 @@ export default function SendToStudioButton({ promptId, payload }: Props) {
         className="inline-flex items-center justify-center gap-2 rounded-pill bg-accent px-4 py-2.5 text-[13px] font-medium text-white transition disabled:opacity-50"
         style={{ minWidth: 160 } as CSSProperties}
       >
-        {isBusy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Send size={14} aria-hidden />}
+        {isBusy ? (
+          <Loader2 size={14} className="animate-spin" aria-hidden />
+        ) : (
+          <Send size={14} aria-hidden />
+        )}
         {t("detail.send_to_studio")}
       </button>
       <StudioNotInstalledModal

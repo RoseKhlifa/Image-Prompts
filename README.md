@@ -61,12 +61,14 @@ pnpm db:seed        # idempotent dev seed
 Auth.js needs Google + GitHub OAuth credentials to enable sign-in locally.
 
 ### Google
+
 1. https://console.cloud.google.com → APIs & Services → Credentials → Create OAuth Client ID
 2. Application type: **Web application**
 3. Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
 4. Copy Client ID + Secret into `apps/api/.env`
 
 ### GitHub
+
 1. https://github.com/settings/developers → OAuth Apps → New OAuth App
 2. Homepage URL: `http://localhost:5173`
 3. Authorization callback URL: `http://localhost:3000/api/auth/callback/github`

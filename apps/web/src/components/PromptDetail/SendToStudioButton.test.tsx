@@ -57,7 +57,10 @@ describe("SendToStudioButton", () => {
 
   it("is enabled when logged in", () => {
     (useSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { id: "u1", email: "x@y", name: null, image: null, role: "user" }, expires: "" },
+      data: {
+        user: { id: "u1", email: "x@y", name: null, image: null, role: "user" },
+        expires: "",
+      },
       isLoading: false,
     });
     renderButton();
@@ -66,7 +69,10 @@ describe("SendToStudioButton", () => {
 
   it("calls POST on click and redirects to scheme on success", async () => {
     (useSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { id: "u1", email: "x@y", name: null, image: null, role: "user" }, expires: "" },
+      data: {
+        user: { id: "u1", email: "x@y", name: null, image: null, role: "user" },
+        expires: "",
+      },
       isLoading: false,
     });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -85,7 +91,10 @@ describe("SendToStudioButton", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       (useSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-        data: { user: { id: "u1", email: "x@y", name: null, image: null, role: "user" }, expires: "" },
+        data: {
+          user: { id: "u1", email: "x@y", name: null, image: null, role: "user" },
+          expires: "",
+        },
         isLoading: false,
       });
       vi.spyOn(globalThis, "fetch").mockResolvedValue(

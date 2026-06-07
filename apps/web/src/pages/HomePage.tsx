@@ -49,8 +49,10 @@ export default function HomePage() {
           onRetry={() => list.refetch()}
         />
       )}
-      {!list.isLoading && !list.isError && list.data && (
-        list.data.items.length === 0 ? (
+      {!list.isLoading &&
+        !list.isError &&
+        list.data &&
+        (list.data.items.length === 0 ? (
           <EmptyState />
         ) : (
           <Masonry
@@ -62,8 +64,7 @@ export default function HomePage() {
               <PromptCard key={p.id} prompt={p} />
             ))}
           </Masonry>
-        )
-      )}
+        ))}
     </AppShell>
   );
 }

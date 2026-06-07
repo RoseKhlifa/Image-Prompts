@@ -10,7 +10,12 @@ function buildSignInUrl(provider: "google" | "github"): string {
 export default function SignInModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   return (
-    <Modal open={open} onClose={onClose} title={t("auth.sign_in")} closeLabel={t("studio_modal.close")}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t("auth.sign_in")}
+      closeLabel={t("studio_modal.close")}
+    >
       <div className="space-y-2">
         <a
           href={buildSignInUrl("google")}

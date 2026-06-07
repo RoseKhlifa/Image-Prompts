@@ -9,7 +9,13 @@ export type ModalProps = {
   closeLabel?: string;
 };
 
-export default function Modal({ open, onClose, title, children, closeLabel = "Close" }: ModalProps) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  closeLabel = "Close",
+}: ModalProps) {
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {

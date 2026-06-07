@@ -20,7 +20,10 @@ export type TestSession = {
 
 const COOKIE_NAME = "authjs.session-token";
 
-export async function createTestSession(input?: { email?: string; name?: string }): Promise<TestSession> {
+export async function createTestSession(input?: {
+  email?: string;
+  name?: string;
+}): Promise<TestSession> {
   const email = input?.email ?? `test-${randomUUID()}@example.com`;
 
   let userId: string;
