@@ -65,7 +65,7 @@ describe("consumeImportToken", () => {
     const created = await createImportToken({
       userId,
       payload: { prompt: { en: "consume test" } },
-      promptId: anyPrompt?.id,
+      ...(anyPrompt?.id ? { promptId: anyPrompt.id } : {}),
     });
 
     const payload = await consumeImportToken(created.token);

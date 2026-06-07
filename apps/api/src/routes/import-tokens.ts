@@ -45,7 +45,7 @@ app.post(
         ...(body.negative_prompt !== undefined ? { negative_prompt: body.negative_prompt } : {}),
         ...(body.aspect_ratio !== undefined ? { aspect_ratio: body.aspect_ratio } : {}),
       },
-      promptId: body.prompt_id,
+      ...(body.prompt_id !== undefined ? { promptId: body.prompt_id } : {}),
       ip,
     });
 
