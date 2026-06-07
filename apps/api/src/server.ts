@@ -11,6 +11,7 @@ import promptsRoute from "./routes/prompts.ts";
 import categoriesRoute from "./routes/categories.ts";
 import tagsRoute from "./routes/tags.ts";
 import publicRoute from "./routes/public.ts";
+import importTokensRoute from "./routes/import-tokens.ts";
 
 export function createServer() {
   const app = new Hono();
@@ -41,6 +42,7 @@ export function createServer() {
   app.route("/api/categories", categoriesRoute);
   app.route("/api/tags", tagsRoute);
   app.route("/api/public", publicRoute);
+  app.route("/api/import-tokens", importTokensRoute);
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
   app.onError(errorHandler);
