@@ -56,6 +56,10 @@ export const PromptSummarySchema = z.object({
   sendCount: z.number().int().nonnegative(),
   favoriteCount: z.number().int().nonnegative(),
   approvedAt: z.string(),
+  // ★ M5: session-aware. Absent when the caller is anonymous; either field
+  // present means the response was personalised for a logged-in viewer.
+  userLiked: z.boolean().optional(),
+  userFavorited: z.boolean().optional(),
 });
 
 export const PromptDetailSchema = PromptSummarySchema.extend({
