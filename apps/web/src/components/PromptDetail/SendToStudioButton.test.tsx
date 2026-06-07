@@ -81,25 +81,29 @@ describe("SendToStudioButton", () => {
     await waitFor(() => expect(window.location.href).toBe("image-studio://import?token=Ab3Cd4Ef"));
   });
 
-  // Skipped until T20 implements StudioNotInstalledModal
-  it.skip("opens fallback modal when page is still visible after 1500ms", async () => {
-    (useSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { id: "u1", email: "x@y", name: null, image: null, role: "user" }, expires: "" },
-      isLoading: false,
-    });
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ token: "Ab3Cd4Ef", expires_at: new Date().toISOString() }), {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
-    renderButton();
-    fireEvent.click(screen.getByRole("button", { name: /send to image-studio/i }));
-    await waitFor(() => expect(window.location.href).toContain("image-studio://"));
-    vi.advanceTimersByTime(1500);
-    await waitFor(() =>
-      expect(screen.getByRole("dialog", { name: /image-studio not detected/i })).toBeTruthy(),
-    );
+  it("opens fallback modal when page is still visible after 1500ms", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      (useSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        data: { user: { id: "u1", email: "x@y", name: null, image: null, role: "user" }, expires: "" },
+        isLoading: false,
+      });
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ token: "Ab3Cd4Ef", expires_at: new Date().toISOString() }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+      renderButton();
+      fireEvent.click(screen.getByRole("button", { name: /send to image-studio/i }));
+      await waitFor(() => expect(window.location.href).toContain("image-studio://"));
+      await vi.advanceTimersByTimeAsync(1500);
+      await waitFor(() =>
+        expect(screen.getByRole("dialog", { name: /image-studio not detected/i })).toBeTruthy(),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
