@@ -3,6 +3,7 @@ import { eq, like } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { users } from "../db/schema/index.ts";
 import { computeDailyLimit, resetDailyCountIfNeeded } from "./daily-limit.ts";
+import { incrementDailyCountIfUnderLimit } from "./daily-limit.ts";
 
 const TEST_EMAIL_PREFIX = "daily-limit-test-";
 
@@ -68,5 +69,36 @@ describe("resetDailyCountIfNeeded", () => {
     await resetDailyCountIfNeeded(u.id);
     const [after] = await db.select().from(users).where(eq(users.id, u.id));
     expect(after!.dailySubmissionCount).toBe(7);
+  });
+});
+
+describe("incrementDailyCountIfUnderLimit", () => {
+  it("increments the count and returns true when under limit", async () => {
+    const u = await makeUser({ dailySubmissionCount: 0 });
+    const ok = await incrementDailyCountIfUnderLimit(u.id, 10);
+    expect(ok).toBe(true);
+    const [after] = await db.select().from(users).where(eq(users.id, u.id));
+    expect(after!.dailySubmissionCount).toBe(1);
+  });
+
+  it("returns false and does not change the count when at limit", async () => {
+    const u = await makeUser({ dailySubmissionCount: 10 });
+    const ok = await incrementDailyCountIfUnderLimit(u.id, 10);
+    expect(ok).toBe(false);
+    const [after] = await db.select().from(users).where(eq(users.id, u.id));
+    expect(after!.dailySubmissionCount).toBe(10);
+  });
+
+  it("is atomic under concurrent callers (5 parallel against limit=3 → 3 true, 2 false, count=3)", async () => {
+    const u = await makeUser({ dailySubmissionCount: 0 });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => incrementDailyCountIfUnderLimit(u.id, 3)),
+    );
+    const trues = results.filter((r) => r === true).length;
+    const falses = results.filter((r) => r === false).length;
+    expect(trues).toBe(3);
+    expect(falses).toBe(2);
+    const [after] = await db.select().from(users).where(eq(users.id, u.id));
+    expect(after!.dailySubmissionCount).toBe(3);
   });
 });
