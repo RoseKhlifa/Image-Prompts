@@ -3,9 +3,37 @@ import Google from "@auth/core/providers/google";
 import GitHub from "@auth/core/providers/github";
 import type { Provider } from "@auth/core/providers";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { eq } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { accounts, sessions, users, verificationTokens } from "../db/schema/auth.ts";
 import { env } from "../env.ts";
+
+/**
+ * If the user's email matches ADMIN_EMAILS and they're currently 'user',
+ * promote them to 'admin' in the database and return the new role string.
+ * Returns the existing role unchanged otherwise.
+ *
+ * Used by the Auth.js session callback so newly-onboarded admins flip on
+ * their next sign-in. Idempotent: writes only on the first promotion; never
+ * re-writes for users already at moderator/admin.
+ */
+export async function promoteIfAdminEmail(
+  userId: string,
+  email: string | null | undefined,
+  currentRole: string,
+): Promise<string> {
+  if (!email) return currentRole;
+  const raw = process.env.ADMIN_EMAILS ?? "";
+  const list = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) return currentRole;
+  if (!list.includes(email.toLowerCase())) return currentRole;
+  if (currentRole !== "user") return currentRole;
+  await db.update(users).set({ role: "admin" }).where(eq(users.id, userId));
+  return "admin";
+}
 
 function buildEnabledProviders(): Provider[] {
   const out: Provider[] = [];
@@ -53,7 +81,9 @@ export const authConfig = initAuthConfig(() => ({
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
-        (session.user as { role?: string }).role = (user as { role?: string }).role ?? "user";
+        let role = (user as { role?: string }).role ?? "user";
+        role = await promoteIfAdminEmail(user.id, user.email, role);
+        (session.user as { role?: string }).role = role;
       }
       return session;
     },
