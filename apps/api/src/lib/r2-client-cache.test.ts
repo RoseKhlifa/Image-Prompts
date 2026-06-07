@@ -10,10 +10,10 @@ beforeAll(() => {
 
 type R2AccountRow = {
   id: string;
-  label: string;
+  name: string;
   endpoint: string;
   accessKeyId: string;
-  secretAccessKeyCiphertext: string;
+  accessKeySecretEncrypted: string;
   bucket: string;
   publicUrl: string;
   priority: number;
@@ -25,10 +25,10 @@ type R2AccountRow = {
 function fakeAccount(overrides: Partial<R2AccountRow> = {}): R2AccountRow {
   return {
     id: overrides.id ?? "11111111-1111-1111-1111-111111111111",
-    label: "test",
+    name: "test",
     endpoint: "https://example.r2.cloudflarestorage.com",
     accessKeyId: "AKIATEST",
-    secretAccessKeyCiphertext: overrides.secretAccessKeyCiphertext ??
+    accessKeySecretEncrypted: overrides.accessKeySecretEncrypted ??
       encryptSecret("secret-v1"),
     bucket: "test-bucket",
     publicUrl: "https://example.r2.dev",
@@ -65,9 +65,9 @@ describe("r2-client-cache", () => {
     expect(getS3Client(acc1)).not.toBe(getS3Client(acc2));
   });
 
-  it("invalidates when secretAccessKeyCiphertext changes", () => {
+  it("invalidates when accessKeySecretEncrypted changes", () => {
     const acc1 = fakeAccount();
-    const acc2 = fakeAccount({ secretAccessKeyCiphertext: encryptSecret("secret-v2") });
+    const acc2 = fakeAccount({ accessKeySecretEncrypted: encryptSecret("secret-v2") });
     expect(getS3Client(acc1)).not.toBe(getS3Client(acc2));
   });
 

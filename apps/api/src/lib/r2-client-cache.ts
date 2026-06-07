@@ -5,10 +5,10 @@ export type R2AccountRow = {
   id: string;
   endpoint: string;
   accessKeyId: string;
-  secretAccessKeyCiphertext: string;
+  accessKeySecretEncrypted: string;
   bucket: string;
   publicUrl: string;
-  // Additional columns from the table exist (label, priority, enabled, createdAt,
+  // Additional columns from the table exist (name, priority, enabled, createdAt,
   // deletedAt) but the client cache only depends on these fields.
 };
 
@@ -16,7 +16,7 @@ type CacheEntry = {
   client: S3Client;
   endpoint: string;
   accessKeyId: string;
-  secretAccessKeyCiphertext: string;
+  accessKeySecretEncrypted: string;
 };
 
 const cache = new Map<string, CacheEntry>();
@@ -28,7 +28,7 @@ export function getS3Client(account: R2AccountRow): S3Client {
     cached &&
     cached.endpoint === account.endpoint &&
     cached.accessKeyId === account.accessKeyId &&
-    cached.secretAccessKeyCiphertext === account.secretAccessKeyCiphertext
+    cached.accessKeySecretEncrypted === account.accessKeySecretEncrypted
   ) {
     return cached.client;
   }
@@ -41,7 +41,7 @@ export function getS3Client(account: R2AccountRow): S3Client {
     const firstKey = cache.keys().next().value as string | undefined;
     if (firstKey !== undefined) cache.delete(firstKey);
   }
-  const secret = decryptSecret(account.secretAccessKeyCiphertext);
+  const secret = decryptSecret(account.accessKeySecretEncrypted);
   const client = new S3Client({
     region: "auto",
     endpoint: account.endpoint,
@@ -55,7 +55,7 @@ export function getS3Client(account: R2AccountRow): S3Client {
     client,
     endpoint: account.endpoint,
     accessKeyId: account.accessKeyId,
-    secretAccessKeyCiphertext: account.secretAccessKeyCiphertext,
+    accessKeySecretEncrypted: account.accessKeySecretEncrypted,
   });
   return client;
 }
