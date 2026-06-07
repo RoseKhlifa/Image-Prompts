@@ -1,9 +1,13 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import {
   submissions,
   users,
   prompts as promptsTable,
+  tags as tagsTable,
+  promptTags,
+  notifications,
+  auditLog,
 } from "../db/schema/index.ts";
 import { bi } from "../lib/bilingual.ts";
 
@@ -194,4 +198,209 @@ export async function listForAdmin(opts: ListOpts) {
         ? trimmed[trimmed.length - 1]!.s.createdAt.toISOString()
         : null,
   };
+}
+
+export class AlreadyResolvedError extends Error {
+  constructor() {
+    super("submission already resolved");
+    this.name = "AlreadyResolvedError";
+  }
+}
+
+export class NotFoundError extends Error {
+  constructor() {
+    super("submission not found");
+    this.name = "NotFoundError";
+  }
+}
+
+type ApproveInput = {
+  submissionId: string;
+  actorId: string;
+  actorRole: "admin" | "moderator";
+  edits: Partial<{
+    titleZh: string;
+    titleEn: string;
+    promptZh: string;
+    promptEn: string;
+    negativePromptZh: string;
+    negativePromptEn: string;
+    notesZh: string;
+    notesEn: string;
+    aspectRatio: string;
+    categoryId: string;
+    tagSlugs: string[];
+  }>;
+};
+
+/** Generate a unique prompt slug. Strategy: kebab the title, retry with -N suffix on conflict. */
+async function generateUniqueSlug(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  candidate: string,
+): Promise<string> {
+  const base = candidate
+    .toLowerCase()
+    .replace(/[^a-z0-9一-鿿]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "prompt";
+  for (let i = 0; i < 16; i++) {
+    const trial = i === 0 ? base : `${base}-${i + 1}`;
+    const exists = await tx
+      .select({ id: promptsTable.id })
+      .from(promptsTable)
+      .where(eq(promptsTable.slug, trial))
+      .limit(1);
+    if (exists.length === 0) return trial;
+  }
+  throw new Error("could not generate unique slug");
+}
+
+export async function approveSubmission(input: ApproveInput): Promise<{
+  promptId: string;
+  slug: string;
+}> {
+  const sub = await getSubmissionById(input.submissionId);
+  if (!sub) throw new NotFoundError();
+  if (sub.status !== "pending") throw new AlreadyResolvedError();
+
+  const final = {
+    titleZh: input.edits.titleZh ?? sub.titleZh,
+    titleEn: input.edits.titleEn ?? sub.titleEn,
+    promptZh: input.edits.promptZh ?? sub.promptZh,
+    promptEn: input.edits.promptEn ?? sub.promptEn,
+    negativePromptZh: input.edits.negativePromptZh ?? sub.negativePromptZh,
+    negativePromptEn: input.edits.negativePromptEn ?? sub.negativePromptEn,
+    notesZh: input.edits.notesZh ?? sub.notesZh,
+    notesEn: input.edits.notesEn ?? sub.notesEn,
+    aspectRatio: input.edits.aspectRatio ?? sub.aspectRatio,
+    categoryId: input.edits.categoryId ?? sub.categoryId,
+    tagSlugs: input.edits.tagSlugs ?? sub.tagSlugs,
+  };
+
+  const result = await db.transaction(async (tx) => {
+    const slug = await generateUniqueSlug(
+      tx,
+      final.titleZh ?? final.titleEn ?? "prompt",
+    );
+    const title = bi(final.titleZh, final.titleEn);
+    const prompt = bi(final.promptZh, final.promptEn);
+    if (!title || !prompt) throw new Error("approve: title/prompt cannot be empty");
+
+    const [p] = await tx
+      .insert(promptsTable)
+      .values({
+        slug,
+        source: "site",
+        title,
+        prompt,
+        negativePrompt: bi(final.negativePromptZh, final.negativePromptEn),
+        notes: bi(final.notesZh, final.notesEn),
+        aspectRatio: final.aspectRatio,
+        categoryId: final.categoryId,
+        contributorId: sub.contributor.id,
+        approvedAt: new Date(),
+      })
+      .returning({ id: promptsTable.id });
+
+    const promptId = p!.id;
+
+    if (final.tagSlugs.length > 0) {
+      const tagRows = await tx
+        .select({ id: tagsTable.id, slug: tagsTable.slug })
+        .from(tagsTable)
+        .where(inArray(tagsTable.slug, final.tagSlugs));
+      if (tagRows.length > 0) {
+        await tx
+          .insert(promptTags)
+          .values(tagRows.map((t) => ({ promptId, tagId: t.id })));
+        await tx
+          .update(tagsTable)
+          .set({ usageCount: sql`${tagsTable.usageCount} + 1` })
+          .where(inArray(tagsTable.slug, final.tagSlugs));
+      }
+    }
+
+    await tx
+      .update(submissions)
+      .set({
+        status: "approved",
+        promotedTo: promptId,
+        reviewedBy: input.actorId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(submissions.id, input.submissionId));
+
+    await tx.insert(notifications).values({
+      userId: sub.contributor.id,
+      type: "submission_approved",
+      payload: {
+        submissionId: input.submissionId,
+        promptId,
+        promptSlug: slug,
+        titleZh: final.titleZh,
+        titleEn: final.titleEn,
+      },
+    });
+
+    const hadEdits = Object.keys(input.edits).length > 0;
+    await tx.insert(auditLog).values({
+      actorId: input.actorId,
+      action: "submission.approve",
+      targetType: "submission",
+      targetId: input.submissionId,
+      payload: { promptId, hadEdits, edits: hadEdits ? input.edits : undefined },
+    });
+
+    return { promptId, slug };
+  });
+
+  return result;
+}
+
+type RejectInput = {
+  submissionId: string;
+  actorId: string;
+  reason: string;
+};
+
+export async function rejectSubmission(input: RejectInput): Promise<void> {
+  const sub = await getSubmissionById(input.submissionId);
+  if (!sub) throw new NotFoundError();
+  if (sub.status !== "pending") throw new AlreadyResolvedError();
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(submissions)
+      .set({
+        status: "rejected",
+        rejectReason: input.reason,
+        reviewedBy: input.actorId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(submissions.id, input.submissionId));
+
+    await tx
+      .update(users)
+      .set({ rejectedCount: sql`${users.rejectedCount} + 1` })
+      .where(eq(users.id, sub.contributor.id));
+
+    await tx.insert(notifications).values({
+      userId: sub.contributor.id,
+      type: "submission_rejected",
+      payload: {
+        submissionId: input.submissionId,
+        reason: input.reason,
+        titleZh: sub.titleZh,
+        titleEn: sub.titleEn,
+      },
+    });
+
+    await tx.insert(auditLog).values({
+      actorId: input.actorId,
+      action: "submission.reject",
+      targetType: "submission",
+      targetId: input.submissionId,
+      payload: { reason: input.reason },
+    });
+  });
 }
