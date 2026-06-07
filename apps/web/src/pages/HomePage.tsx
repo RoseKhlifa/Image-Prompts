@@ -9,7 +9,7 @@ import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { usePromptList } from "../lib/hooks/usePromptList";
-import Masonry from "react-masonry-css";
+import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
 
 const SORT_VALUES: readonly SortOption[] = ["latest", "popular", "liked", "sent"];
 
@@ -17,14 +17,13 @@ function asSort(v: string | null): SortOption {
   return SORT_VALUES.includes(v as SortOption) ? (v as SortOption) : "latest";
 }
 
-const BREAKPOINTS = {
-  default: 4,
-  1280: 4,
-  1024: 3,
-  768: 2,
-  640: 2,
-  0: 1,
-};
+// Breakpoints in MOST-SPECIFIC-FIRST order — first match wins.
+const BREAKPOINTS: MasonryBreakpoint[] = [
+  { minWidth: 1280, columns: 4 },
+  { minWidth: 1024, columns: 3 },
+  { minWidth: 640, columns: 2 },
+  { minWidth: 0, columns: 1 },
+];
 
 export default function HomePage() {
   const [params, setParams] = useSearchParams();
@@ -56,14 +55,18 @@ export default function HomePage() {
           <EmptyState />
         ) : (
           <Masonry
-            breakpointCols={BREAKPOINTS}
-            className="flex gap-1 p-2"
-            columnClassName="flex flex-col"
-          >
-            {list.data.items.map((p) => (
-              <PromptCard key={p.id} prompt={p} />
-            ))}
-          </Masonry>
+            items={list.data.items.map<MasonryItem>((p) => ({
+              key: p.id,
+              aspectRatio:
+                p.primaryImage?.width && p.primaryImage?.height
+                  ? p.primaryImage.width / p.primaryImage.height
+                  : 1,
+              node: <PromptCard prompt={p} />,
+            }))}
+            breakpoints={BREAKPOINTS}
+            gap={4}
+            className="p-2"
+          />
         ))}
     </AppShell>
   );

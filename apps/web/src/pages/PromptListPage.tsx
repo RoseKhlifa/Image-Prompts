@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
-import Masonry from "react-masonry-css";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
 import Toolbar from "../components/Toolbar";
@@ -9,19 +8,19 @@ import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { usePromptList } from "../lib/hooks/usePromptList";
+import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
 import type { SortOption, AspectRatio } from "@ip/shared";
 
 const SORT_VALUES: readonly SortOption[] = ["latest", "popular", "liked", "sent"];
 const ASPECT_VALUES: readonly AspectRatio[] = ["auto", "1:1", "3:2", "2:3", "16:9", "9:16"];
 
-const BREAKPOINTS = {
-  default: 5,
-  1280: 5,
-  1024: 4,
-  768: 3,
-  640: 2,
-  0: 1,
-};
+const BREAKPOINTS: MasonryBreakpoint[] = [
+  { minWidth: 1280, columns: 5 },
+  { minWidth: 1024, columns: 4 },
+  { minWidth: 768, columns: 3 },
+  { minWidth: 640, columns: 2 },
+  { minWidth: 0, columns: 1 },
+];
 
 function asSort(v: string | null): SortOption {
   return SORT_VALUES.includes(v as SortOption) ? (v as SortOption) : "latest";
@@ -78,14 +77,18 @@ export default function PromptListPage() {
         ) : (
           <>
             <Masonry
-              breakpointCols={BREAKPOINTS}
-              className="flex gap-1 p-2"
-              columnClassName="flex flex-col"
-            >
-              {list.data.items.map((p) => (
-                <PromptCard key={p.id} prompt={p} />
-              ))}
-            </Masonry>
+              items={list.data.items.map<MasonryItem>((p) => ({
+                key: p.id,
+                aspectRatio:
+                  p.primaryImage?.width && p.primaryImage?.height
+                    ? p.primaryImage.width / p.primaryImage.height
+                    : 1,
+                node: <PromptCard prompt={p} />,
+              }))}
+              breakpoints={BREAKPOINTS}
+              gap={4}
+              className="p-2"
+            />
             <Pagination
               page={page}
               hasMore={list.data.hasMore}

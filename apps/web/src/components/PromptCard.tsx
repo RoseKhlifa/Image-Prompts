@@ -17,7 +17,7 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
   return (
     <Link
       to={withLocale(locale, `/prompts/${prompt.slug}`)}
-      className="group relative mb-1 block overflow-hidden rounded-md border border-border-soft bg-panel transition-colors hover:border-accent/40 break-inside-avoid"
+      className="group relative block overflow-hidden rounded-md border border-border-soft bg-panel transition-colors hover:border-accent/40"
     >
       <img
         src={imageUrl}
