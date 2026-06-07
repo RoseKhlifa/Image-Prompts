@@ -84,7 +84,7 @@
     "credits_body": "本站初始内容(2380 条提示词种子数据)迁移自 unknowlei 的开源项目 nanobanana-website (github.com/unknowlei/nanobanana-website),经 AI 辅助翻译为中英双语后由本站维护与扩展。原内容版权归 nanobanana 社区贡献者所有,本站按 CC-BY-4.0 精神标注来源。"
   },
   "sidebar": {
-    "open_source": "开源"
+    "repositories": "仓库"
   },
   "theme_modes": {
     "light": "浅色",
