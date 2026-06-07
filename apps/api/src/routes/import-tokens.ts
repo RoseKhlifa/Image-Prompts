@@ -5,7 +5,7 @@ import { verifyAuth } from "@hono/auth-js";
 import { ImportTokenRequestSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
-import { createImportToken } from "../repositories/import-tokens.ts";
+import { consumeImportToken, ConsumeError, createImportToken } from "../repositories/import-tokens.ts";
 
 const app = new Hono();
 
@@ -58,5 +58,30 @@ app.post(
     );
   },
 );
+
+app.get("/:token", async (c) => {
+  const token = c.req.param("token");
+  if (!/^[0-9A-Za-z]{8}$/.test(token)) {
+    return c.json({ error: "token_not_found" }, 404);
+  }
+
+  const ua = c.req.header("user-agent") ?? "";
+  if (!ua.includes("Image-Studio/")) {
+    console.warn(
+      `[import-tokens] non-Image-Studio UA: "${ua.slice(0, 80)}" token=${token.slice(0, 3)}***`,
+    );
+  }
+
+  try {
+    const payload = await consumeImportToken(token);
+    return c.json(payload, 200);
+  } catch (e) {
+    if (e instanceof ConsumeError) {
+      const status = e.code === "token_not_found" ? 404 : 410;
+      return c.json({ error: e.code }, status);
+    }
+    throw e;
+  }
+});
 
 export default app;
