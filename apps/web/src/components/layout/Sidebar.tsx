@@ -20,7 +20,7 @@ export default function Sidebar() {
   const totalCount = categories.data?.reduce((n, c) => n + c.promptCount, 0);
 
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-border-soft px-3 py-5 md:block">
+    <aside className="sticky top-[49px] hidden h-[calc(100dvh-49px)] w-56 shrink-0 self-start overflow-y-auto border-r border-border-soft px-3 py-5 md:block">
       <SidebarSection label={t("detail.category")}>
         <SidebarLink
           locale={locale}
