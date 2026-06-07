@@ -136,9 +136,11 @@ export type ListMyFavoritesResult = {
     sendCount: number;
     favoriteCount: number;
     approvedAt: string;
-    categoryId: string;
-    categorySlug: string;
-    categoryName: unknown;
+    category: {
+      id: string;
+      slug: string;
+      name: unknown;
+    };
     primaryImage: {
       r2AccountId: string;
       r2Key: string;
@@ -249,9 +251,11 @@ export async function listMyFavorites(
       sendCount: r.sendCount,
       favoriteCount: r.favoriteCount,
       approvedAt: r.approvedAt.toISOString(),
-      categoryId: r.categoryId,
-      categorySlug: r.categorySlug,
-      categoryName: r.categoryName,
+      category: {
+        id: r.categoryId,
+        slug: r.categorySlug,
+        name: r.categoryName,
+      },
       primaryImage: img
         ? {
             r2AccountId: img.r2AccountId,

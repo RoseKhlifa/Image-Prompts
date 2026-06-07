@@ -78,7 +78,7 @@ export default function LikeButton({ promptId, initial, variant = "full" }: Prop
           onClick={handleClick}
           aria-label={state.liked ? t("interactions.unliked") : t("interactions.liked")}
           aria-pressed={state.liked}
-          className={`inline-flex items-center gap-1 text-xs ${
+          className={`pointer-events-auto inline-flex items-center gap-1 text-xs ${
             state.liked ? "text-danger" : "text-white/90"
           }`}
         >
