@@ -57,6 +57,25 @@ export const authConfig = initAuthConfig(() => ({
       }
       return session;
     },
+    /**
+     * After OAuth callback succeeds, Auth.js needs to decide where to send the
+     * browser. Default policy is "only same-origin as AUTH_URL", which in dev
+     * is `http://localhost:3000` (the API) — but our SPA lives on
+     * `http://localhost:5173`. Explicitly allow the SITE_URL origin (the web
+     * app) plus any same-host path. Falls back to SITE_URL root on anything
+     * unfamiliar so we never strand the user on the API origin.
+     */
+    async redirect({ url, baseUrl }) {
+      try {
+        const target = new URL(url, baseUrl);
+        const site = new URL(env.SITE_URL);
+        if (target.origin === site.origin) return target.toString();
+        if (target.origin === baseUrl) return target.toString();
+      } catch {
+        /* malformed url — fall through */
+      }
+      return env.SITE_URL;
+    },
   },
   trustHost: true,
 }));
