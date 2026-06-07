@@ -2,21 +2,35 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { verifyAuth } from "@hono/auth-js";
-import { PresignRequestSchema } from "@ip/shared";
+import { eq } from "drizzle-orm";
+import { PresignRequestSchema, SubmissionInputSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { pickWriteAccount } from "../lib/r2-scheduler.ts";
-import { presignPut } from "../lib/r2-ops.ts";
+import { presignPut, headObject } from "../lib/r2-ops.ts";
 import { buildSubmissionKey, mimeToExt } from "../lib/r2-keys.ts";
 import { SUBMIT_CONFIG } from "../lib/submit-config.ts";
-import { computeDailyLimit, resetDailyCountIfNeeded } from "../lib/daily-limit.ts";
+import {
+  computeDailyLimit,
+  resetDailyCountIfNeeded,
+  incrementDailyCountIfUnderLimit,
+} from "../lib/daily-limit.ts";
+import { db } from "../db/client.ts";
+import { categories, r2Accounts } from "../db/schema/index.ts";
 import { getUserForSubmission } from "../repositories/users.ts";
+import { getTagsBySlugs } from "../repositories/tags.ts";
+import { createSubmission } from "../repositories/submissions.ts";
 
 // Per-user 60/min + per-IP 120/min — rate-limit module returns a sync
 // boolean from check(); separate limiter instances isolate this route from
 // other rate-limited paths.
 const presignUserLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
 const presignIpLimiter = createRateLimiter({ limit: 120, windowMs: 60_000 });
+
+// Create is much costlier than presign (DB writes + R2 HEADs + permanent
+// commitment), so the bucket is tighter: 6/hour/user + 30/hour/IP.
+const createUserLimiter = createRateLimiter({ limit: 6, windowMs: 60 * 60 * 1000 });
+const createIpLimiter = createRateLimiter({ limit: 30, windowMs: 60 * 60 * 1000 });
 
 function clientIp(c: Context): string {
   return (
@@ -76,5 +90,127 @@ app.post("/presign", verifyAuth(), zv("json", PresignRequestSchema), async (c) =
     expiresAt: expiresAt.toISOString(),
   });
 });
+
+// POST /api/submissions — create a new submission.
+//
+// Validation order is deliberate; cheaper checks first so we don't waste DB or
+// R2 round-trips on requests that fail earlier rules:
+//   1. auth (verifyAuth)
+//   2. rate-limit (in-memory, sync)
+//   3. body shape (zod)
+//   4. guidelines acceptance (412 if stale)
+//   5. atomic daily-count increment (rejects 429 without bumping if at cap)
+//   6. category exists
+//   7. tag slugs all exist
+//   8. R2 HEAD each image (existence + size)
+//   9. INSERT submission via repo
+//
+// Note: the daily-count increment is the only step that mutates state before
+// the final INSERT. If a later step throws, the row is "lost" against the cap;
+// that's an acceptable tradeoff for race-safety. Two parallel requests can't
+// both squeak past the cap because the atomic UPDATE only succeeds once.
+app.post(
+  "/",
+  verifyAuth(),
+  async (c, next) => {
+    const userId = requireUserId(c);
+    if (!createUserLimiter.check(`create:user:${userId}`)) {
+      throw new HTTPException(429, { message: "rate_limit" });
+    }
+    if (!createIpLimiter.check(`create:ip:${clientIp(c)}`)) {
+      throw new HTTPException(429, { message: "rate_limit" });
+    }
+    await next();
+  },
+  zv("json", SubmissionInputSchema),
+  async (c) => {
+    const userId = requireUserId(c);
+    const input = c.req.valid("json");
+
+    const user = await getUserForSubmission(userId);
+    if (!user) throw new HTTPException(401, { message: "unauthorized" });
+
+    if (user.communityGuidelinesVersion < SUBMIT_CONFIG.GUIDELINES_VERSION) {
+      throw new HTTPException(412, { message: "guidelines_not_accepted" });
+    }
+
+    // Reset the counter if a new Asia/Shanghai day has rolled over, then
+    // re-read so the limit decision uses the post-reset value.
+    await resetDailyCountIfNeeded(userId);
+    const refreshed = (await getUserForSubmission(userId)) ?? user;
+    const limit = computeDailyLimit(refreshed);
+    const incremented = await incrementDailyCountIfUnderLimit(userId, limit);
+    if (!incremented) {
+      throw new HTTPException(429, { message: "daily_limit_reached" });
+    }
+
+    // Category existence.
+    const [cat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.id, input.categoryId))
+      .limit(1);
+    if (!cat) {
+      throw new HTTPException(400, { message: "invalid_category" });
+    }
+
+    // Tag slug existence — every submitted slug must be in the tags table.
+    if (input.tagSlugs.length > 0) {
+      const known = await getTagsBySlugs(input.tagSlugs);
+      const unknown = input.tagSlugs.filter((s) => !known.has(s));
+      if (unknown.length > 0) {
+        throw new HTTPException(400, {
+          message: `unknown_tags:${unknown.join(",")}`,
+        });
+      }
+    }
+
+    // Validate R2 account references and HEAD every image. The presign route
+    // is the only legitimate source of (r2AccountId, r2Key) pairs, so an
+    // unknown account here is a defensive guard against forged inputs.
+    const accountIds = [...new Set(input.images.map((i) => i.r2AccountId))];
+    const accountRows = await db.select().from(r2Accounts);
+    const accMap = new Map(accountRows.map((a) => [a.id, a]));
+    for (const id of accountIds) {
+      if (!accMap.has(id)) {
+        throw new HTTPException(400, { message: "invalid_r2_account" });
+      }
+    }
+
+    for (const img of input.images) {
+      const account = accMap.get(img.r2AccountId)!;
+      const head = await headObject(account, img.r2Key);
+      if (!head) {
+        throw new HTTPException(400, { message: `image_missing:${img.r2Key}` });
+      }
+      if (head.contentLength > SUBMIT_CONFIG.MAX_IMAGE_SIZE_BYTES) {
+        throw new HTTPException(400, { message: `image_too_large:${img.r2Key}` });
+      }
+    }
+
+    const id = await createSubmission({
+      contributorId: userId,
+      titleZh: input.titleZh ?? null,
+      titleEn: input.titleEn ?? null,
+      promptZh: input.promptZh ?? null,
+      promptEn: input.promptEn ?? null,
+      negativePromptZh: input.negativePromptZh ?? null,
+      negativePromptEn: input.negativePromptEn ?? null,
+      notesZh: input.notesZh ?? null,
+      notesEn: input.notesEn ?? null,
+      aspectRatio: input.aspectRatio ?? null,
+      categoryId: input.categoryId,
+      tagSlugs: input.tagSlugs,
+      images: input.images.map((i) => ({
+        r2AccountId: i.r2AccountId,
+        r2Key: i.r2Key,
+        ...(i.altText !== undefined ? { altText: i.altText } : {}),
+      })),
+      agreedGuidelinesVersion: user.communityGuidelinesVersion,
+    });
+
+    return c.json({ id, status: "pending" }, 201);
+  },
+);
 
 export default app;
