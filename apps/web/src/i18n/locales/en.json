@@ -24,6 +24,7 @@
   "auth": {
     "sign_in": "Sign In",
     "sign_in_with": "Sign in with {provider}",
+    "sign_in_subtitle": "Sign in to submit prompts and send them to Image-Studio",
     "sign_out": "Sign Out",
     "signin_required": "Sign in to use this",
     "profile": "Profile",
@@ -81,6 +82,9 @@
     "body": "Image-Prompts is the prompt library for Image-Studio. Anyone can browse, favorite, like, and share. Signed-in users can submit new prompts for moderator review.",
     "credits_title": "Data Source Credits",
     "credits_body": "The seed dataset (~2380 prompts) was migrated from unknowlei's open-source nanobanana-website (github.com/unknowlei/nanobanana-website), translated bilingually via AI assistance, and maintained / extended by this site. Original content belongs to the nanobanana community contributors; we attribute per CC-BY-4.0."
+  },
+  "sidebar": {
+    "open_source": "Open Source"
   },
   "theme_modes": {
     "light": "Light",

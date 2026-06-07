@@ -24,6 +24,7 @@
   "auth": {
     "sign_in": "登录",
     "sign_in_with": "使用 {provider} 登录",
+    "sign_in_subtitle": "登录后即可投稿提示词与一键导入 Image-Studio",
     "sign_out": "退出登录",
     "signin_required": "请先登录",
     "profile": "个人资料",
@@ -81,6 +82,9 @@
     "body": "Image-Prompts 是 Image-Studio 配套的生图提示词聚合站。任何人都能浏览、收藏、点赞、分享;已登录用户可以投稿,管理员审核后公开。",
     "credits_title": "数据来源致谢",
     "credits_body": "本站初始内容(2380 条提示词种子数据)迁移自 unknowlei 的开源项目 nanobanana-website (github.com/unknowlei/nanobanana-website),经 AI 辅助翻译为中英双语后由本站维护与扩展。原内容版权归 nanobanana 社区贡献者所有,本站按 CC-BY-4.0 精神标注来源。"
+  },
+  "sidebar": {
+    "open_source": "开源"
   },
   "theme_modes": {
     "light": "浅色",

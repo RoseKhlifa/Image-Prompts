@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Modal from "../modals/Modal";
+import BrandLogo from "../BrandLogo";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -40,6 +41,10 @@ export default function SignInModal({ open, onClose }: { open: boolean; onClose:
       title={t("auth.sign_in")}
       closeLabel={t("studio_modal.close")}
     >
+      <div className="mb-5 flex flex-col items-center gap-3 text-center">
+        <BrandLogo size={56} />
+        <p className="text-[12.5px] text-ink-muted">{t("auth.sign_in_subtitle")}</p>
+      </div>
       <div className="space-y-2">
         <form action={`${API_URL}/api/auth/signin/google`} method="POST">
           <input type="hidden" name="csrfToken" value={csrfToken} />

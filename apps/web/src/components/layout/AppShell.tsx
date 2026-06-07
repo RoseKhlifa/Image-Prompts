@@ -6,6 +6,7 @@ import LangSwitcher from "../LangSwitcher";
 import ThemeSwitcher from "../ThemeSwitcher";
 import SignInButton from "../auth/SignInButton";
 import ProfileMenu from "../auth/ProfileMenu";
+import BrandLogo from "../BrandLogo";
 import { useSession } from "../../lib/hooks/useSession";
 import { withLocale } from "../../lib/locale";
 
@@ -25,8 +26,13 @@ export default function AppShell({
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
       <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border-soft bg-panel-2/85 px-5 py-3 backdrop-blur">
         <div className="flex items-center gap-6">
-          <Link to={withLocale(locale, "/")} className="text-base font-semibold tracking-tight">
-            Image-Prompts
+          <Link
+            to={withLocale(locale, "/")}
+            className="inline-flex items-center gap-2"
+            aria-label="Image-Prompts"
+          >
+            <BrandLogo size={22} />
+            <span className="text-base font-semibold tracking-tight">Image-Prompts</span>
           </Link>
           <nav className="hidden gap-1 text-sm md:flex">
             <Link
