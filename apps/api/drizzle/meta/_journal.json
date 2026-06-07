@@ -29,6 +29,13 @@
       "when": 1780989517000,
       "tag": "0003_m3_auth_schema_calibration",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780989617000,
+      "tag": "0004_zippy_meteorite",
+      "breakpoints": true
     }
   ]
 }

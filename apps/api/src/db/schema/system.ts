@@ -20,6 +20,9 @@ export const importTokens = pgTable(
     token: text().primaryKey(),
     payload: jsonb().notNull(),
     promptId: uuid("prompt_id").references(() => prompts.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     used: boolean().notNull().default(false),
     usedAt: timestamp("used_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -28,6 +31,7 @@ export const importTokens = pgTable(
   },
   (t) => ({
     expiresIdx: index("import_tokens_expires_idx").on(t.expiresAt),
+    userIdx: index("import_tokens_user_idx").on(t.userId, t.createdAt.desc()),
   }),
 );
 
