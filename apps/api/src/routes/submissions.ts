@@ -21,9 +21,9 @@ import { getUserForSubmission } from "../repositories/users.ts";
 import { getTagsBySlugs } from "../repositories/tags.ts";
 import { createSubmission } from "../repositories/submissions.ts";
 
-// Per-user 60/min + per-IP 120/min — rate-limit module returns a sync
-// boolean from check(); separate limiter instances isolate this route from
-// other rate-limited paths.
+// Presign is cheap (no DB writes, no permanent commitment) so the bucket is
+// loose: 60/min/user + 120/min/IP. Separate limiter instances isolate this
+// route from other rate-limited paths.
 const presignUserLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
 const presignIpLimiter = createRateLimiter({ limit: 120, windowMs: 60_000 });
 
@@ -93,22 +93,32 @@ app.post("/presign", verifyAuth(), zv("json", PresignRequestSchema), async (c) =
 
 // POST /api/submissions — create a new submission.
 //
-// Validation order is deliberate; cheaper checks first so we don't waste DB or
-// R2 round-trips on requests that fail earlier rules:
-//   1. auth (verifyAuth)
-//   2. rate-limit (in-memory, sync)
-//   3. body shape (zod)
-//   4. guidelines acceptance (412 if stale)
-//   5. atomic daily-count increment (rejects 429 without bumping if at cap)
-//   6. category exists
-//   7. tag slugs all exist
-//   8. R2 HEAD each image (existence + size)
-//   9. INSERT submission via repo
+// Validation order is deliberate; cheaper checks first, and crucially the
+// daily-count *mutation* is deferred until every read-only check has passed
+// so a bad payload (unknown category, missing image, etc.) doesn't burn the
+// user's daily quota:
+//   1.  auth (verifyAuth)
+//   2.  rate-limit (in-memory, sync)
+//   3.  body shape (zod)
+//   4.  read user
+//   5.  guidelines acceptance (412 if stale)
+//   6.  reset daily counter if a new Asia/Shanghai day rolled over
+//   7.  re-read user + cheap pre-check against the daily cap (429 fast-fail;
+//       racy on its own but saves R2 HEAD round-trips when obviously over)
+//   8.  category exists
+//   9.  tag slugs all exist
+//   10. R2 account refs valid
+//   11. R2 HEAD each image (existence + size)
+//   12. atomic incrementDailyCountIfUnderLimit (race-safe gate, 429 on fail)
+//   13. INSERT submission via repo
 //
-// Note: the daily-count increment is the only step that mutates state before
-// the final INSERT. If a later step throws, the row is "lost" against the cap;
-// that's an acceptable tradeoff for race-safety. Two parallel requests can't
-// both squeak past the cap because the atomic UPDATE only succeeds once.
+// The two-phase daily-limit check (steps 7 + 12) keeps both properties:
+// step 7 is a non-binding ergonomic guard that avoids costly external work
+// for users already at cap; step 12 is the real gate — its atomic UPDATE
+// only succeeds once, so two parallel requests can't both squeak past the
+// cap. The increment lands immediately before INSERT, so the only window
+// in which a count is "burned" without a row is an INSERT failure, which
+// is an acceptable tradeoff for race-safety.
 app.post(
   "/",
   verifyAuth(),
@@ -135,12 +145,14 @@ app.post(
     }
 
     // Reset the counter if a new Asia/Shanghai day has rolled over, then
-    // re-read so the limit decision uses the post-reset value.
+    // re-read so the cheap pre-check uses the post-reset value. This is a
+    // non-binding pre-check — racy on its own — used purely as an ergonomic
+    // fast-fail so we don't burn R2 HEAD requests on users already at cap.
+    // The real race-safe gate is the atomic increment further down.
     await resetDailyCountIfNeeded(userId);
     const refreshed = (await getUserForSubmission(userId)) ?? user;
     const limit = computeDailyLimit(refreshed);
-    const incremented = await incrementDailyCountIfUnderLimit(userId, limit);
-    if (!incremented) {
+    if (refreshed.dailySubmissionCount >= limit) {
       throw new HTTPException(429, { message: "daily_limit_reached" });
     }
 
@@ -186,6 +198,15 @@ app.post(
       if (head.contentLength > SUBMIT_CONFIG.MAX_IMAGE_SIZE_BYTES) {
         throw new HTTPException(400, { message: `image_too_large:${img.r2Key}` });
       }
+    }
+
+    // All read-only validation passed — now claim the daily-quota slot via
+    // an atomic UPDATE. This is the binding race-safe gate: two parallel
+    // requests at cap-minus-one cannot both succeed, because the UPDATE
+    // WHERE dailySubmissionCount < limit only matches once.
+    const incremented = await incrementDailyCountIfUnderLimit(userId, limit);
+    if (!incremented) {
+      throw new HTTPException(429, { message: "daily_limit_reached" });
     }
 
     const id = await createSubmission({
