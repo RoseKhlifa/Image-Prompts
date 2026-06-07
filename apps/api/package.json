@@ -16,9 +16,12 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@ip/shared": "workspace:*",
+    "@auth/core": "^0.37.4",
+    "@auth/drizzle-adapter": "^1.7.4",
+    "@hono/auth-js": "^1.0.18",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-validator": "^0.4.0",
+    "@ip/shared": "workspace:*",
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.38.0",
     "hono": "^4.6.0",
