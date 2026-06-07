@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { isLocale, pickBilingual, type Locale } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import { usePromptDetail } from "../lib/hooks/usePromptDetail";
+import { useView } from "../lib/hooks/useView";
 import { withLocale } from "../lib/locale";
 import Gallery from "../components/PromptDetail/Gallery";
 import PromptTextBlock from "../components/PromptDetail/PromptTextBlock";
@@ -20,6 +21,7 @@ export default function PromptDetailPage() {
   const { slug, locale: param } = useParams<{ slug: string; locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const detail = usePromptDetail(slug);
+  useView(detail.data?.id);
 
   if (detail.isLoading) {
     return (
