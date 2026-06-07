@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { AspectRatioSchema, SlugSchema, SortOptionSchema, UuidSchema } from "./common.ts";
+import {
+  AspectRatioSchema,
+  BilingualTextSchema,
+  OptionalBilingualTextSchema,
+  SlugSchema,
+  SortOptionSchema,
+  UuidSchema,
+} from "./common.ts";
 import { CategorySchema, PromptDetailSchema, PromptSummarySchema, TagSchema } from "./prompt.ts";
 
 export const PromptListQuerySchema = z.object({
@@ -37,3 +44,32 @@ export const ErrorResponseSchema = z.object({
   message: z.string().optional(),
   fields: z.record(z.string(), z.string()).optional(),
 });
+
+/**
+ * Payload sent INSIDE an import token. Stored in DB as jsonb; returned as-is
+ * to Image-Studio on token redeem.
+ */
+export const ImportTokenPayloadSchema = z.object({
+  prompt: BilingualTextSchema,
+  negative_prompt: OptionalBilingualTextSchema.optional(),
+  aspect_ratio: AspectRatioSchema.optional(),
+});
+export type ImportTokenPayload = z.infer<typeof ImportTokenPayloadSchema>;
+
+/**
+ * POST /api/import-tokens request body. Same as payload + optional prompt_id
+ * for send_count attribution.
+ */
+export const ImportTokenRequestSchema = ImportTokenPayloadSchema.extend({
+  prompt_id: UuidSchema.optional(),
+});
+export type ImportTokenRequest = z.infer<typeof ImportTokenRequestSchema>;
+
+/**
+ * POST /api/import-tokens 201 response.
+ */
+export const ImportTokenResponseSchema = z.object({
+  token: z.string().regex(/^[0-9A-Za-z]{8}$/),
+  expires_at: z.string().datetime(),
+});
+export type ImportTokenResponse = z.infer<typeof ImportTokenResponseSchema>;
