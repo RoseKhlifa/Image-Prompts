@@ -22,6 +22,13 @@
       "when": 1780742237952,
       "tag": "0002_lush_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780989517000,
+      "tag": "0003_m3_auth_schema_calibration",
+      "breakpoints": true
     }
   ]
 }
