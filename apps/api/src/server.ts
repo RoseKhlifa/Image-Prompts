@@ -28,9 +28,11 @@ export function createServer() {
   );
 
   // ★ M3: Auth.js middleware. Order:
-  //   1. authConfig must run before authHandler — it injects c.var.authUser.
+  //   1. authConfig must run before authHandler — it injects c.var.authConfig,
+  //      which authHandler reads to know providers/secret/adapter.
   //   2. authHandler claims everything under /api/auth/*.
-  //   3. Route handlers below can read c.get("authUser") to check session.
+  //   3. Route handlers that need session info call getAuthUser(c) or use
+  //      the verifyAuth() middleware — both populate c.var.authUser.
   app.use("*", authConfig);
   app.use("/api/auth/*", authHandler());
 
