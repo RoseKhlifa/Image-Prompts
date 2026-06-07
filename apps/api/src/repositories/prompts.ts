@@ -20,7 +20,7 @@ const orderBy = (sort: PromptListQuery["sort"]) => {
   }
 };
 
-export async function listPrompts(q: PromptListQuery) {
+export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
   const offset = (q.page - 1) * q.pageSize;
 
   // Resolve category and tag IDs from slugs.
@@ -80,6 +80,12 @@ export async function listPrompts(q: PromptListQuery) {
       categoryId: prompts.categoryId,
       categorySlug: categories.slug,
       categoryName: categories.name,
+      userLiked: currentUserId
+        ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE likes.prompt_id = ${prompts.id} AND likes.user_id = ${currentUserId})`
+        : sql<boolean>`FALSE`,
+      userFavorited: currentUserId
+        ? sql<boolean>`EXISTS (SELECT 1 FROM favorites WHERE favorites.prompt_id = ${prompts.id} AND favorites.user_id = ${currentUserId})`
+        : sql<boolean>`FALSE`,
     })
     .from(prompts)
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
@@ -156,6 +162,7 @@ export async function listPrompts(q: PromptListQuery) {
       sendCount: r.sendCount,
       favoriteCount: r.favoriteCount,
       approvedAt: r.approvedAt.toISOString(),
+      ...(currentUserId ? { userLiked: r.userLiked, userFavorited: r.userFavorited } : {}),
     };
   });
 
@@ -168,7 +175,7 @@ export async function listPrompts(q: PromptListQuery) {
   };
 }
 
-export async function getPromptBySlug(slug: string) {
+export async function getPromptBySlug(slug: string, currentUserId?: string) {
   const [row] = await db
     .select({
       id: prompts.id,
@@ -190,6 +197,12 @@ export async function getPromptBySlug(slug: string) {
       categoryId: prompts.categoryId,
       categorySlug: categories.slug,
       categoryName: categories.name,
+      userLiked: currentUserId
+        ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE likes.prompt_id = ${prompts.id} AND likes.user_id = ${currentUserId})`
+        : sql<boolean>`FALSE`,
+      userFavorited: currentUserId
+        ? sql<boolean>`EXISTS (SELECT 1 FROM favorites WHERE favorites.prompt_id = ${prompts.id} AND favorites.user_id = ${currentUserId})`
+        : sql<boolean>`FALSE`,
     })
     .from(prompts)
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
@@ -247,6 +260,7 @@ export async function getPromptBySlug(slug: string) {
     approvedAt: row.approvedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    ...(currentUserId ? { userLiked: row.userLiked, userFavorited: row.userFavorited } : {}),
   };
 }
 
