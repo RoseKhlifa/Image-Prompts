@@ -1,6 +1,11 @@
 import { serve } from "@hono/node-server";
 import { env } from "./env.ts";
+import { setupProxyDispatcher } from "./lib/proxy.ts";
 import { createServer } from "./server.ts";
+
+// Install proxy dispatcher BEFORE createServer / any auth module loads, so the
+// first OAuth discovery fetch from Auth.js already goes through the proxy.
+setupProxyDispatcher();
 
 const app = createServer();
 
