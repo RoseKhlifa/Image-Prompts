@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router";
 import { isLocale, type Locale } from "@ip/shared";
 import { withLocale } from "../../lib/locale";
 import { useInvalidateSession, type Session } from "../../lib/hooks/useSession";
-import { apiFetch } from "../../lib/api";
+import { signOut } from "../../lib/auth";
 import { toast } from "../../lib/toast";
 import AvatarBadge from "./AvatarBadge";
 
@@ -30,11 +30,7 @@ export default function ProfileMenu({ session }: { session: Session }) {
   }, [open]);
 
   async function handleSignOut() {
-    try {
-      await apiFetch("/api/auth/signout", { method: "POST" });
-    } catch {
-      // Even if the request fails we proceed — server cookie clears on next 401
-    }
+    await signOut();
     await invalidate();
     toast.info(t("auth.sign_out"));
     setOpen(false);
