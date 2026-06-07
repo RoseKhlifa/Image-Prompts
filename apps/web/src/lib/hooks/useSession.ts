@@ -8,6 +8,13 @@ export type Session = {
     email: string;
     image: string | null;
     role: "user" | "moderator" | "admin";
+    /**
+     * The version of the community guidelines the user has accepted. Added by
+     * the Auth.js session callback (M4 Task 26). Optional in the type so older
+     * call sites that don't read it continue to compile; the API always
+     * injects 0 when the user has never accepted.
+     */
+    communityGuidelinesVersion?: number;
   };
   expires: string;
 };

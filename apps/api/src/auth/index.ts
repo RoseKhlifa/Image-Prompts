@@ -84,6 +84,11 @@ export const authConfig = initAuthConfig(() => ({
         let role = (user as { role?: string }).role ?? "user";
         role = await promoteIfAdminEmail(user.id, user.email, role);
         (session.user as { role?: string }).role = role;
+        // ★ M4 Task 26: expose the user's accepted community-guidelines version
+        // so the SPA's useCommunityGuidelinesGate hook can decide whether to
+        // show the acceptance modal before allowing a submission.
+        (session.user as { communityGuidelinesVersion?: number }).communityGuidelinesVersion =
+          (user as { communityGuidelinesVersion?: number }).communityGuidelinesVersion ?? 0;
       }
       return session;
     },
