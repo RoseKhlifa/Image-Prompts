@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
+import { authHandler } from "@hono/auth-js";
+import { authConfig } from "./auth/index.ts";
 import { env } from "./env.ts";
 import { errorHandler } from "./middleware/error.ts";
 import healthRoute from "./routes/health.ts";
@@ -19,11 +21,18 @@ export function createServer() {
     "*",
     cors({
       origin: [env.SITE_URL],
-      credentials: true,
+      credentials: true, // ★ M3: required for Auth.js session cookies
       allowHeaders: ["Content-Type", "Authorization", "X-Locale"],
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
+
+  // ★ M3: Auth.js middleware. Order:
+  //   1. authConfig must run before authHandler — it injects c.var.authUser.
+  //   2. authHandler claims everything under /api/auth/*.
+  //   3. Route handlers below can read c.get("authUser") to check session.
+  app.use("*", authConfig);
+  app.use("/api/auth/*", authHandler());
 
   app.route("/api/health", healthRoute);
   app.route("/api/prompts", promptsRoute);
