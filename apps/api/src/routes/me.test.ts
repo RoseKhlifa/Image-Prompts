@@ -4,7 +4,7 @@ import { db, pool } from "../db/client.ts";
 import { users, sessions } from "../db/schema/auth.ts";
 import { favorites } from "../db/schema/interactions.ts";
 import { prompts } from "../db/schema/prompts.ts";
-import { categories, submissions } from "../db/schema/index.ts";
+import { categories, submissions, notifications } from "../db/schema/index.ts";
 import { createServer } from "../server.ts";
 import { createTestSession } from "../auth/test-session.ts";
 
@@ -31,6 +31,15 @@ async function cleanupTask20() {
     .where(like(categories.slug, `${TEST_CATEGORY_SLUG_PREFIX_TASK20}%`));
 }
 
+async function cleanupTask21() {
+  const testUserIds = await getTestUserIds();
+  if (testUserIds.length > 0) {
+    for (const id of testUserIds) {
+      await db.delete(notifications).where(eq(notifications.userId, id));
+    }
+  }
+}
+
 async function seedCategory() {
   const [c] = await db
     .insert(categories)
@@ -55,6 +64,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await db.delete(favorites);
+  await cleanupTask21();
   await cleanupTask20();
   await db.delete(sessions);
   await db.delete(users).where(like(users.email, `${TEST_EMAIL_PREFIX}%@example.com`));
@@ -210,5 +220,156 @@ describe("GET /api/me/submissions", () => {
     const body = (await res.json()) as { items: Array<{ id: string }> };
     expect(body.items).toHaveLength(1);
     expect(body.items[0]!.id).toBe(pending!.id);
+  });
+});
+
+describe("notifications endpoints", () => {
+  beforeEach(cleanupTask21);
+
+  it("GET /me/notifications/count requires auth (401)", async () => {
+    const res = await app.request("/api/me/notifications/count");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /me/notifications/count returns unread count", async () => {
+    const sess = await createTestSession();
+    await db.insert(notifications).values([
+      {
+        userId: sess.userId,
+        type: "submission_approved",
+        payload: {
+          submissionId: "s1",
+          promptId: "p",
+          promptSlug: "p",
+          titleZh: null,
+          titleEn: null,
+        },
+      },
+      {
+        userId: sess.userId,
+        type: "submission_approved",
+        payload: {
+          submissionId: "s2",
+          promptId: "p",
+          promptSlug: "p",
+          titleZh: null,
+          titleEn: null,
+        },
+      },
+    ]);
+    const res = await app.request("/api/me/notifications/count", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { unread: number };
+    expect(body.unread).toBe(2);
+  });
+
+  it("GET /me/notifications returns rows newest first", async () => {
+    const sess = await createTestSession();
+    await db.insert(notifications).values({
+      userId: sess.userId,
+      type: "submission_approved",
+      payload: {
+        submissionId: "s1",
+        promptId: "p",
+        promptSlug: "p",
+        titleZh: null,
+        titleEn: null,
+      },
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    await db.insert(notifications).values({
+      userId: sess.userId,
+      type: "submission_rejected",
+      payload: {
+        submissionId: "s2",
+        reason: "x".repeat(10),
+        titleZh: null,
+        titleEn: null,
+      },
+    });
+    const res = await app.request("/api/me/notifications", {
+      headers: { Cookie: sess.cookie },
+    });
+    const body = (await res.json()) as { items: Array<{ type: string }> };
+    expect(body.items).toHaveLength(2);
+    expect(body.items[0]!.type).toBe("submission_rejected");
+  });
+
+  it("POST /me/notifications/:id/read marks the row", async () => {
+    const sess = await createTestSession();
+    const [n] = await db
+      .insert(notifications)
+      .values({
+        userId: sess.userId,
+        type: "submission_approved",
+        payload: {
+          submissionId: "s1",
+          promptId: "p",
+          promptSlug: "p",
+          titleZh: null,
+          titleEn: null,
+        },
+      })
+      .returning();
+    const res = await app.request(`/api/me/notifications/${n!.id}/read`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(200);
+    const [reread] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, n!.id));
+    expect(reread!.readAt).not.toBeNull();
+  });
+
+  it("POST /me/notifications/read-all marks all unread", async () => {
+    const sess = await createTestSession();
+    for (let i = 0; i < 3; i++) {
+      await db.insert(notifications).values({
+        userId: sess.userId,
+        type: "submission_approved",
+        payload: {
+          submissionId: `s${i}`,
+          promptId: "p",
+          promptSlug: "p",
+          titleZh: null,
+          titleEn: null,
+        },
+      });
+    }
+    const res = await app.request("/api/me/notifications/read-all", {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { updated: number };
+    expect(body.updated).toBe(3);
+  });
+
+  it("POST /me/notifications/:id/read returns 404 when not the owner", async () => {
+    const sess1 = await createTestSession();
+    const sess2 = await createTestSession();
+    const [n] = await db
+      .insert(notifications)
+      .values({
+        userId: sess1.userId,
+        type: "submission_approved",
+        payload: {
+          submissionId: "s1",
+          promptId: "p",
+          promptSlug: "p",
+          titleZh: null,
+          titleEn: null,
+        },
+      })
+      .returning();
+    const res = await app.request(`/api/me/notifications/${n!.id}/read`, {
+      method: "POST",
+      headers: { Cookie: sess2.cookie }, // wrong session
+    });
+    expect(res.status).toBe(404);
   });
 });
