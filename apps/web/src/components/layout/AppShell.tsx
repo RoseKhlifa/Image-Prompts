@@ -4,6 +4,9 @@ import { Link, useParams } from "react-router";
 import { isLocale, type Locale } from "@ip/shared";
 import LangSwitcher from "../LangSwitcher";
 import ThemeSwitcher from "../ThemeSwitcher";
+import SignInButton from "../auth/SignInButton";
+import ProfileMenu from "../auth/ProfileMenu";
+import { useSession } from "../../lib/hooks/useSession";
 import { withLocale } from "../../lib/locale";
 
 export default function AppShell({
@@ -16,6 +19,7 @@ export default function AppShell({
   const { t } = useTranslation();
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
+  const session = useSession();
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
@@ -47,6 +51,13 @@ export default function AppShell({
           />
           <ThemeSwitcher />
           <LangSwitcher />
+          {session.isLoading ? (
+            <div className="h-7 w-7 animate-pulse rounded-full bg-panel" />
+          ) : session.data ? (
+            <ProfileMenu session={session.data} />
+          ) : (
+            <SignInButton />
+          )}
         </div>
       </header>
       <div className="flex flex-1">
