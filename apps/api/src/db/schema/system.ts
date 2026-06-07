@@ -35,25 +35,6 @@ export const importTokens = pgTable(
   }),
 );
 
-export const auditLog = pgTable(
-  "audit_log",
-  {
-    id: uuid().primaryKey().defaultRandom(),
-    actorId: uuid("actor_id").references(() => users.id),
-    action: text().notNull(),
-    targetType: text("target_type").notNull(),
-    targetId: uuid("target_id"),
-    meta: jsonb(),
-    ip: text(),
-    userAgent: text("user_agent"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => ({
-    actorIdx: index("audit_log_actor_idx").on(t.actorId, t.createdAt.desc()),
-    actionIdx: index("audit_log_action_idx").on(t.action, t.createdAt.desc()),
-  }),
-);
-
 export const reports = pgTable(
   "reports",
   {

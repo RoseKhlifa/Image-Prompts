@@ -100,6 +100,7 @@ export const submissions = pgTable(
     imageKeys: jsonb("image_keys")
       .$type<Array<{ r2AccountId: string; r2Key: string; altText?: string }>>()
       .notNull(),
+    agreedGuidelinesVersion: integer("agreed_guidelines_version").notNull().default(0),
     status: submissionStatusEnum().notNull().default("pending"),
     rejectReason: text("reject_reason"),
     reviewedBy: uuid("reviewed_by").references(() => users.id),
