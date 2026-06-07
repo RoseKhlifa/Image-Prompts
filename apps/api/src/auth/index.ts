@@ -37,6 +37,10 @@ const PROVIDERS: Provider[] = buildEnabledProviders();
 
 export const authConfig = initAuthConfig(() => ({
   secret: env.AUTH_SECRET,
+  // ★ M3-T6: @auth/core defaults basePath to "/auth"; we mount the handler at
+  // /api/auth/*, so we must override or Auth.js throws UnknownAction when it
+  // tries to parse the action segment from request paths like /api/auth/session.
+  basePath: "/api/auth",
   adapter: DrizzleAdapter(db, {
     usersTable: users,
     accountsTable: accounts,
