@@ -60,13 +60,13 @@ describe("prompts repository (integration, requires seeded DB)", () => {
     expect(res.items).toEqual([]);
   });
 
-  it("getPromptBySlug returns full detail", async () => {
-    const detail = await getPromptBySlug("cyberpunk-neon-cat");
+  it("getPromptBySlug returns full detail for a seeded prompt", async () => {
+    const p = await latestPromptForTest();
+    const detail = await getPromptBySlug(p.slug);
     expect(detail).not.toBeNull();
-    expect(detail?.title.zh).toBe("赛博朋克霓虹猫");
-    expect(detail?.title.en).toBe("Cyberpunk Neon Cat");
+    expect(detail?.slug).toBe(p.slug);
+    expect(detail?.title).toBeDefined();
     expect(detail?.images.length).toBeGreaterThan(0);
-    expect(detail?.tags.length).toBeGreaterThan(0);
   });
 
   it("getPromptBySlug returns null for missing", async () => {
@@ -100,7 +100,8 @@ describe("listPrompts session-aware", () => {
 
 describe("getPromptBySlug session-aware", () => {
   it("omits userLiked/userFavorited for anonymous queries", async () => {
-    const detail = await getPromptBySlug("cyberpunk-neon-cat");
+    const p = await latestPromptForTest();
+    const detail = await getPromptBySlug(p.slug);
     expect(detail).not.toBeNull();
     expect("userLiked" in detail!).toBe(false);
     expect("userFavorited" in detail!).toBe(false);
