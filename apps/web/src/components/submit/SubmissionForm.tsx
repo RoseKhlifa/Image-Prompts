@@ -117,8 +117,17 @@ export default function SubmissionForm() {
     if (!parsed.success) {
       const map = zodErrorsToMap(parsed.error);
       setErrors(map);
-      const issueCount = parsed.error.issues.length;
-      toast.error(t("submit.error.summary", { count: issueCount }));
+      const issues = parsed.error.issues;
+      const firstCode = issues[0]?.message ?? "generic";
+      const firstMsg = t(`submit.error.${firstCode}`, {
+        defaultValue: t("submit.error.field_required"),
+      });
+      const more = issues.length - 1;
+      toast.error(
+        more > 0
+          ? t("submit.error.summary_with_first", { first: firstMsg, n: more })
+          : firstMsg,
+      );
       return;
     }
     setErrors({});

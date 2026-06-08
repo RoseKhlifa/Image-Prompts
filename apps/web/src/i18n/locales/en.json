@@ -151,6 +151,7 @@
       "rate_limited": "Too many requests, slow down",
       "session_expired": "Your session expired; please sign in again",
       "summary": "{count} validation error(s), see fields marked red",
+      "summary_with_first": "{first} (and {n} more to fix)",
       "field_required": "Required",
       "too_long": "Too long",
       "invalid_format": "Invalid format",
