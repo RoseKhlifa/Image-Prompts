@@ -4,6 +4,7 @@ import { isLocale, pickBilingual, type Locale, type PromptSummary } from "@ip/sh
 import { resolveImageUrl } from "../lib/imageUrl";
 import { useR2PoolMap } from "../lib/hooks/useR2Pool";
 import { withLocale } from "../lib/locale";
+import Avatar from "./Avatar";
 import LikeButton from "./PromptDetail/LikeButton";
 
 export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
@@ -29,10 +30,28 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
       />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
         <div className="flex items-center justify-between text-xs text-white">
-          <div className="flex items-center gap-1.5">
-            <div className="h-6 w-6 rounded-full bg-white/20" aria-hidden />
-            <span className="line-clamp-1">{t("common.anonymous")}</span>
-          </div>
+          {prompt.contributor ? (
+            <Link
+              to={withLocale(locale, `/users/${prompt.contributor.id}`)}
+              onClick={(e) => e.stopPropagation()}
+              className="pointer-events-auto flex items-center gap-1.5 hover:underline"
+            >
+              <Avatar
+                id={prompt.contributor.id}
+                name={prompt.contributor.name}
+                src={prompt.contributor.avatarUrl}
+                size={24}
+              />
+              <span className="line-clamp-1">
+                {prompt.contributor.name ?? t("common.anonymous")}
+              </span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Avatar id={null} name={null} src={null} size={24} />
+              <span className="line-clamp-1">{t("common.anonymous")}</span>
+            </div>
+          )}
           <LikeButton
             promptId={prompt.id}
             initial={{ liked: prompt.userLiked ?? false, count: prompt.likeCount }}

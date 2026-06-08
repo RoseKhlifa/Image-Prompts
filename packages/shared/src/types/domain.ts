@@ -74,17 +74,18 @@ export type PromptSummary = {
   // present means the response was personalised for a logged-in viewer.
   userLiked?: boolean;
   userFavorited?: boolean;
+  // M9 (T6): contributor JOIN. Null when prompt has no uploader (seed content).
+  contributor: {
+    id: string;
+    name: string | null;
+    avatarUrl: string | null;
+  } | null;
 };
 
 export type PromptDetail = PromptSummary & {
   prompt: BilingualText;
   negativePrompt: OptionalBilingualText | null;
   notes: OptionalBilingualText | null;
-  contributor: {
-    id: string;
-    name: string | null;
-    avatarUrl: string | null;
-  } | null;
   images: Array<{
     id: string;
     r2AccountId: string;
