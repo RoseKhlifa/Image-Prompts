@@ -262,6 +262,7 @@
       "config": "Settings",
       "r2": "R2 Pool",
       "users": "Users",
+      "audit": "Audit Log",
       "submissions": "Submissions",
       "root": "Owner Console",
       "back_to_site": "Back to site"
@@ -326,6 +327,21 @@
       "drawer_role_updated": "Role updated",
       "drawer_recent_submissions": "Recent submissions",
       "drawer_no_recent": "No submissions yet"
+    },
+    "audit": {
+      "title": "Audit log",
+      "subtitle": "Trail of owner / admin actions",
+      "filter_action_placeholder": "Action prefix (e.g. user.)",
+      "filter_actor_placeholder": "Actor UUID",
+      "filter_target_placeholder": "Target type (e.g. user / submission)",
+      "col_time": "Time",
+      "col_actor": "Actor",
+      "col_action": "Action",
+      "col_target": "Target",
+      "no_results": "No audit records yet",
+      "system_actor": "system",
+      "expand_payload": "Expand payload",
+      "collapse_payload": "Collapse payload"
     }
   }
 }

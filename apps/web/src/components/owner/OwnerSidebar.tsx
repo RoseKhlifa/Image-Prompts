@@ -5,6 +5,7 @@ import {
   Settings,
   HardDrive,
   Inbox,
+  ScrollText,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -23,6 +24,7 @@ export default function OwnerSidebar() {
     { to: withLocale(locale, "/rosekhlifa/config"), label: t("owner.nav.config"), icon: Settings },
     { to: withLocale(locale, "/rosekhlifa/r2"), label: t("owner.nav.r2"), icon: HardDrive },
     { to: withLocale(locale, "/rosekhlifa/users"), label: t("owner.nav.users"), icon: Users },
+    { to: withLocale(locale, "/rosekhlifa/audit"), label: t("owner.nav.audit"), icon: ScrollText },
     { to: withLocale(locale, "/rosekhlifa/submissions"), label: t("owner.nav.submissions"), icon: Inbox },
   ];
 

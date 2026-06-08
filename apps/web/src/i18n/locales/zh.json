@@ -262,6 +262,7 @@
       "config": "全局配置",
       "r2": "R2 池",
       "users": "用户",
+      "audit": "操作日志",
       "submissions": "审核队列",
       "root": "站长后台",
       "back_to_site": "回主站"
@@ -326,6 +327,21 @@
       "drawer_role_updated": "角色已更新",
       "drawer_recent_submissions": "最近投稿",
       "drawer_no_recent": "暂无投稿"
+    },
+    "audit": {
+      "title": "操作日志",
+      "subtitle": "查看所有 owner / admin 操作的审计记录",
+      "filter_action_placeholder": "动作前缀(例:user.)",
+      "filter_actor_placeholder": "Actor UUID",
+      "filter_target_placeholder": "目标类型(例:user / submission)",
+      "col_time": "时间",
+      "col_actor": "操作人",
+      "col_action": "动作",
+      "col_target": "目标",
+      "no_results": "暂无操作记录",
+      "system_actor": "系统",
+      "expand_payload": "展开 payload",
+      "collapse_payload": "收起 payload"
     }
   }
 }
