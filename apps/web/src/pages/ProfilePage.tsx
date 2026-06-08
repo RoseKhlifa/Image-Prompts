@@ -5,13 +5,16 @@ import { isLocale, type Locale } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import ProfileInfoTab from "../components/profile/ProfileInfoTab";
 import FavoritesTab from "../components/profile/FavoritesTab";
+import MySubmissionsTab from "../components/profile/MySubmissionsTab";
 import { useSession } from "../lib/hooks/useSession";
 import { withLocale } from "../lib/locale";
 
-type TabKey = "profile" | "favorites";
+type TabKey = "profile" | "favorites" | "submissions";
 
 function readTab(v: string | null): TabKey {
-  return v === "favorites" ? "favorites" : "profile";
+  if (v === "favorites") return "favorites";
+  if (v === "submissions") return "submissions";
+  return "profile";
 }
 
 export default function ProfilePage() {
@@ -32,7 +35,7 @@ export default function ProfilePage() {
   function setTab(next: TabKey) {
     const updated = new URLSearchParams(searchParams);
     if (next === "profile") updated.delete("tab");
-    else updated.set("tab", "favorites");
+    else updated.set("tab", next);
     setSearchParams(updated);
   }
 
@@ -58,9 +61,18 @@ export default function ProfilePage() {
           <TabButton active={tab === "favorites"} onClick={() => setTab("favorites")}>
             {t("profile.tab_favorites")}
           </TabButton>
+          <TabButton active={tab === "submissions"} onClick={() => setTab("submissions")}>
+            {t("my_submissions.tab_label")}
+          </TabButton>
         </div>
 
-        {tab === "profile" ? <ProfileInfoTab session={session.data} /> : <FavoritesTab />}
+        {tab === "profile" ? (
+          <ProfileInfoTab session={session.data} />
+        ) : tab === "favorites" ? (
+          <FavoritesTab />
+        ) : (
+          <MySubmissionsTab />
+        )}
       </article>
     </AppShell>
   );
