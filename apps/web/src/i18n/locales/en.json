@@ -192,6 +192,8 @@
     "reject_reason_placeholder": "Reason (will be shown to the contributor, e.g. off-topic / low quality / policy violation)",
     "reject_confirm": "Confirm rejection",
     "cancel": "Cancel",
+    "edit_section_content": "Content overrides",
+    "edit_section_meta": "Meta overrides",
     "approved_toast": "Approved — the prompt is live",
     "rejected_toast": "Rejected — contributor will be notified",
     "moderator_no_edit": "Moderator cannot edit before approving",

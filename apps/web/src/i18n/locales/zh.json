@@ -192,6 +192,8 @@
     "reject_reason_placeholder": "请填写拒绝原因(将发送给投稿人,如:与平台主题不符 / 图片质量低 / 内容违规等)",
     "reject_confirm": "确认拒绝",
     "cancel": "取消",
+    "edit_section_content": "内容覆盖",
+    "edit_section_meta": "元信息覆盖",
     "approved_toast": "已批准,提示词已发布",
     "rejected_toast": "已拒绝,投稿人将收到通知",
     "moderator_no_edit": "moderator 不能编辑后批准",
