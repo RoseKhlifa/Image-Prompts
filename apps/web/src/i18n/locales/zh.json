@@ -20,7 +20,8 @@
     "language": "语言",
     "theme": "主题",
     "all": "全部",
-    "anonymous": "匿名"
+    "anonymous": "匿名",
+    "close": "关闭"
   },
   "auth": {
     "sign_in": "登录",

@@ -20,7 +20,8 @@
     "language": "Language",
     "theme": "Theme",
     "all": "All",
-    "anonymous": "Anonymous"
+    "anonymous": "Anonymous",
+    "close": "Close"
   },
   "auth": {
     "sign_in": "Sign In",

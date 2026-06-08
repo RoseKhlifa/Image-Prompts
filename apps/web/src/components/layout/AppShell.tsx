@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { Plus } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
 import LangSwitcher from "../LangSwitcher";
@@ -9,7 +9,9 @@ import SignInButton from "../auth/SignInButton";
 import ProfileMenu from "../auth/ProfileMenu";
 import BrandLogo from "../BrandLogo";
 import NotificationsBell from "../notifications/NotificationsBell";
+import SubmitModal from "../submit/SubmitModal";
 import { useSession } from "../../lib/hooks/useSession";
+import { useUiStore } from "../../state/uiStore";
 import { withLocale } from "../../lib/locale";
 
 export default function AppShell({
@@ -23,10 +25,7 @@ export default function AppShell({
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const session = useSession();
-  const navigate = useNavigate();
-  function openSubmit() {
-    navigate(withLocale(locale, "/submit"));
-  }
+  const openSubmitModal = useUiStore((s) => s.openSubmitModal);
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
@@ -63,7 +62,7 @@ export default function AppShell({
           />
           <button
             type="button"
-            onClick={openSubmit}
+            onClick={openSubmitModal}
             className="hidden h-8 items-center gap-1 rounded-pill bg-accent px-3 text-xs font-medium text-white hover:bg-accent-2 md:inline-flex"
             aria-label={t("nav.submit")}
           >
@@ -86,6 +85,7 @@ export default function AppShell({
         {sidebar}
         <main className="min-w-0 flex-1">{children}</main>
       </div>
+      <SubmitModal />
     </div>
   );
 }

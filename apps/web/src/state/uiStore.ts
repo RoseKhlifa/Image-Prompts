@@ -6,8 +6,12 @@ type UiState = {
   theme: ThemeMode;
   /** Toolbar / sidebar state for mobile drawers — used in later tasks. */
   sidebarOpen: boolean;
+  /** Global Submit modal — opened from header CTA and /:locale/submit deep-link. */
+  submitModalOpen: boolean;
   setTheme: (mode: ThemeMode) => void;
   toggleSidebar: () => void;
+  openSubmitModal: () => void;
+  closeSubmitModal: () => void;
   /** Watch matchMedia and re-apply on system changes when mode is "system". */
   bindSystemThemeWatcher: () => () => void;
 };
@@ -15,6 +19,7 @@ type UiState = {
 export const useUiStore = create<UiState>((set, get) => ({
   theme: readPersistedTheme(),
   sidebarOpen: false,
+  submitModalOpen: false,
 
   setTheme: (mode) => {
     applyTheme(mode);
@@ -23,6 +28,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
+  openSubmitModal: () => set({ submitModalOpen: true }),
+  closeSubmitModal: () => set({ submitModalOpen: false }),
 
   bindSystemThemeWatcher: () => {
     if (typeof window === "undefined" || !window.matchMedia) return () => {};
