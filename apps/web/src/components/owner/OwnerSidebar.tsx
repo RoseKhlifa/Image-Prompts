@@ -5,6 +5,7 @@ import {
   Settings,
   HardDrive,
   Inbox,
+  Megaphone,
   ScrollText,
   Users,
   type LucideIcon,
@@ -25,6 +26,7 @@ export default function OwnerSidebar() {
     { to: withLocale(locale, "/rosekhlifa/r2"), label: t("owner.nav.r2"), icon: HardDrive },
     { to: withLocale(locale, "/rosekhlifa/users"), label: t("owner.nav.users"), icon: Users },
     { to: withLocale(locale, "/rosekhlifa/audit"), label: t("owner.nav.audit"), icon: ScrollText },
+    { to: withLocale(locale, "/rosekhlifa/announcements"), label: t("owner.nav.announcements"), icon: Megaphone },
     { to: withLocale(locale, "/rosekhlifa/submissions"), label: t("owner.nav.submissions"), icon: Inbox },
   ];
 

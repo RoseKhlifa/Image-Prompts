@@ -10,6 +10,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   submissions: "owner.nav.submissions",
   users: "owner.nav.users",
   audit: "owner.nav.audit",
+  announcements: "owner.nav.announcements",
 };
 
 export default function OwnerTopbar() {
