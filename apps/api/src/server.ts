@@ -20,6 +20,7 @@ import ownerRoute from "./routes/owner.ts";
 import usersRoute from "./routes/users.ts";
 import statsRoutes from "./routes/stats.ts";
 import announcementsRoute from "./routes/announcements.ts";
+import translateRoute from "./routes/translate.ts";
 
 export function createServer() {
   const app = new Hono();
@@ -63,6 +64,9 @@ export function createServer() {
   // ★ M10b W2.4: public announcements feed (active rows only). No auth, no
   //   banCheck — banned users and anons alike must be able to see banners.
   app.route("/api/announcements", announcementsRoute);
+  // ★ M10b W4.2: prompt translator (zh↔en). verifyAuth + banCheck + per-user
+  //   rate limit inside the route module.
+  app.route("/api/translate", translateRoute);
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
   app.onError(errorHandler);
