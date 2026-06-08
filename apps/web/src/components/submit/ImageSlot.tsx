@@ -21,7 +21,6 @@ export default function ImageSlot({ value, onChange }: Props) {
     if (upload.state === "done" && upload.r2AccountId && upload.r2Key) {
       onChange({ r2AccountId: upload.r2AccountId, r2Key: upload.r2Key });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upload.state, upload.r2AccountId, upload.r2Key]);
 
   if (value) {

@@ -90,9 +90,9 @@ describe("getTagsBySlugs", () => {
 
 describe("bumpUsage", () => {
   it("increments usageCount for each slug", async () => {
-    const a = await makeTag("a", 0);
-    const b = await makeTag("b", 10);
-    const c = await makeTag("c", 5);
+    await makeTag("a", 0);
+    await makeTag("b", 10);
+    await makeTag("c", 5);
     await bumpUsage([
       `${TEST_SLUG_PREFIX}a`,
       `${TEST_SLUG_PREFIX}b`,

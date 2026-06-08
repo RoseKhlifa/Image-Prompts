@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SubmissionInput } from "@ip/shared";
-import { apiFetch, ApiError } from "../api";
+import { apiFetch, type ApiError } from "../api";
 import { clearDraft } from "../submission-draft";
 
 export type CreateSubmissionResult = { id: string; status: "pending" };

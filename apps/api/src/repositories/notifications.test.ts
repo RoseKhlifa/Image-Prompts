@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { like } from "drizzle-orm";
 import { db } from "../db/client.ts";
-import { users, notifications } from "../db/schema/index.ts";
+import { users } from "../db/schema/index.ts";
 import {
   createNotification,
   listMyNotifications,

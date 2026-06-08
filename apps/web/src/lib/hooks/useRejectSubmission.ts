@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch, ApiError } from "../api";
+import { apiFetch, type ApiError } from "../api";
 
 export function useRejectSubmission(opts: {
   onSuccess?: () => void;
