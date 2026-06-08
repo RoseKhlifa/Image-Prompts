@@ -35,6 +35,21 @@ export async function promoteIfAdminEmail(
   return "admin";
 }
 
+/**
+ * True iff the email matches OWNER_EMAILS (case-insensitive). Pure read of
+ * env at call time — no DB roundtrip. Empty env = no owners.
+ */
+export function isOwnerEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const raw = process.env.OWNER_EMAILS ?? "";
+  const list = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) return false;
+  return list.includes(email.toLowerCase());
+}
+
 function buildEnabledProviders(): Provider[] {
   const out: Provider[] = [];
   if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
@@ -89,6 +104,11 @@ export const authConfig = initAuthConfig(() => ({
         // show the acceptance modal before allowing a submission.
         (session.user as { communityGuidelinesVersion?: number }).communityGuidelinesVersion =
           (user as { communityGuidelinesVersion?: number }).communityGuidelinesVersion ?? 0;
+        // ★ M10a: expose owner flag derived from OWNER_EMAILS env. We don't
+        // ship env to the client — the session is the single source of truth.
+        // Owner is a strict subset of admin (B-scheme).
+        (session.user as { isOwner?: boolean }).isOwner =
+          isOwnerEmail(user.email) && role === "admin";
       }
       return session;
     },

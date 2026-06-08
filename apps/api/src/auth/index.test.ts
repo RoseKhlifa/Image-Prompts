@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { eq, like } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { users } from "../db/schema/index.ts";
-import { promoteIfAdminEmail } from "./index.ts";
+import { isOwnerEmail, promoteIfAdminEmail } from "./index.ts";
 
 const SAVED = { ...process.env };
 const TEST_EMAIL_PREFIX = "admin-promote-test-";
@@ -76,5 +76,35 @@ describe("promoteIfAdminEmail", () => {
     const u = await makeUser(`${TEST_EMAIL_PREFIX}ghost@x.com`);
     const newRole = await promoteIfAdminEmail(u.id, null, "user");
     expect(newRole).toBe("user");
+  });
+});
+
+describe("isOwnerEmail", () => {
+  // The top-level afterEach already restores process.env from SAVED, so we
+  // don't need our own cleanup — just mutate process.env.OWNER_EMAILS freely
+  // in each test.
+
+  it("returns false for null/undefined/empty email", () => {
+    process.env.OWNER_EMAILS = "x@y.com";
+    expect(isOwnerEmail(null)).toBe(false);
+    expect(isOwnerEmail(undefined)).toBe(false);
+    expect(isOwnerEmail("")).toBe(false);
+  });
+
+  it("returns false when OWNER_EMAILS env is empty", () => {
+    process.env.OWNER_EMAILS = "";
+    expect(isOwnerEmail("foo@bar.com")).toBe(false);
+  });
+
+  it("matches case-insensitively", () => {
+    process.env.OWNER_EMAILS = "FOO@bar.com";
+    expect(isOwnerEmail("foo@BAR.com")).toBe(true);
+  });
+
+  it("handles multiple comma-separated emails", () => {
+    process.env.OWNER_EMAILS = "alice@a.com, bob@b.com , carol@c.com";
+    expect(isOwnerEmail("bob@b.com")).toBe(true);
+    expect(isOwnerEmail("carol@c.com")).toBe(true);
+    expect(isOwnerEmail("dan@d.com")).toBe(false);
   });
 });

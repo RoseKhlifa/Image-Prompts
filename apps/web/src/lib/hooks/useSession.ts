@@ -15,6 +15,12 @@ export type Session = {
      * injects 0 when the user has never accepted.
      */
     communityGuidelinesVersion?: number;
+    /**
+     * ★ M10a: derived in API session callback from OWNER_EMAILS env. True iff
+     * user is admin AND their email matches the env whitelist. UI uses this
+     * to decide whether to show /rosekhlifa nav entry and 403-guard pages.
+     */
+    isOwner?: boolean;
   };
   expires: string;
 };

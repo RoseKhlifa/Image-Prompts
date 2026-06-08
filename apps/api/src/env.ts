@@ -21,6 +21,10 @@ const EnvSchema = z.object({
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   ADMIN_EMAILS: z.string().optional(),
+  // M10a: comma-separated list of project-owner emails. Used by isOwnerEmail()
+  // + session callback to derive session.user.isOwner. Owner is a strict
+  // subset of admin (B-scheme) — admins not in this list stay non-owner.
+  OWNER_EMAILS: z.string().optional().default(""),
   R2_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, "must be 32-byte hex"),
   // M4: optional dev R2 creds. Used only by the seed:r2 script to insert the
   // first row of r2_accounts; runtime code reads decrypted creds from the DB.
