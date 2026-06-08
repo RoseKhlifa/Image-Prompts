@@ -42,43 +42,52 @@ export default function SubmitModal() {
 
   if (!open) return null;
 
-  return (
-    <>
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4"
-        onClick={close}
-      >
-        <div
-          className="relative my-8 w-full max-w-3xl rounded-card border border-border-soft bg-panel p-6 shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            onClick={close}
-            aria-label={t("common.close")}
-            className="absolute right-3 top-3 rounded-full p-1 hover:bg-ink/5"
-          >
-            <X size={18} />
-          </button>
-          <h2 className="mb-4 text-lg font-semibold text-ink">{t("submit.page_title")}</h2>
-          {session.data ? (
-            <CommunityGuidelinesGate onCancel={close}>
-              <SubmissionForm />
-            </CommunityGuidelinesGate>
-          ) : null}
-        </div>
-      </div>
+  // Not authed: render ONLY the sign-in modal (no outer "投稿提示词" shell on top).
+  // After successful sign-in, session.data flips → next render falls through to
+  // the authed branch and shows the form. If user cancels sign-in, close the
+  // SubmitModal state so we don't leave it dangling open.
+  if (!session.isLoading && !session.data) {
+    return (
       <SignInModal
-        open={!session.isLoading && !session.data}
+        open={true}
         onClose={() => {
+          // Snapshot of session right now; if still null, user cancelled.
           if (!session.data) {
             close();
             navigate(withLocale(locale, "/"));
           }
         }}
       />
-    </>
+    );
+  }
+
+  // Authed (or still loading): show the submit dialog.
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4"
+      onClick={close}
+    >
+      <div
+        className="relative my-8 w-full max-w-3xl rounded-card border border-border-soft bg-panel p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={close}
+          aria-label={t("common.close")}
+          className="absolute right-3 top-3 rounded-full p-1 hover:bg-ink/5"
+        >
+          <X size={18} />
+        </button>
+        <h2 className="mb-4 text-lg font-semibold text-ink">{t("submit.page_title")}</h2>
+        {session.data ? (
+          <CommunityGuidelinesGate onCancel={close}>
+            <SubmissionForm />
+          </CommunityGuidelinesGate>
+        ) : null}
+      </div>
+    </div>
   );
 }
