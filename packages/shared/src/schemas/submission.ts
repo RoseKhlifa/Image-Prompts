@@ -94,10 +94,16 @@ export const CommunityGuidelinesAcceptSchema = z.object({
 
 export const NotificationSchema = z.object({
   id: z.string().uuid(),
-  type: z.enum(["submission_approved", "submission_rejected"]),
+  type: z.enum([
+    "submission_approved",
+    "submission_rejected",
+    "prompt_liked",
+    "prompt_favorited",
+  ]),
   payload: z.record(z.unknown()),
   readAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
+  aggregatedCount: z.number().int().min(1).default(1),
 });
 
 // Output DTOs
