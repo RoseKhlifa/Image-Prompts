@@ -1,13 +1,12 @@
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { users } from "../db/schema/index.ts";
-import { SUBMIT_CONFIG } from "./submit-config.ts";
+import { getSubmitConfig } from "./submit-config.ts";
 import { startOfTodayShanghai } from "./shanghai-date.ts";
 
-export function computeDailyLimit(user: { rejectedCount: number }): number {
-  return user.rejectedCount >= SUBMIT_CONFIG.DEMOTE_THRESHOLD
-    ? SUBMIT_CONFIG.DEMOTED_LIMIT
-    : SUBMIT_CONFIG.DAILY_LIMIT;
+export async function computeDailyLimit(user: { rejectedCount: number }): Promise<number> {
+  const cfg = await getSubmitConfig();
+  return user.rejectedCount >= cfg.DEMOTE_THRESHOLD ? cfg.DEMOTED_LIMIT : cfg.DAILY_LIMIT;
 }
 
 /**

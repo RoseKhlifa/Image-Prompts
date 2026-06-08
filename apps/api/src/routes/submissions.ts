@@ -10,7 +10,7 @@ import { createRateLimiter } from "../lib/rate-limit.ts";
 import { pickWriteAccount } from "../lib/r2-scheduler.ts";
 import { presignPut, headObject } from "../lib/r2-ops.ts";
 import { buildSubmissionKey, mimeToExt } from "../lib/r2-keys.ts";
-import { SUBMIT_CONFIG } from "../lib/submit-config.ts";
+import { getSubmitConfig } from "../lib/submit-config.ts";
 import {
   computeDailyLimit,
   resetDailyCountIfNeeded,
@@ -53,13 +53,14 @@ app.post("/presign", verifyAuth(), zv("json", PresignRequestSchema), async (c) =
   }
 
   const input = c.req.valid("json");
+  const cfg = await getSubmitConfig();
 
   // Lazily roll the daily counter if the previous reset was before today's
   // Asia/Shanghai midnight, then re-read the slice we need.
   await resetDailyCountIfNeeded(userId);
   const user = await getUserForSubmission(userId);
   if (!user) throw new HTTPException(401, { message: "unauthorized" });
-  const limit = computeDailyLimit(user);
+  const limit = await computeDailyLimit(user);
   if (user.dailySubmissionCount >= limit) {
     throw new HTTPException(429, { message: "daily_limit_reached" });
   }
@@ -72,7 +73,7 @@ app.post("/presign", verifyAuth(), zv("json", PresignRequestSchema), async (c) =
     key,
     contentType: input.contentType,
     contentLength: input.size,
-    ttlSeconds: SUBMIT_CONFIG.PRESIGN_TTL_SECONDS,
+    ttlSeconds: cfg.PRESIGN_TTL_SECONDS,
   });
   return c.json({
     r2AccountId: account.id,
@@ -127,11 +128,12 @@ app.post(
   async (c) => {
     const userId = requireUserId(c);
     const input = c.req.valid("json");
+    const cfg = await getSubmitConfig();
 
     const user = await getUserForSubmission(userId);
     if (!user) throw new HTTPException(401, { message: "unauthorized" });
 
-    if (user.communityGuidelinesVersion < SUBMIT_CONFIG.GUIDELINES_VERSION) {
+    if (user.communityGuidelinesVersion < cfg.GUIDELINES_VERSION) {
       throw new HTTPException(412, { message: "guidelines_not_accepted" });
     }
 
@@ -142,7 +144,7 @@ app.post(
     // The real race-safe gate is the atomic increment further down.
     await resetDailyCountIfNeeded(userId);
     const refreshed = (await getUserForSubmission(userId)) ?? user;
-    const limit = computeDailyLimit(refreshed);
+    const limit = await computeDailyLimit(refreshed);
     if (refreshed.dailySubmissionCount >= limit) {
       throw new HTTPException(429, { message: "daily_limit_reached" });
     }
@@ -186,7 +188,7 @@ app.post(
       if (!head) {
         throw new HTTPException(400, { message: `image_missing:${img.r2Key}` });
       }
-      if (head.contentLength > SUBMIT_CONFIG.MAX_IMAGE_SIZE_BYTES) {
+      if (head.contentLength > cfg.MAX_IMAGE_SIZE_BYTES) {
         throw new HTTPException(400, { message: `image_too_large:${img.r2Key}` });
       }
     }

@@ -36,13 +36,13 @@ async function makeUser(input: {
 }
 
 describe("computeDailyLimit", () => {
-  it("returns 10 when rejectedCount is below threshold", () => {
-    expect(computeDailyLimit({ rejectedCount: 0 })).toBe(10);
-    expect(computeDailyLimit({ rejectedCount: 2 })).toBe(10);
+  it("returns 10 when rejectedCount is below threshold", async () => {
+    expect(await computeDailyLimit({ rejectedCount: 0 })).toBe(10);
+    expect(await computeDailyLimit({ rejectedCount: 2 })).toBe(10);
   });
-  it("returns 5 when rejectedCount is at or above threshold", () => {
-    expect(computeDailyLimit({ rejectedCount: 3 })).toBe(5);
-    expect(computeDailyLimit({ rejectedCount: 100 })).toBe(5);
+  it("returns 5 when rejectedCount is at or above threshold", async () => {
+    expect(await computeDailyLimit({ rejectedCount: 3 })).toBe(5);
+    expect(await computeDailyLimit({ rejectedCount: 100 })).toBe(5);
   });
 });
 
