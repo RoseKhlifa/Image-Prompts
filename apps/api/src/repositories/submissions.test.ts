@@ -8,8 +8,10 @@ import {
   tags,
   promptTags,
   prompts as promptsTable,
+  promptImages,
   notifications,
   auditLog,
+  r2Accounts,
 } from "../db/schema/index.ts";
 import {
   createSubmission,
@@ -57,9 +59,10 @@ async function cleanup() {
     .where(like(promptsTable.slug, `${TEST_PROMPT_SLUG_PREFIX}%`));
   const testPromptIds = testPrompts.map((p) => p.id);
 
-  // 6. prompt_tags + prompts
+  // 6. prompt_tags + prompt_images + prompts
   if (testPromptIds.length > 0) {
     await db.delete(promptTags).where(inArray(promptTags.promptId, testPromptIds));
+    await db.delete(promptImages).where(inArray(promptImages.promptId, testPromptIds));
     await db.delete(promptsTable).where(inArray(promptsTable.id, testPromptIds));
   }
 
@@ -71,6 +74,10 @@ async function cleanup() {
 
   // 9. Test categories (FK from submissions/prompts, so this happens last)
   await db.delete(categories).where(like(categories.slug, `${TEST_CATEGORY_SLUG_PREFIX}%`));
+
+  // R2 row isolation: delete test r2_account row
+  await db.delete(r2Accounts).where(eq(r2Accounts.name, "subs-repo-test-r2"));
+  await db.update(r2Accounts).set({ enabled: true });
 }
 
 beforeEach(cleanup);
@@ -401,5 +408,167 @@ describe("rejectSubmission (transaction)", () => {
         submissionId: subId, actorId: a.id, reason: "1234567890",
       }),
     ).rejects.toBeInstanceOf(AlreadyResolvedError);
+  });
+});
+
+import { encryptSecret } from "../lib/crypto.ts";
+
+// Helper: create a real r2_accounts row so prompt_images FK can be satisfied.
+const TEST_R2_NAME = "subs-repo-test-r2";
+
+async function seedRealR2() {
+  process.env.R2_ENCRYPTION_KEY =
+    process.env.R2_ENCRYPTION_KEY ??
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const [row] = await db
+    .insert(r2Accounts)
+    .values({
+      name: TEST_R2_NAME,
+      accountId: "test-acc",
+      accessKeyId: "test-key",
+      accessKeySecretEncrypted: encryptSecret("test-secret"),
+      bucket: "test-bucket",
+      endpoint: "https://test.example.com",
+      publicUrl: "https://test.example.com",
+      enabled: true,
+      priority: 1,
+    })
+    .returning();
+  return row!;
+}
+
+describe("listForUser primaryImage source (#5 fix)", () => {
+  it("uses prompt_images key when submission is approved + promoted (not the deleted submissions/ key)", async () => {
+    const u = await makeUser();
+    const c = await makeCategory();
+    const r2 = await seedRealR2();
+    const subId = await createSubmission({
+      contributorId: u.id,
+      titleZh: `${TEST_PROMPT_SLUG_PREFIX}fix-thumb`,
+      titleEn: null,
+      promptZh: "p",
+      promptEn: null,
+      negativePromptZh: null,
+      negativePromptEn: null,
+      notesZh: null,
+      notesEn: null,
+      aspectRatio: null,
+      categoryId: c.id,
+      tagSlugs: [],
+      images: [{ r2AccountId: r2.id, r2Key: "submissions/u/orig.jpg" }],
+      agreedGuidelinesVersion: 1,
+    });
+    const a = await makeAdmin();
+    const { promptId } = await approveSubmission({
+      submissionId: subId,
+      actorId: a.id,
+      actorRole: "admin",
+      edits: {},
+    });
+    // Simulate the post-transaction prompt_images insert (admin route does
+    // this after approveSubmission returns).
+    await db.insert(promptImages).values({
+      promptId,
+      r2AccountId: r2.id,
+      r2Key: `prompts/${promptId}/0.jpg`,
+      order: 0,
+    });
+
+    const { items } = await listForUser(u.id, {
+      cursor: null,
+      limit: 10,
+      status: "approved",
+    });
+    const item = items.find((i) => i.id === subId);
+    expect(item).toBeDefined();
+    expect(item!.primaryImage).toEqual({
+      r2AccountId: r2.id,
+      r2Key: `prompts/${promptId}/0.jpg`,
+    });
+  });
+
+  it("falls back to submission imageKeys[0] when no prompt_images row exists (pending submission)", async () => {
+    const u = await makeUser();
+    const c = await makeCategory();
+    const subId = await createSubmission({
+      contributorId: u.id,
+      titleZh: "pending",
+      titleEn: null,
+      promptZh: "p",
+      promptEn: null,
+      negativePromptZh: null,
+      negativePromptEn: null,
+      notesZh: null,
+      notesEn: null,
+      aspectRatio: null,
+      categoryId: c.id,
+      tagSlugs: [],
+      images: [
+        {
+          r2AccountId: "11111111-1111-1111-1111-111111111111",
+          r2Key: "submissions/u/pending.jpg",
+        },
+      ],
+      agreedGuidelinesVersion: 1,
+    });
+    const { items } = await listForUser(u.id, {
+      cursor: null,
+      limit: 10,
+      status: "pending",
+    });
+    const item = items.find((i) => i.id === subId);
+    expect(item).toBeDefined();
+    expect(item!.primaryImage).toEqual({
+      r2AccountId: "11111111-1111-1111-1111-111111111111",
+      r2Key: "submissions/u/pending.jpg",
+    });
+  });
+});
+
+describe("listForAdmin primaryImage source (#5 fix)", () => {
+  it("uses prompt_images key when submission is approved + promoted", async () => {
+    const u = await makeUser();
+    const c = await makeCategory();
+    const r2 = await seedRealR2();
+    const subId = await createSubmission({
+      contributorId: u.id,
+      titleZh: `${TEST_PROMPT_SLUG_PREFIX}fix-thumb-admin`,
+      titleEn: null,
+      promptZh: "p",
+      promptEn: null,
+      negativePromptZh: null,
+      negativePromptEn: null,
+      notesZh: null,
+      notesEn: null,
+      aspectRatio: null,
+      categoryId: c.id,
+      tagSlugs: [],
+      images: [{ r2AccountId: r2.id, r2Key: "submissions/u/orig.jpg" }],
+      agreedGuidelinesVersion: 1,
+    });
+    const a = await makeAdmin();
+    const { promptId } = await approveSubmission({
+      submissionId: subId,
+      actorId: a.id,
+      actorRole: "admin",
+      edits: {},
+    });
+    await db.insert(promptImages).values({
+      promptId,
+      r2AccountId: r2.id,
+      r2Key: `prompts/${promptId}/0.jpg`,
+      order: 0,
+    });
+    const { items } = await listForAdmin({
+      cursor: null,
+      limit: 50,
+      status: "approved",
+    });
+    const item = items.find((i) => i.id === subId);
+    expect(item).toBeDefined();
+    expect(item!.primaryImage).toEqual({
+      r2AccountId: r2.id,
+      r2Key: `prompts/${promptId}/0.jpg`,
+    });
   });
 });

@@ -4,6 +4,7 @@ import {
   submissions,
   users,
   prompts as promptsTable,
+  promptImages,
   tags as tagsTable,
   promptTags,
   notifications,
@@ -125,7 +126,11 @@ type ListOpts = {
   status: "pending" | "approved" | "rejected" | null;
 };
 
-function listItem(s: typeof submissions.$inferSelect, promotedSlug: string | null = null) {
+function listItem(
+  s: typeof submissions.$inferSelect,
+  promotedSlug: string | null = null,
+  promotedImage: { r2AccountId: string; r2Key: string } | null = null,
+) {
   const f = flat(s);
   return {
     id: s.id,
@@ -133,7 +138,9 @@ function listItem(s: typeof submissions.$inferSelect, promotedSlug: string | nul
     titleZh: f.titleZh,
     titleEn: f.titleEn,
     rejectReason: s.rejectReason,
-    primaryImage: s.imageKeys.length > 0
+    primaryImage: promotedImage
+      ? promotedImage
+      : s.imageKeys.length > 0
       ? { r2AccountId: s.imageKeys[0]!.r2AccountId, r2Key: s.imageKeys[0]!.r2Key }
       : null,
     promotedTo: s.promotedTo && promotedSlug
@@ -149,15 +156,37 @@ export async function listForUser(userId: string, opts: ListOpts) {
   if (opts.status) conds.push(eq(submissions.status, opts.status));
   if (opts.cursor) conds.push(lt(submissions.createdAt, new Date(opts.cursor)));
   const rows = await db
-    .select({ s: submissions, promotedSlug: promptsTable.slug })
+    .select({
+      s: submissions,
+      promotedSlug: promptsTable.slug,
+      promotedImage: {
+        r2AccountId: promptImages.r2AccountId,
+        r2Key: promptImages.r2Key,
+      },
+    })
     .from(submissions)
     .leftJoin(promptsTable, eq(submissions.promotedTo, promptsTable.id))
+    .leftJoin(
+      promptImages,
+      and(
+        eq(promptImages.promptId, submissions.promotedTo),
+        eq(promptImages.order, 0),
+      ),
+    )
     .where(and(...conds))
     .orderBy(desc(submissions.createdAt))
     .limit(opts.limit + 1);
   const trimmed = rows.slice(0, opts.limit);
   return {
-    items: trimmed.map((r) => listItem(r.s, r.promotedSlug)),
+    items: trimmed.map((r) =>
+      listItem(
+        r.s,
+        r.promotedSlug,
+        r.promotedImage && r.promotedImage.r2AccountId && r.promotedImage.r2Key
+          ? { r2AccountId: r.promotedImage.r2AccountId, r2Key: r.promotedImage.r2Key }
+          : null,
+      ),
+    ),
     nextCursor:
       rows.length > opts.limit
         ? trimmed[trimmed.length - 1]!.s.createdAt.toISOString()
@@ -174,6 +203,10 @@ export async function listForAdmin(opts: ListOpts) {
     .select({
       s: submissions,
       promotedSlug: promptsTable.slug,
+      promotedImage: {
+        r2AccountId: promptImages.r2AccountId,
+        r2Key: promptImages.r2Key,
+      },
       contributor: {
         id: users.id,
         name: users.name,
@@ -183,6 +216,13 @@ export async function listForAdmin(opts: ListOpts) {
     })
     .from(submissions)
     .leftJoin(promptsTable, eq(submissions.promotedTo, promptsTable.id))
+    .leftJoin(
+      promptImages,
+      and(
+        eq(promptImages.promptId, submissions.promotedTo),
+        eq(promptImages.order, 0),
+      ),
+    )
     .innerJoin(users, eq(submissions.contributorId, users.id))
     .where(where)
     .orderBy(desc(submissions.createdAt))
@@ -190,7 +230,13 @@ export async function listForAdmin(opts: ListOpts) {
   const trimmed = rows.slice(0, opts.limit);
   return {
     items: trimmed.map((r) => ({
-      ...listItem(r.s, r.promotedSlug),
+      ...listItem(
+        r.s,
+        r.promotedSlug,
+        r.promotedImage && r.promotedImage.r2AccountId && r.promotedImage.r2Key
+          ? { r2AccountId: r.promotedImage.r2AccountId, r2Key: r.promotedImage.r2Key }
+          : null,
+      ),
       contributor: r.contributor,
     })),
     nextCursor:
