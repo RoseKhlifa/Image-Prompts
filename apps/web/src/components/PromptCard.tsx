@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { isLocale, pickBilingual, type Locale, type PromptSummary } from "@ip/shared";
 import { resolveImageUrl } from "../lib/imageUrl";
@@ -12,8 +12,20 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
   const locale: Locale = isLocale(param) ? param : "zh";
   const { map } = useR2PoolMap();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const title = pickBilingual(prompt.title, locale) ?? prompt.slug;
   const imageUrl = resolveImageUrl(prompt.primaryImage, map);
+
+  // Contributor "link" is a button (not <a>) to avoid nested <a> in <a>
+  // (the outer card is already a <Link>). Stops propagation so the outer
+  // navigation to the prompt detail doesn't fire.
+  function goToContributor(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (prompt.contributor) {
+      navigate(withLocale(locale, `/users/${prompt.contributor.id}`));
+    }
+  }
 
   return (
     <Link
@@ -31,9 +43,9 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
         <div className="flex items-center justify-between text-xs text-white">
           {prompt.contributor ? (
-            <Link
-              to={withLocale(locale, `/users/${prompt.contributor.id}`)}
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={goToContributor}
               className="pointer-events-auto flex items-center gap-1.5 hover:underline"
             >
               <Avatar
@@ -45,7 +57,7 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
               <span className="line-clamp-1">
                 {prompt.contributor.name ?? t("common.anonymous")}
               </span>
-            </Link>
+            </button>
           ) : (
             <div className="flex items-center gap-1.5">
               <Avatar id={null} name={null} src={null} size={24} />
