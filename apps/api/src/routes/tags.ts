@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { softAuth, requireUserId } from "../middleware/auth.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { zv } from "../lib/validate.ts";
 import { listTags, searchTags } from "../repositories/tags.ts";
 
@@ -16,7 +17,7 @@ const app = new Hono();
 // fall through. `scope` and `q` are mutually exclusive: scoped requests
 // return tags from the user's data (favorites/mine) ordered by occurrence;
 // non-scoped requests fall back to global searchTags (autocomplete + sidebar).
-app.get("/", softAuth(), zv("query", QuerySchema), async (c) => {
+app.get("/", softAuth(), banCheck(), zv("query", QuerySchema), async (c) => {
   const q = c.req.valid("query");
   if (q.scope) {
     const userId = requireUserId(c);

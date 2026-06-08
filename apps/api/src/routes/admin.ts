@@ -5,6 +5,7 @@ import { z } from "zod";
 import { ApproveInputSchema, RejectInputSchema } from "@ip/shared";
 import { requireRole } from "../middleware/role.ts";
 import { softAuth, requireUserId, getRole } from "../middleware/auth.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { zv } from "../lib/validate.ts";
 import {
   listForAdmin,
@@ -21,8 +22,10 @@ import { r2Accounts, promptImages, submissions } from "../db/schema/index.ts";
 
 const app = new Hono();
 
-// All admin routes require admin or moderator role
-app.use("*", softAuth(), requireRole("admin", "moderator"));
+// All admin routes require admin or moderator role. banCheck() runs between
+// softAuth() (populates authUser) and requireRole() (gates by role) so a
+// banned admin still gets 403 with `banned` even though their role passes.
+app.use("*", softAuth(), banCheck(), requireRole("admin", "moderator"));
 
 const ListQuerySchema = z.object({
   status: z.enum(["pending", "approved", "rejected"]).optional(),

@@ -393,6 +393,136 @@ describe("owner users — PATCH role", () => {
   });
 });
 
+describe("owner users — POST /users/:id/ban", () => {
+  it("POST /users/:id/ban 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({ reason: "spam" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /users/:id/ban 200 updates DB + writes audit row", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ reason: "repeated rule violations" }),
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; banned: boolean };
+    expect(j.id).toBe(target.userId);
+    expect(j.banned).toBe(true);
+
+    const [reread] = await db
+      .select({
+        bannedAt: users.bannedAt,
+        bannedReason: users.bannedReason,
+      })
+      .from(users)
+      .where(eq(users.id, target.userId));
+    expect(reread?.bannedAt).not.toBeNull();
+    expect(reread?.bannedReason).toBe("repeated rule violations");
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "user.ban"),
+          eq(auditLog.targetId, target.userId),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("user");
+    expect(auditRows[0]!.payload).toMatchObject({
+      reason: "repeated rule violations",
+    });
+  });
+
+  it("POST /users/:id/ban 400 with empty reason", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ reason: "" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /users/:id/ban 400 with whitespace-only reason", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ reason: "   " }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("owner users — POST /users/:id/unban", () => {
+  it("POST /users/:id/unban 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}/unban`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /users/:id/unban 200 clears DB + writes audit row", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    // Seed the ban first via the ban endpoint so we exercise the full chain.
+    await app.request(`/api/owner/users/${target.userId}/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ reason: "test" }),
+    });
+
+    const res = await app.request(`/api/owner/users/${target.userId}/unban`, {
+      method: "POST",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; banned: boolean };
+    expect(j.id).toBe(target.userId);
+    expect(j.banned).toBe(false);
+
+    const [reread] = await db
+      .select({
+        bannedAt: users.bannedAt,
+        bannedReason: users.bannedReason,
+      })
+      .from(users)
+      .where(eq(users.id, target.userId));
+    expect(reread?.bannedAt).toBeNull();
+    expect(reread?.bannedReason).toBeNull();
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "user.unban"),
+          eq(auditLog.targetId, target.userId),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("user");
+  });
+});
+
 // ── /api/owner/audit ───────────────────────────────────────────────────────
 //
 // Read-only audit feed. We piggy-back on the PATCH role-update endpoint to

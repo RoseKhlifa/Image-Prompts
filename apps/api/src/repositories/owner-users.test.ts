@@ -11,6 +11,8 @@ import {
   listUsers,
   getUserDetail,
   updateUserRole,
+  banUser,
+  unbanUser,
 } from "./owner-users.ts";
 
 const TEST_EMAIL_PREFIX = "tw1u-";
@@ -276,5 +278,61 @@ describe("updateUserRole", () => {
     await updateUserRole(u.id, "admin");
     const [reread2] = await db.select().from(users).where(eq(users.id, u.id));
     expect(reread2!.role).toBe("admin");
+  });
+});
+
+describe("banUser / unbanUser", () => {
+  it("banUser sets banned_at + banned_reason", async () => {
+    const u = await makeUser();
+    await banUser(u.id, "spam posting");
+    const [reread] = await db
+      .select({
+        bannedAt: users.bannedAt,
+        bannedReason: users.bannedReason,
+      })
+      .from(users)
+      .where(eq(users.id, u.id));
+    expect(reread!.bannedAt).not.toBeNull();
+    expect(reread!.bannedAt instanceof Date).toBe(true);
+    expect(reread!.bannedReason).toBe("spam posting");
+  });
+
+  it("unbanUser clears banned_at + banned_reason", async () => {
+    const u = await makeUser();
+    await banUser(u.id, "test ban");
+    await unbanUser(u.id);
+    const [reread] = await db
+      .select({
+        bannedAt: users.bannedAt,
+        bannedReason: users.bannedReason,
+      })
+      .from(users)
+      .where(eq(users.id, u.id));
+    expect(reread!.bannedAt).toBeNull();
+    expect(reread!.bannedReason).toBeNull();
+  });
+
+  it("listUsers({ banned: true }) returns only banned users", async () => {
+    const banned = await makeUser();
+    const clean = await makeUser();
+    await banUser(banned.id, "rule violation");
+
+    const { items } = await listUsers({ banned: true });
+    const ours = items.filter((i) => [banned.id, clean.id].includes(i.id));
+    expect(ours).toHaveLength(1);
+    expect(ours[0]!.id).toBe(banned.id);
+    expect(ours[0]!.bannedAt).not.toBeNull();
+  });
+
+  it("listUsers({ banned: false }) returns only non-banned users", async () => {
+    const banned = await makeUser();
+    const clean = await makeUser();
+    await banUser(banned.id, "rule violation");
+
+    const { items } = await listUsers({ banned: false });
+    const ours = items.filter((i) => [banned.id, clean.id].includes(i.id));
+    expect(ours).toHaveLength(1);
+    expect(ours[0]!.id).toBe(clean.id);
+    expect(ours[0]!.bannedAt).toBeNull();
   });
 });

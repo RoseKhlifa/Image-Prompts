@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { zv } from "../lib/validate.ts";
 import { softAuth, requireUserId } from "../middleware/auth.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import {
   getUserPublic,
   getUserStats,
@@ -52,6 +53,7 @@ app.get(
 app.get(
   "/:id/favorites",
   softAuth(),
+  banCheck(),
   zv("param", UuidParamSchema),
   zv("query", ListQuerySchema),
   async (c) => {

@@ -247,3 +247,26 @@ export async function updateUserRole(
 ): Promise<void> {
   await db.update(users).set({ role }).where(eq(users.id, id));
 }
+
+/**
+ * Mark a user as banned. Writes both `banned_at = now()` and `banned_reason`.
+ * The route layer is responsible for the audit row — keeping that here would
+ * couple the repo to the audit module unnecessarily.
+ */
+export async function banUser(id: string, reason: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ bannedAt: sql`now()`, bannedReason: reason })
+    .where(eq(users.id, id));
+}
+
+/**
+ * Clear the ban — sets both `banned_at` and `banned_reason` back to NULL.
+ * Same separation-of-concerns: audit row is the route layer's job.
+ */
+export async function unbanUser(id: string): Promise<void> {
+  await db
+    .update(users)
+    .set({ bannedAt: null, bannedReason: null })
+    .where(eq(users.id, id));
+}

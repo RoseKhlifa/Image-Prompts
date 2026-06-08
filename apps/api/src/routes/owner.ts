@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { softAuth, requireUserId } from "../middleware/auth.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { requireOwner } from "../middleware/owner.ts";
 import { zv } from "../lib/validate.ts";
 import { getOwnerDashboard } from "../repositories/owner-stats.ts";
@@ -17,6 +18,8 @@ import {
   listUsers,
   getUserDetail,
   updateUserRole,
+  banUser,
+  unbanUser,
 } from "../repositories/owner-users.ts";
 import {
   recordAudit,
@@ -28,7 +31,9 @@ import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 const app = new Hono();
 
 // All /api/owner routes require admin role + OWNER_EMAILS whitelist.
-app.use("*", softAuth(), requireOwner());
+// banCheck() runs between softAuth() and requireOwner() so a banned owner
+// (in the unlikely case they nuked themselves) is locked out the same way.
+app.use("*", softAuth(), banCheck(), requireOwner());
 
 // ── Dashboard ────────────────────────────────────────────────────────────
 app.get("/dashboard", async (c) => {
@@ -177,6 +182,55 @@ app.patch(
       payload: { newRole: role },
     });
     return c.json({ id, role });
+  },
+);
+
+// ── Ban / unban (M10b W2.2) ───────────────────────────────────────────────
+//
+// POST /users/:id/ban requires a non-empty reason (trimmed, ≤500 chars).
+// Both endpoints write an audit row so the owner audit feed records who
+// flipped the bit and why. banCheck() middleware (installed on every
+// authenticated route except /api/auth/*) gates banned users out of the
+// rest of the API on subsequent requests.
+const BanBodySchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
+app.post(
+  "/users/:id/ban",
+  zv("param", UuidParamSchema),
+  zv("json", BanBodySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { reason } = c.req.valid("json");
+    const ownerId = requireUserId(c);
+    await banUser(id, reason);
+    await recordAudit({
+      actorId: ownerId,
+      action: "user.ban",
+      targetType: "user",
+      targetId: id,
+      payload: { reason },
+    });
+    return c.json({ id, banned: true });
+  },
+);
+
+app.post(
+  "/users/:id/unban",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    await unbanUser(id);
+    await recordAudit({
+      actorId: ownerId,
+      action: "user.unban",
+      targetType: "user",
+      targetId: id,
+      payload: {},
+    });
+    return c.json({ id, banned: false });
   },
 );
 

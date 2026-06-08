@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { PresignRequestSchema, SubmissionInputSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
 import { requireUserId } from "../middleware/auth.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { pickWriteAccount } from "../lib/r2-scheduler.ts";
 import { presignPut, headObject } from "../lib/r2-ops.ts";
@@ -43,7 +44,12 @@ function clientIp(c: Context): string {
 
 const app = new Hono();
 
-app.post("/presign", verifyAuth(), zv("json", PresignRequestSchema), async (c) => {
+// Both /presign and POST / require an authenticated user, so hoist the auth
+// + ban-check pair. banCheck() returns 403 `banned` if the signed-in user is
+// banned, blocking presign + create alike.
+app.use("*", verifyAuth(), banCheck());
+
+app.post("/presign", zv("json", PresignRequestSchema), async (c) => {
   const userId = requireUserId(c);
   if (!presignUserLimiter.check(userId)) {
     throw new HTTPException(429, { message: "rate_limit" });
@@ -113,7 +119,6 @@ app.post("/presign", verifyAuth(), zv("json", PresignRequestSchema), async (c) =
 // is an acceptable tradeoff for race-safety.
 app.post(
   "/",
-  verifyAuth(),
   async (c, next) => {
     const userId = requireUserId(c);
     if (!createUserLimiter.check(`create:user:${userId}`)) {

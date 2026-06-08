@@ -4,6 +4,7 @@ import { verifyAuth, getAuthUser } from "@hono/auth-js";
 import { PromptIdParamSchema } from "@ip/shared";
 import { eq } from "drizzle-orm";
 import { zv } from "../lib/validate.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { hashIp } from "../lib/ip-hash.ts";
 import { env } from "../env.ts";
@@ -74,7 +75,7 @@ function requireUser(c: { get: (key: "authUser") => unknown }): string {
   return id;
 }
 
-app.post("/:id/like", verifyAuth(), zv("param", PromptIdParamSchema), async (c) => {
+app.post("/:id/like", verifyAuth(), banCheck(), zv("param", PromptIdParamSchema), async (c) => {
   const userId = requireUser(c);
   const ip = clientIp(c);
   if (!toggleUserLimiter.check(userId)) throw new HTTPException(429, { message: "rate_limit" });
@@ -109,7 +110,7 @@ app.post("/:id/like", verifyAuth(), zv("param", PromptIdParamSchema), async (c) 
   return c.json({ liked: true, like_count: result.like_count }, 201);
 });
 
-app.delete("/:id/like", verifyAuth(), zv("param", PromptIdParamSchema), async (c) => {
+app.delete("/:id/like", verifyAuth(), banCheck(), zv("param", PromptIdParamSchema), async (c) => {
   const userId = requireUser(c);
   const ip = clientIp(c);
   if (!toggleUserLimiter.check(userId)) throw new HTTPException(429, { message: "rate_limit" });
@@ -124,7 +125,7 @@ app.delete("/:id/like", verifyAuth(), zv("param", PromptIdParamSchema), async (c
   }
 });
 
-app.post("/:id/favorite", verifyAuth(), zv("param", PromptIdParamSchema), async (c) => {
+app.post("/:id/favorite", verifyAuth(), banCheck(), zv("param", PromptIdParamSchema), async (c) => {
   const userId = requireUser(c);
   const ip = clientIp(c);
   if (!toggleUserLimiter.check(userId)) throw new HTTPException(429, { message: "rate_limit" });
@@ -159,7 +160,7 @@ app.post("/:id/favorite", verifyAuth(), zv("param", PromptIdParamSchema), async 
   return c.json({ favorited: true, favorite_count: result.favorite_count }, 201);
 });
 
-app.delete("/:id/favorite", verifyAuth(), zv("param", PromptIdParamSchema), async (c) => {
+app.delete("/:id/favorite", verifyAuth(), banCheck(), zv("param", PromptIdParamSchema), async (c) => {
   const userId = requireUser(c);
   const ip = clientIp(c);
   if (!toggleUserLimiter.check(userId)) throw new HTTPException(429, { message: "rate_limit" });

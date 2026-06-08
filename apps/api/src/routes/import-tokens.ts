@@ -4,6 +4,7 @@ import { bodyLimit } from "hono/body-limit";
 import { verifyAuth } from "@hono/auth-js";
 import { ImportTokenRequestSchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import {
   consumeImportToken,
@@ -21,6 +22,7 @@ const POST_MAX_BYTES = 4096;
 app.post(
   "/",
   verifyAuth(),
+  banCheck(),
   bodyLimit({
     maxSize: POST_MAX_BYTES,
     onError: (c) => c.json({ error: "payload_too_large" }, 413),

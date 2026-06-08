@@ -5,6 +5,7 @@ import { z } from "zod";
 import { CommunityGuidelinesAcceptSchema, MyFavoritesQuerySchema } from "@ip/shared";
 import { zv } from "../lib/validate.ts";
 import { requireUserId } from "../middleware/auth.ts";
+import { banCheck } from "../middleware/ban-check.ts";
 import { listMyFavorites } from "../repositories/interactions.ts";
 import { setCommunityGuidelinesVersion } from "../repositories/users.ts";
 import { listForUser } from "../repositories/submissions.ts";
@@ -31,7 +32,12 @@ const UuidParamSchema = z.object({ id: z.string().uuid() });
 
 const app = new Hono();
 
-app.get("/favorites", verifyAuth(), zv("query", MyFavoritesQuerySchema), async (c) => {
+// Every /api/me/* handler requires an authenticated user, so we hoist the
+// auth + ban-check pair to a single app.use rather than repeating it on each
+// handler. banCheck() returns 403 `banned` if the signed-in user is banned.
+app.use("*", verifyAuth(), banCheck());
+
+app.get("/favorites", zv("query", MyFavoritesQuerySchema), async (c) => {
   const userId = requireUserId(c);
   const { page, pageSize } = c.req.valid("query");
   const result = await listMyFavorites(userId, page, pageSize);
@@ -40,7 +46,6 @@ app.get("/favorites", verifyAuth(), zv("query", MyFavoritesQuerySchema), async (
 
 app.patch(
   "/community-guidelines",
-  verifyAuth(),
   zv("json", CommunityGuidelinesAcceptSchema),
   async (c) => {
     const userId = requireUserId(c);
@@ -52,7 +57,6 @@ app.patch(
 
 app.get(
   "/submissions",
-  verifyAuth(),
   zv("query", SubmissionsQuerySchema),
   async (c) => {
     const userId = requireUserId(c);
@@ -68,7 +72,6 @@ app.get(
 
 app.get(
   "/notifications",
-  verifyAuth(),
   zv("query", NotificationsQuerySchema),
   async (c) => {
     const userId = requireUserId(c);
@@ -82,7 +85,7 @@ app.get(
   },
 );
 
-app.get("/notifications/count", verifyAuth(), async (c) => {
+app.get("/notifications/count", async (c) => {
   const userId = requireUserId(c);
   const unread = await countUnread(userId);
   return c.json({ unread });
@@ -90,7 +93,6 @@ app.get("/notifications/count", verifyAuth(), async (c) => {
 
 app.post(
   "/notifications/:id/read",
-  verifyAuth(),
   zv("param", UuidParamSchema),
   async (c) => {
     const userId = requireUserId(c);
@@ -100,7 +102,7 @@ app.post(
   },
 );
 
-app.post("/notifications/read-all", verifyAuth(), async (c) => {
+app.post("/notifications/read-all", async (c) => {
   const userId = requireUserId(c);
   const updated = await markAllRead(userId);
   return c.json({ ok: true, updated });
