@@ -497,13 +497,43 @@ export const DEMO_PROMPTS = [
 ];
 
 export const DEMO_SITE_SETTINGS = [
-  { key: "submit.daily_limit", value: 10, description: "Per-user daily submission limit" },
-  { key: "community_guidelines.version", value: 1, description: "Current guidelines version" },
+  // -- submit.* — consumed by getSubmitConfig() in apps/api/src/lib/submit-config.ts (Task 5)
+  { key: "submit.daily_limit", value: 10, description: "Per-user daily submission limit (good standing)" },
+  { key: "submit.demoted_daily_limit", value: 5, description: "Per-user daily limit when rejectedCount >= demote_threshold" },
+  { key: "submit.demote_threshold", value: 3, description: "rejectedCount >= this triggers halved daily limit" },
+  { key: "submit.guidelines_version", value: 1, description: "Current community guidelines version (bumping invalidates user accept)" },
+  { key: "submit.max_images_per_submission", value: 5, description: "Max image files per single submission" },
+  { key: "submit.min_images_per_submission", value: 1, description: "Min image files per single submission" },
+  { key: "submit.max_image_size_bytes", value: 10485760, description: "Max bytes per uploaded image (10 MB)" },
   {
-    key: "community_guidelines.body",
-    value: { zh: "请遵守社区准则。", en: "Please follow community guidelines." },
-    description: "Guidelines body bilingual",
+    key: "submit.allowed_mime",
+    value: ["image/jpeg", "image/png", "image/webp"],
+    description: "Allowed image MIME types",
   },
-  { key: "translation.enabled", value: false, description: "AI translation feature toggle" },
-  { key: "view_count.dedup_hours", value: 24, description: "View dedup window" },
+  { key: "submit.max_tags", value: 6, description: "Max tags per prompt" },
+  { key: "submit.presign_ttl_seconds", value: 900, description: "Presigned upload URL TTL (seconds)" },
+  { key: "submit.reject_reason_min_chars", value: 1, description: "Min chars in admin rejection reason" },
+  { key: "submit.reject_reason_max_chars", value: 500, description: "Max chars in admin rejection reason" },
+  { key: "submit.daily_reset_timezone", value: "Asia/Shanghai", description: "Timezone for the daily-limit reset boundary" },
+
+  // -- community_guidelines.* — body shown to submitters before they may submit
+  { key: "community_guidelines.body",
+    value: { zh: "请遵守社区准则。", en: "Please follow community guidelines." },
+    description: "Guidelines body (bilingual)" },
+
+  // -- view_count.* — interaction dedup window
+  { key: "view_count.dedup_hours", value: 24, description: "View dedup window in hours" },
+
+  // -- translator.* — M10a seeds keys; M10b wires the endpoint + UI
+  { key: "translator.enabled", value: false, description: "AI translation feature toggle (off until M10b)" },
+  { key: "translator.base_url", value: "https://api.openai.com/v1", description: "OpenAI /responses-compatible endpoint base URL (relay-friendly)" },
+  { key: "translator.api_key", value: "", description: "API key (encrypted at REST when set via owner UI)" },
+  { key: "translator.model", value: "gpt-4o-mini", description: "Model name passed to /responses" },
+  { key: "translator.system_prompt", value: "", description: "Override built-in fallback prompt (empty = code default)" },
+  { key: "translator.max_chars_per_request", value: 2000, description: "Max input chars per single translate call" },
+  { key: "translator.rate_limit_per_user_hour", value: 20, description: "Max translate calls per user per hour" },
+
+  // -- site.* — misc site-wide
+  { key: "site.maintenance_mode", value: false, description: "Show maintenance banner / block writes when true" },
+  { key: "site.maintenance_message", value: "", description: "Message displayed during maintenance" },
 ];
