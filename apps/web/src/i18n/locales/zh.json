@@ -247,6 +247,15 @@
   "owner": {
     "forbidden_title": "你没有访问权限",
     "forbidden_body": "/rosekhlifa 仅对项目所有者开放。",
-    "forbidden_back": "返回首页"
+    "forbidden_back": "返回首页",
+    "nav": {
+      "section_admin": "管理",
+      "dashboard": "概览",
+      "config": "全局配置",
+      "r2": "R2 池",
+      "submissions": "审核队列",
+      "root": "站长后台",
+      "back_to_site": "回主站"
+    }
   }
 }

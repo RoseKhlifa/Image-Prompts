@@ -247,6 +247,15 @@
   "owner": {
     "forbidden_title": "Access denied",
     "forbidden_body": "/rosekhlifa is for project owners only.",
-    "forbidden_back": "Back home"
+    "forbidden_back": "Back home",
+    "nav": {
+      "section_admin": "Admin",
+      "dashboard": "Overview",
+      "config": "Settings",
+      "r2": "R2 Pool",
+      "submissions": "Submissions",
+      "root": "Owner Console",
+      "back_to_site": "Back to site"
+    }
   }
 }
