@@ -7,6 +7,7 @@ import PromptDetailPage from "../pages/PromptDetailPage";
 import AboutPage from "../pages/AboutPage";
 import ProfilePage from "../pages/ProfilePage";
 import SubmitPage from "../pages/SubmitPage";
+import UserPage from "../pages/UserPage";
 import AdminSubmissionsPage from "../pages/AdminSubmissionsPage";
 import NotFoundPage from "../pages/NotFoundPage";
 
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
       { path: "about", element: <AboutPage /> },
       { path: "profile", element: <ProfilePage /> },
       { path: "submit", element: <SubmitPage /> },
+      { path: "users/:id", element: <UserPage /> },
       { path: "admin/submissions", element: <AdminSubmissionsPage /> },
       { path: "admin/submissions/:id", element: <AdminSubmissionsPage /> },
       { path: "*", element: <NotFoundPage /> },

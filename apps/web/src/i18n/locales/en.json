@@ -44,6 +44,11 @@
     "likes": "Likes",
     "favorites": "Favorites"
   },
+  "user": {
+    "joined_at": "Joined {date}",
+    "tab_works": "Works",
+    "tab_favorites": "Favorites"
+  },
   "list": {
     "sort_latest": "Latest",
     "sort_popular": "Most Viewed",

@@ -44,6 +44,11 @@
     "likes": "总赞",
     "favorites": "总收藏"
   },
+  "user": {
+    "joined_at": "加入于 {date}",
+    "tab_works": "作品",
+    "tab_favorites": "收藏"
+  },
   "list": {
     "sort_latest": "最新",
     "sort_popular": "最热",
