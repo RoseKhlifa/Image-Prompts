@@ -137,13 +137,13 @@
     "image_delete": "Delete",
     "submit_button": "Submit for review",
     "submitting": "Submitting…",
-    "uploaded_count": "{{done}}/{{total}} uploaded",
+    "uploaded_count": "{done}/{total} uploaded",
     "error": {
       "bilingual_required": "Please fill in title + prompt in at least one language.",
       "daily_limit": "You've reached today's submission limit. Try again tomorrow.",
       "guidelines": "Please read and accept the submission guidelines first.",
       "category": "Invalid category",
-      "tags": "Unknown tags: {{slugs}}",
+      "tags": "Unknown tags: {slugs}",
       "image_missing": "Image upload failed, please retry",
       "image_too_large": "Image exceeds 10MB",
       "image_count": "Please upload 1-5 images",
@@ -161,13 +161,13 @@
     "status_rejected": "Rejected",
     "reject_reason_label": "Reason",
     "view_prompt": "View",
-    "submitted_at": "Submitted {{time}}",
-    "reviewed_at": "Reviewed {{time}}"
+    "submitted_at": "Submitted {time}",
+    "reviewed_at": "Reviewed {time}"
   },
   "guidelines": {
     "modal_title": "Submission guidelines",
     "body": "Only submit prompts/images that are original or properly licensed. No explicit sexual content, violence/gore, hate, disinformation, privacy violations, or copyright infringement. Violations will be rejected and may affect your future submission quota.",
-    "wait_seconds": "Read for {{n}} more seconds to enable",
+    "wait_seconds": "Read for {n} more seconds to enable",
     "scroll_hint": "Scroll to the bottom to mark as read",
     "agree_checkbox": "I have read and agree to these guidelines",
     "submit": "I agree",
@@ -204,8 +204,8 @@
     "title": "Notifications",
     "empty": "No notifications",
     "mark_all_read": "Mark all read",
-    "submission_approved": "Your submission \"{{title}}\" was approved",
-    "submission_rejected": "Your submission \"{{title}}\" was not approved",
+    "submission_approved": "Your submission \"{title}\" was approved",
+    "submission_rejected": "Your submission \"{title}\" was not approved",
     "view": "View"
   }
 }

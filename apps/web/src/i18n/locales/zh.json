@@ -137,13 +137,13 @@
     "image_delete": "删除",
     "submit_button": "提交审核",
     "submitting": "提交中…",
-    "uploaded_count": "已上传 {{done}}/{{total}}",
+    "uploaded_count": "已上传 {done}/{total}",
     "error": {
       "bilingual_required": "请至少填写一种语言的完整标题 + 提示词",
       "daily_limit": "今日投稿已达上限,请明天再来",
       "guidelines": "请先阅读并接受投稿须知",
       "category": "分类无效",
-      "tags": "未知标签:{{slugs}}",
+      "tags": "未知标签:{slugs}",
       "image_missing": "图片上传失败,请重试",
       "image_too_large": "图片超过 10MB",
       "image_count": "请上传 1-5 张图片",
@@ -161,13 +161,13 @@
     "status_rejected": "未通过",
     "reject_reason_label": "拒绝原因",
     "view_prompt": "查看",
-    "submitted_at": "提交于 {{time}}",
-    "reviewed_at": "审核于 {{time}}"
+    "submitted_at": "提交于 {time}",
+    "reviewed_at": "审核于 {time}"
   },
   "guidelines": {
     "modal_title": "投稿须知",
     "body": "请仅投稿原创或拥有授权的提示词与图片。禁止上传含有露骨色情、暴力血腥、仇恨歧视、虚假信息、侵犯隐私或他人版权的内容。一经发现,投稿将被拒绝并可能影响后续投稿配额。",
-    "wait_seconds": "再阅读 {{n}} 秒后可勾选同意",
+    "wait_seconds": "再阅读 {n} 秒后可勾选同意",
     "scroll_hint": "请滚动到底部以表明已阅读",
     "agree_checkbox": "我已阅读并同意上述准则",
     "submit": "我同意",
@@ -204,8 +204,8 @@
     "title": "通知",
     "empty": "暂无通知",
     "mark_all_read": "全部已读",
-    "submission_approved": "你的投稿《{{title}}》已通过审核",
-    "submission_rejected": "你的投稿《{{title}}》未通过审核",
+    "submission_approved": "你的投稿《{title}》已通过审核",
+    "submission_rejected": "你的投稿《{title}》未通过审核",
     "view": "查看"
   }
 }
