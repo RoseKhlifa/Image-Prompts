@@ -18,7 +18,11 @@ import {
   getUserDetail,
   updateUserRole,
 } from "../repositories/owner-users.ts";
-import { recordAudit } from "../repositories/audit.ts";
+import {
+  recordAudit,
+  listAudit,
+  type AuditListFilters,
+} from "../repositories/audit.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 
 const app = new Hono();
@@ -175,5 +179,36 @@ app.patch(
     return c.json({ id, role });
   },
 );
+
+// ── Audit feed (M10b W1.4) ───────────────────────────────────────────────
+//
+// Filterable / paginated read of audit_log with actor join. Keyset cursor
+// shape matches /users (base64 of `${createdAt.toISOString()}|${id}`). The
+// AuditPage UI in W1.5 binds to this endpoint.
+const AuditQuerySchema = z.object({
+  actorId: z.string().uuid().optional(),
+  actionPrefix: z.string().max(80).optional(),
+  targetType: z.string().max(40).optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30).optional(),
+});
+
+app.get("/audit", zv("query", AuditQuerySchema), async (c) => {
+  const q = c.req.valid("query");
+  // Same `exactOptionalPropertyTypes` discipline as /users above — only set
+  // keys the caller actually supplied.
+  const filters: AuditListFilters = {};
+  if (q.actorId !== undefined) filters.actorId = q.actorId;
+  if (q.actionPrefix !== undefined) filters.actionPrefix = q.actionPrefix;
+  if (q.targetType !== undefined) filters.targetType = q.targetType;
+  if (q.from !== undefined) filters.from = new Date(q.from);
+  if (q.to !== undefined) filters.to = new Date(q.to);
+  if (q.cursor !== undefined) filters.cursor = q.cursor;
+  if (q.limit !== undefined) filters.limit = q.limit;
+  const result = await listAudit(filters);
+  return c.json(result);
+});
 
 export default app;

@@ -392,3 +392,73 @@ describe("owner users — PATCH role", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ── /api/owner/audit ───────────────────────────────────────────────────────
+//
+// Read-only audit feed. We piggy-back on the PATCH role-update endpoint to
+// seed predictable audit rows, then call /audit with filters. Cleanup is
+// already wired in the top-level cleanup() (it sweeps audit rows whose
+// actorId or targetId is in the test-user pool).
+describe("owner audit feed", () => {
+  it("GET /audit 403 for non-owner", async () => {
+    const sess = await makeNonOwner("user");
+    const res = await app.request("/api/owner/audit", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /audit 200 returns { items, nextCursor } shape for owner", async () => {
+    const owner = await makeOwner();
+    // Seed at least one audit row via the role-update endpoint.
+    const target = await makeNonOwner("user");
+    await app.request(`/api/owner/users/${target.userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ role: "moderator" }),
+    });
+    const res = await app.request("/api/owner/audit", {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: Array<{
+        id: string;
+        actorId: string | null;
+        action: string;
+        targetType: string | null;
+        targetId: string | null;
+        payload: unknown;
+        createdAt: string;
+      }>;
+      nextCursor: string | null;
+    };
+    expect(Array.isArray(j.items)).toBe(true);
+    expect(j.items.length).toBeGreaterThan(0);
+    expect(j.nextCursor === null || typeof j.nextCursor === "string").toBe(true);
+    const row = j.items[0]!;
+    expect(typeof row.id).toBe("string");
+    expect(typeof row.action).toBe("string");
+  });
+
+  it("GET /audit?actionPrefix=user. filters", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    // Write a known user.role.update via the patch endpoint.
+    await app.request(`/api/owner/users/${target.userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ role: "moderator" }),
+    });
+    const res = await app.request(
+      "/api/owner/audit?actionPrefix=user.",
+      { headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: Array<{ action: string }>;
+    };
+    expect(j.items.length).toBeGreaterThan(0);
+    expect(j.items.every((r) => r.action.startsWith("user."))).toBe(true);
+  });
+});
