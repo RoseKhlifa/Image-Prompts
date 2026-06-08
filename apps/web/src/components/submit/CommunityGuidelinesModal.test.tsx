@@ -28,26 +28,46 @@ function wrap(ui: ReactNode) {
 describe("CommunityGuidelinesModal", () => {
   it("renders nothing when open=false", () => {
     const { container } = render(
-      wrap(<CommunityGuidelinesModal open={false} onClose={() => {}} />),
+      wrap(
+        <CommunityGuidelinesModal
+          open={false}
+          onCancel={() => {}}
+          onAccepted={() => {}}
+        />,
+      ),
     );
     expect(container.firstChild).toBeNull();
   });
 
   it("disables the checkbox initially (timer running, not scrolled)", () => {
-    render(wrap(<CommunityGuidelinesModal open onClose={() => {}} />));
+    render(
+      wrap(
+        <CommunityGuidelinesModal open onCancel={() => {}} onAccepted={() => {}} />,
+      ),
+    );
     const checkbox = screen.getByRole("checkbox");
     expect(checkbox).toBeDisabled();
   });
 
-  it("calls onClose when 'cancel' clicked", () => {
-    const onClose = vi.fn();
-    render(wrap(<CommunityGuidelinesModal open onClose={onClose} />));
+  it("calls onCancel when 'cancel' clicked — and NOT onAccepted", () => {
+    const onCancel = vi.fn();
+    const onAccepted = vi.fn();
+    render(
+      wrap(
+        <CommunityGuidelinesModal open onCancel={onCancel} onAccepted={onAccepted} />,
+      ),
+    );
     fireEvent.click(screen.getByRole("button", { name: /返回|Cancel/ }));
-    expect(onClose).toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalled();
+    expect(onAccepted).not.toHaveBeenCalled();
   });
 
   it("countdown ticks down from 5 to 0", () => {
-    render(wrap(<CommunityGuidelinesModal open onClose={() => {}} />));
+    render(
+      wrap(
+        <CommunityGuidelinesModal open onCancel={() => {}} onAccepted={() => {}} />,
+      ),
+    );
     // Initially: submit button text mentions "5"
     const initialButtons = screen.getAllByRole("button");
     const initialSubmitBtn = initialButtons.find((b) =>

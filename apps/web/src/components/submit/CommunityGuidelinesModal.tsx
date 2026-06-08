@@ -9,19 +9,30 @@ import { useAcceptGuidelines } from "../../lib/hooks/useAcceptGuidelines";
 const REQUIRED_VERSION = 1;
 const READ_SECONDS = 5;
 
-type Props = { open: boolean; onClose: () => void };
+type Props = {
+  open: boolean;
+  /** User dismissed without accepting (cancel button or ESC). Parent typically
+   *  closes the surrounding submit flow. */
+  onCancel: () => void;
+  /** User successfully accepted (mutation 200'd). Parent should only close THIS
+   *  modal — the gate will re-check session and unlock the form. Distinct from
+   *  onCancel so accepting doesn't cascade into closing the submit modal. */
+  onAccepted: () => void;
+};
 
 /**
  * Modal that enforces a deliberate read pause + scroll + explicit checkbox
  * before the user can accept the community guidelines. On accept it PATCHes
- * /api/me/community-guidelines (via useAcceptGuidelines), then calls onClose.
+ * /api/me/community-guidelines (via useAcceptGuidelines), then calls onAccepted;
+ * cancel/ESC calls onCancel. The two callbacks are distinct so the parent can
+ * differentiate "user agreed, keep the form open" from "user backed out".
  *
  * The read timer (READ_SECONDS) and IntersectionObserver-based scroll sentinel are both
  * gates on the checkbox — only when both are satisfied does the checkbox
  * become enabled, and only when the checkbox is checked does the "I agree"
  * button fire the mutation.
  */
-export default function CommunityGuidelinesModal({ open, onClose }: Props) {
+export default function CommunityGuidelinesModal({ open, onCancel, onAccepted }: Props) {
   const { t } = useTranslation();
   const [secondsLeft, setSecondsLeft] = useState(READ_SECONDS);
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
@@ -100,7 +111,7 @@ export default function CommunityGuidelinesModal({ open, onClose }: Props) {
         <div className="mt-6 flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={onCancel}
             className="rounded-card border border-border-soft px-3 py-1.5 text-sm"
           >
             {t("guidelines.cancel")}
@@ -109,7 +120,7 @@ export default function CommunityGuidelinesModal({ open, onClose }: Props) {
             type="button"
             disabled={!canSubmit}
             onClick={() =>
-              accept.mutate(REQUIRED_VERSION, { onSuccess: () => onClose() })
+              accept.mutate(REQUIRED_VERSION, { onSuccess: () => onAccepted() })
             }
             className="rounded-card bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >

@@ -30,10 +30,18 @@ export default function CommunityGuidelinesGate({ children, onCancel }: Props) {
       <div className="pointer-events-none opacity-50">{children}</div>
       <CommunityGuidelinesModal
         open={open}
-        onClose={() => {
+        onCancel={() => {
           setOpen(false);
           if (onCancel) onCancel();
           else if (needsAccept) window.history.back();
+        }}
+        onAccepted={() => {
+          // Just close THIS modal. useCommunityGuidelinesGate will re-read the
+          // session (invalidated by useAcceptGuidelines.onSuccess) and on next
+          // render `needsAccept` flips false, letting the children render. Do
+          // NOT call onCancel here — that would close the parent submit modal
+          // and undo the user's intent to actually submit.
+          setOpen(false);
         }}
       />
     </>
