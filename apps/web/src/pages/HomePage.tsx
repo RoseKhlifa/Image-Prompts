@@ -74,10 +74,15 @@ export default function HomePage() {
   }
 
   return (
-    <AppShell sidebar={<Sidebar />}>
-      <Hero />
-      <BrowseTabs />
-
+    <AppShell
+      sidebar={<Sidebar />}
+      topBar={
+        <>
+          <Hero />
+          <BrowseTabs />
+        </>
+      }
+    >
       {tab === "gallery" && (
         <>
           <Toolbar total={gallery.data?.total ?? 0} sort={sort} onSortChange={setSort} />

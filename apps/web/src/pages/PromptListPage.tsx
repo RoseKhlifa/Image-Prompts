@@ -61,8 +61,7 @@ export default function PromptListPage() {
   }
 
   return (
-    <AppShell sidebar={<Sidebar />}>
-      <BrowseTabs />
+    <AppShell sidebar={<Sidebar />} topBar={<BrowseTabs />}>
       <Toolbar total={list.data?.total ?? 0} sort={sort} onSortChange={setSort} />
       {list.isLoading && <CardGridSkeleton count={12} />}
       {list.isError && (

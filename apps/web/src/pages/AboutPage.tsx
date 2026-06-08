@@ -5,8 +5,7 @@ import AboutPageContent from "./AboutPageContent";
 
 export default function AboutPage() {
   return (
-    <AppShell sidebar={<Sidebar />}>
-      <BrowseTabs />
+    <AppShell sidebar={<Sidebar />} topBar={<BrowseTabs />}>
       <AboutPageContent />
     </AppShell>
   );

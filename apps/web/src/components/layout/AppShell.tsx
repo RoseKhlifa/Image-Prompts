@@ -17,9 +17,13 @@ import { withLocale } from "../../lib/locale";
 export default function AppShell({
   children,
   sidebar,
+  topBar,
 }: {
   children: ReactNode;
   sidebar?: ReactNode;
+  /** Full-width strip rendered below the header, above the sidebar/main split.
+   *  Used for Hero + BrowseTabs so they span the page. */
+  topBar?: ReactNode;
 }) {
   const { t } = useTranslation();
   const { locale: param } = useParams<{ locale: string }>();
@@ -54,20 +58,6 @@ export default function AppShell({
             <BrandLogo size={22} />
             <span className="text-base font-semibold tracking-tight">Image-Prompts</span>
           </Link>
-          <nav className="hidden gap-1 text-sm md:flex">
-            <Link
-              to={withLocale(locale, "/prompts")}
-              className="rounded-pill px-3 py-1.5 text-ink-muted hover:text-ink"
-            >
-              {t("nav.browse")}
-            </Link>
-            <Link
-              to={withLocale(locale, "/about")}
-              className="rounded-pill px-3 py-1.5 text-ink-muted hover:text-ink"
-            >
-              {t("nav.about")}
-            </Link>
-          </nav>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -101,6 +91,7 @@ export default function AppShell({
           )}
         </div>
       </header>
+      {topBar}
       <div className="flex flex-1">
         {sidebar}
         <main className="min-w-0 flex-1">{children}</main>
