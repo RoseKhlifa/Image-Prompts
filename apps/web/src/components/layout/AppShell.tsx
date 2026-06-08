@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { Plus } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
 import LangSwitcher from "../LangSwitcher";
@@ -35,20 +35,36 @@ export default function AppShell({
   const publishedCount = stats.data?.publishedCount ?? 0;
   const openSubmitModal = useUiStore((s) => s.openSubmitModal);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
 
+  // Pull external URL changes into the input (back/forward, link clicks).
   useEffect(() => {
     setSearchValue(searchParams.get("q") ?? "");
   }, [searchParams]);
 
-  function submitSearch(value: string) {
-    const trimmed = value.trim();
-    const updated = new URLSearchParams(searchParams);
-    if (trimmed) updated.set("q", trimmed);
-    else updated.delete("q");
-    navigate({ pathname: withLocale(locale, "/"), search: `?${updated.toString()}` });
-  }
+  // Debounced live search: 300ms after the last keystroke, sync ?q= to the
+  // URL. If user is on a browse page (/ or /prompts), update in place; else
+  // jump to home so they see results. Skipping the navigate when value is
+  // already in sync prevents a feedback loop with the URL→state effect above.
+  useEffect(() => {
+    const homePath = withLocale(locale, "/");
+    const promptsPath = withLocale(locale, "/prompts");
+    const isOnBrowsePage = pathname === homePath || pathname.startsWith(promptsPath);
+    const targetPath = isOnBrowsePage ? pathname : homePath;
+    const handler = setTimeout(() => {
+      const trimmed = searchValue.trim();
+      const currentQ = searchParams.get("q") ?? "";
+      if (trimmed === currentQ && pathname === targetPath) return;
+      const updated = new URLSearchParams(searchParams);
+      if (trimmed) updated.set("q", trimmed);
+      else updated.delete("q");
+      const qs = updated.toString();
+      navigate(qs ? `${targetPath}?${qs}` : targetPath);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchValue, searchParams, navigate, locale, pathname]);
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
@@ -74,9 +90,6 @@ export default function AppShell({
             type="search"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submitSearch(searchValue);
-            }}
             placeholder={t("common.search_placeholder")}
             className="hidden h-8 w-56 rounded-pill border border-border-soft bg-surface px-3 text-xs text-ink placeholder:text-ink-dim focus:outline-none focus:ring-2 focus:ring-accent-soft md:block"
           />
