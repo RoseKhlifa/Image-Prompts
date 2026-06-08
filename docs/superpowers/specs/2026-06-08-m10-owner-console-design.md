@@ -1,10 +1,15 @@
 # Sprint 3 / M10 — `/rosekhlifa` Owner Console
 
-**Date:** 2026-06-08
-**Status:** Brainstorm 完成,可能拆 M10a / M10b 实现
-**Scope:** 仅项目所有者可访问的超级管理控制台
+**Date:** 2026-06-08(decisions finalized)
+**Status:** Brainstorm 完成 ✅,Open Questions 全部已决 ✅,即将进入 writing-plans(先 M10a)
+**Scope:** 仅项目所有者可访问的超级管理控制台。**拆成 M10a + M10b 两步实现**(§7 / §8a)
 **Visual reference:** 用户提供"晚归管理端"截图 — 深色主题 + 绿色 accent + 卡/列表切换 + 左 sidebar 分组
-**Baseline:** main(M9 之后)
+**Baseline:** main(M9 之后,commit f189160)
+
+**关键决策**:
+- 路由保护:**B 方案** — 复用 admin role + OWNER_EMAILS email 白名单(零 migration)
+- 翻译 provider:**OpenAI `/responses` 兼容**(可配第三方中转站 base_url),触发方=**submitter** 投稿表单,owner 配开关
+- 拆分:**M10a**(基础设施 + 只读 + site_settings) → **M10b**(写操作 + 用户/日志/公告 + 翻译端到端)
 
 ---
 
@@ -26,22 +31,17 @@
 
 **新 env**:`OWNER_EMAILS=2221542777@qq.com`(可逗号分隔,跟 ADMIN_EMAILS 同结构,但更严)
 
-**路由保护策略 ASK USER**:
+**路由保护策略**(已决):**B 方案 — 复用 admin role + OWNER_EMAILS 白名单**
 
-**方案 A**(推荐):**新 role 'owner'**
-- 改 `userRoleEnum` enum:`'user' | 'moderator' | 'admin' | 'owner'`(需要 ALTER TYPE migration)
-- Auth.js session callback 顺序:OWNER_EMAILS 命中 → role='owner';其次 ADMIN_EMAILS 命中 → 'admin';否则 keep DB role
-- `requireRole('owner')` 中间件保护 `/api/owner/**`
-- 优点:数据库可查询所有 owner 用户 / 角色层级明确
-- 缺点:多一次 migration
+- `OWNER_EMAILS` env 单独检查,session callback **不动 role**
+- 新中间件 `requireOwnerEmail()` 读 env,跟 `session.user.email` 比对
+- 复合中间件 `requireOwner = compose(requireRole('admin'), requireOwnerEmail())`
+- `/api/owner/**` + `/rosekhlifa/**`(SPA 路由)走 `requireOwner`
+- 客户端:`useSession()` 加 `isOwner` 派生(`session.user.email in OWNER_EMAILS` — 实际从 `/api/auth/session` 返回)
+- 优点:零 migration,跟 ADMIN_EMAILS 同结构,易理解
+- 注意:`session.user.email` 必须在 NextAuth callback 里 expose;现有应该已经有(M3 已加)
 
-**方案 B**:**保留 admin role + email 白名单**
-- `OWNER_EMAILS` 单独检查,session callback 不动 role
-- 新中间件 `requireOwnerEmail()` 读 env,跟 session.email 比对
-- 优点:无 schema 变更
-- 缺点:role 字段不反映实际权限层级
-
-**默认 A**(更干净,后续扩展性强)。
+**为什么选 B**:owner 是单人 / 小规模场景,role 层级数据库不需要查询,email 白名单足够。等真有多 owner 协作再上 enum。
 
 ---
 
@@ -142,6 +142,8 @@ CREATE TABLE site_settings (
 ```
 
 **初始 keys**(seed 脚本插入):
+
+`submit.*`(M10a 立即生效,改造 `submit-config.ts`):
 ```
 submit.daily_limit                  10
 submit.demoted_daily_limit          5
@@ -154,6 +156,23 @@ submit.max_tags                     6
 submit.presign_ttl_seconds          900
 submit.reject_reason_max_chars      500
 submit.daily_reset_timezone         "Asia/Shanghai"
+```
+
+`translator.*`(M10a 加 keys 占位,M10b 通端到端):
+```
+translator.enabled                  false
+translator.base_url                 "https://api.openai.com/v1"
+translator.api_key                  "" (加密存储)
+translator.model                    "gpt-4o-mini"
+translator.system_prompt            "" (空 = 用代码内置 fallback)
+translator.max_chars_per_request    2000
+translator.rate_limit_per_user_hour 20
+```
+
+`site.*`(MVP 可选):
+```
+site.maintenance_mode               false
+site.maintenance_message            ""
 ```
 
 **改造**:把现有 `apps/api/src/lib/submit-config.ts` 的硬编码常量改成 **lazy-loaded cache from DB**。
@@ -280,21 +299,66 @@ CREATE TABLE announcements (
 - `apps/web/src/pages/owner/AnnouncementsPage.tsx`
 - `apps/web/src/lib/hooks/useAnnouncements.ts`(用户侧) + `useOwnerAnnouncements.ts`(owner)
 
-### 5.7 AI 翻译辅助(原 M6,缩成工具)
+### 5.7 AI 翻译辅助(用户侧投稿表单 + owner 配)
 
-集成在 `/admin/submissions/:id` 的 "编辑后批准" 面板里:
-- 中英文 textarea 边上加 ["AI 翻译" 按钮]
-- 点击 → POST `/api/admin/translate` `{ text, fromLocale, toLocale }`
-- 后端调外部翻译 API(DeepL / OpenAI / Anthropic — `ASK USER`)
-- 结果填入对面的 textarea(admin 还可继续编辑)
+**架构调整**:不是 admin 审稿工具,而是 **submitter 投稿时辅助**。Owner 在 site_settings 里配 provider(OpenAI `/responses` 兼容),用户在 submit modal 点"AI 翻译"按钮,后端用内置 prompt 把中文翻成英文,填回英文 textarea。
+
+**Owner 侧(M10a 加 settings keys + M10b 通)**:
+
+`site_settings` 新增 keys:
+```
+translator.enabled                  false
+translator.base_url                 "https://api.openai.com/v1"   (中转站可改)
+translator.api_key                  "" (空 = 未配,加密存储)
+translator.model                    "gpt-4o-mini"
+translator.system_prompt            "" (空 = 用代码内置 fallback)
+translator.max_chars_per_request    2000
+translator.rate_limit_per_user_hour 20
+```
+
+`api_key` 复用 `R2_ENCRYPTION_KEY` 加密(`encryptSecret` / `decryptSecret`)。
+Owner UI:`/rosekhlifa/config` 这几行单独 group "AI 翻译",api_key 行写入后立刻 mask。
+
+**用户侧(M10b)**:
+
+`SubmitModal` / `SubmitWizard` 在中文 prompt 和英文 prompt textarea 中间加 [↓ AI 翻译] 按钮:
+- 只在 `translator.enabled=true` 且 zh prompt 非空时可点击
+- 点击 → POST `/api/translate` `{ text, fromLocale: "zh", toLocale: "en" }`
+- 后端:`requireUserId` → 速率限制(每用户每小时 N 次,Redis or in-memory token bucket)→ 读 site_settings 翻译相关 keys → 拼 OpenAI `/responses` 兼容 payload → 调用 → 提取 text → 返回 `{ translated: "..." }`
+- 前端把 `translated` 填到英文 textarea(可 confirm 覆盖)
+
+**OpenAI `/responses` 协议**(2026 OpenAI Responses API):
+```jsonc
+POST {base_url}/responses
+{
+  "model": "{model}",
+  "input": [
+    { "role": "system", "content": "{system_prompt or fallback}" },
+    { "role": "user", "content": "{user_chinese_prompt}" }
+  ]
+}
+// 响应里取 output[0].content[0].text
+```
+
+兼容中转站(OneAPI / NewAPI 等)— 只要 endpoint 是 `/responses`、payload 跟 OpenAI 一致就行。
+
+**内置 fallback system_prompt**(代码常量,owner 不配时用):
+```
+You are a translator helping users convert Chinese AI image-generation prompts to English. 
+Output the English version only — no explanation, no quotes, no Markdown. 
+Preserve technical terms (LoRA names, model names, aspect ratios, etc.) as-is. 
+Keep the same stylistic tags and weights (`(token:1.2)`) intact.
+```
 
 **Files:**
-- `apps/api/src/lib/translator.ts`(新)— 抽象层,内部调 DeepL 或 OpenAI
-- `apps/api/src/routes/admin.ts` — 加 POST /translate
-- env:`TRANSLATOR_API_KEY` + `TRANSLATOR_PROVIDER`(deepl / openai)
-- UI:`AdminEditPanel` 加按钮
+- `apps/api/src/lib/translator.ts`(新)— 抽象层,只支持 OpenAI `/responses` 兼容协议
+- `apps/api/src/routes/translate.ts`(新)— POST /api/translate
+- `apps/api/src/lib/rate-limit.ts`(新或扩展)— 简单 in-memory token bucket per user
+- `apps/web/src/components/submit/TranslateButton.tsx`(新)
+- `apps/web/src/components/submit/SubmitWizard.tsx`(改)— 加按钮 + 调 hook
+- env:不需要(全部从 site_settings 读)
 
-**ASK USER**:用 DeepL(便宜专业)还是 OpenAI(已经有 token 余额?)— 暂搁置,M10 plan 阶段决策
+**ASK USER 已决**:OpenAI `/responses` 兼容协议(可配第三方中转站 base_url)。owner 关闭翻译开关 = 按钮隐藏。
 
 ### 5.8 设置 / Misc(`/rosekhlifa/settings`)
 
@@ -310,49 +374,58 @@ CREATE TABLE announcements (
 
 ## 6. Schema 变更总览
 
-| 改动 | Migration |
-|---|---|
-| `user_role` enum 加 'owner' 值 | 0007 |
-| `site_settings` 新表 | 0008 |
-| `users` 加 `banned_at`, `banned_reason` | 0009 |
-| `announcements` 新表 | 0010 |
-| (M9 已加的)`notification_type` enum 加 'prompt_liked'/'favorited' | 在 M9 阶段 |
+| 改动 | Migration | Sprint |
+|---|---|---|
+| `site_settings` 新表 | 0007 | M10a |
+| `users` 加 `banned_at`, `banned_reason` | 0008 | M10b |
+| `announcements` 新表 | 0009 | M10b |
+| (M9 已加的)`notification_type` enum 加 'prompt_liked'/'favorited' | 已合 | M9 |
+| ~~`user_role` enum 加 'owner' 值~~ | ~~取消~~ | (B 方案不需要) |
 
 ---
 
-## 7. 拆 M10a / M10b 建议
+## 7. 拆分决策
 
-如果觉得一次性 M10 太重,拆:
-
-**M10a — 路由 + 核心数据面板**:
-- 路由保护(role='owner' + OWNER_EMAILS)
-- Owner Console 布局 + 深色主题
-- 概览 dashboard(metrics + recent activity)
-- 全局配置 site_settings(MVP 只调几个关键 key,不全)
-- R2 池管理(read-only 列出现有,write 留 M10b)
-
-**M10b — 用户/日志/公告 + R2 写 + 翻译**:
-- 用户管理 + ban 系统
-- Audit log viewer
-- Announcements CRUD + 前台 banner
-- R2 池 CRUD(新增 / 编辑 / 删除 / sync usage)
-- AI 翻译工具
-
-**默认**:拆。M10a 先做,验证整套架构后,M10b 跟进。
+**已决**:拆 M10a + M10b。详见 §8a 的明细。本 spec 内剩余章节(§5 子系统 / §9 manual test matrix / §10 完成定义)按 M10a + M10b 两个 sprint 各取所需 — writing-plans 时分别提取。
 
 ---
 
-## 8. Open Questions
+## 8. Open Questions — 已决 ✅
 
-1. **路由保护方案**:A(新 owner role)or B(email 白名单)?**默认 A**
-2. **M10 vs M10a/M10b**:一次干完 vs 拆?**默认 拆**
-3. **公告 markdown 支持**:MVP 用纯文本 vs 上 markdown?**默认 纯文本**
-4. **翻译 provider**:DeepL / OpenAI / Anthropic / Google?**ASK USER**
-5. **owner 也能直接审稿吗**:还是只通过 `/admin/submissions` 走?**默认 owner 可以走 /admin 路径(role inherit)**
-6. **数据面板图表库**:Chart.js / Recharts / 不做?**默认 MVP 不做,只列 metrics 数字**
-7. **R2 sync-usage 多大账号会慢?**:listObjects 分页,小账号几秒,大账号数分钟。需要异步任务 + 状态 反馈。MVP 可同步阻塞(几秒到几分钟 — 显示 loading)
-8. **announcements 国际化**:必须双语都填 vs 其中一个为空也行?**默认 双语都必填,但可以是同一文字**
-9. **多 R2 账号迁移 prompts 之间**:owner console 要不要支持"从 A 账号迁到 B 账号"?**默认 不做 — 这是 M11 内容**
+1. **路由保护方案**:~~A vs B~~ → **B**(email 白名单,零 migration)
+2. **M10 vs M10a/M10b**:~~一次 vs 拆~~ → **拆 M10a + M10b**
+3. **公告 markdown 支持**:**纯文本**(默认)
+4. **翻译 provider**:**OpenAI `/responses` 兼容协议**(可配第三方中转站 base_url)。用户(submitter)触发,owner 配置开关
+5. **owner 也能直接审稿吗**:**可以**(owner 同时是 admin role,直接走 `/admin/submissions`)
+6. **数据面板图表库**:**MVP 不做**(只列 metrics 数字 + recent activity feed)
+7. **R2 sync-usage**:**MVP 同步阻塞**(几秒到几分钟,前端显示 loading + disabled),大账号优化留 future
+8. **announcements 国际化**:**双语必填**(但可以填同一段文字 — 不强制翻译)
+9. **多 R2 账号迁移 prompts 之间**:**不做**(M11 一次性脚本搞定)
+
+---
+
+## 8a. 拆分到 M10a / M10b 的明细
+
+**M10a — 基础设施 + 只读 + site_settings(目标 3-4 天)**:
+1. 路由保护 `requireOwner` + OWNER_EMAILS env + `useSession.isOwner`
+2. Owner Console layout(深色主题 + sidebar + breadcrumb)+ `/rosekhlifa` 路由树骨架
+3. site_settings 表 + migration `0007_site_settings.sql` + repo + GET/PUT API
+4. `submit-config.ts` 改 DB-backed cache(60s refresh)— 全部 submit.* keys 生效
+5. `translator.*` keys seed(只占位,不实现 endpoint)
+6. 概览 dashboard(metrics 卡 + recent activity feed,无图表)
+7. R2 池 **只读**列表 + 单个 r2 account 详情 drawer(不带 CRUD 按钮 / sync 按钮)
+8. 审核队列入口(只是个链接 → 现有 `/admin/submissions`)
+9. Manual test matrix M10a 部分(A-I 项)
+
+**M10b — 写操作 + 用户/日志/公告 + 翻译(目标 4-5 天)**:
+1. R2 池 CRUD(新增 / 编辑 / 软删 / test connection / sync-usage 同步阻塞)
+2. 用户管理 + ban 系统 + migration `0008_user_ban_fields.sql`
+3. Audit log viewer
+4. Announcements CRUD + migration `0009_announcements.sql` + 前台 banner
+5. AI 翻译端到端:`translator.ts` 抽象 + POST /api/translate + rate limit + SubmitWizard 按钮
+6. Manual test matrix M10b 部分(J-S 项)
+
+> **migrations 编号变更**:原计划 0007=role enum / 0008=site_settings / 0009=users.banned / 0010=announcements。**B 方案后**:0007=site_settings / 0008=users.banned / 0009=announcements(少一个 enum migration)。
 
 ---
 
