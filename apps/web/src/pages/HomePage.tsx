@@ -1,29 +1,29 @@
 import { useSearchParams } from "react-router";
-import { useTranslation } from "react-i18next";
 import type { SortOption, PromptSummary } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
+import BrowseTabs from "../components/layout/BrowseTabs";
 import Hero from "../components/Hero";
 import Toolbar from "../components/Toolbar";
 import PromptCard from "../components/PromptCard";
 import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
-import AboutPageContent from "./AboutPageContent";
 import { usePromptList } from "../lib/hooks/usePromptList";
 import { useSession } from "../lib/hooks/useSession";
 import { useUserFavorites } from "../lib/hooks/useUserFavorites";
 import { useUserPrompts } from "../lib/hooks/useUserPrompts";
 import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
 
-type Tab = "gallery" | "favorites" | "mine" | "about";
+// "about" lives on its own /:locale/about route — BrowseTabs navigates there.
+type Tab = "gallery" | "favorites" | "mine";
 
 const SORT_VALUES: readonly SortOption[] = ["latest", "popular", "liked", "sent"];
 function asSort(v: string | null): SortOption {
   return SORT_VALUES.includes(v as SortOption) ? (v as SortOption) : "latest";
 }
 function asTab(v: string | null): Tab {
-  if (v === "favorites" || v === "mine" || v === "about") return v;
+  if (v === "favorites" || v === "mine") return v;
   return "gallery";
 }
 
@@ -37,7 +37,6 @@ const BREAKPOINTS: MasonryBreakpoint[] = [
 type ListResult = { items: PromptSummary[]; total?: number };
 
 export default function HomePage() {
-  const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const sort = asSort(params.get("sort"));
   const tab = asTab(params.get("tab"));
@@ -49,24 +48,11 @@ export default function HomePage() {
   const favorites = useUserFavorites(userId, tab === "favorites" && !!userId);
   const mine = useUserPrompts(tab === "mine" ? userId : undefined);
 
-  function setTab(next: Tab) {
-    const updated = new URLSearchParams(params);
-    if (next === "gallery") updated.delete("tab");
-    else updated.set("tab", next);
-    setParams(updated);
-  }
   function setSort(next: SortOption) {
     const updated = new URLSearchParams(params);
     updated.set("sort", next);
     setParams(updated);
   }
-
-  const TABS: { key: Tab; labelKey: string; requiresAuth: boolean }[] = [
-    { key: "gallery", labelKey: "home.tab_gallery", requiresAuth: false },
-    { key: "favorites", labelKey: "home.tab_favorites", requiresAuth: true },
-    { key: "mine", labelKey: "home.tab_mine", requiresAuth: true },
-    { key: "about", labelKey: "home.tab_about", requiresAuth: false },
-  ];
 
   function renderItems(data: ListResult | null) {
     if (!data || data.items.length === 0) return <EmptyState />;
@@ -90,26 +76,7 @@ export default function HomePage() {
   return (
     <AppShell sidebar={<Sidebar />}>
       <Hero />
-      <div role="tablist" className="flex gap-4 border-b border-border-soft px-6">
-        {TABS.map((tt) => {
-          if (tt.requiresAuth && !userId) return null;
-          return (
-            <button
-              key={tt.key}
-              role="tab"
-              aria-selected={tab === tt.key}
-              onClick={() => setTab(tt.key)}
-              className={`-mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition ${
-                tab === tt.key
-                  ? "border-accent text-ink"
-                  : "border-transparent text-ink-muted hover:text-ink"
-              }`}
-            >
-              {t(tt.labelKey)}
-            </button>
-          );
-        })}
-      </div>
+      <BrowseTabs />
 
       {tab === "gallery" && (
         <>
@@ -132,7 +99,6 @@ export default function HomePage() {
         ))}
       {tab === "mine" &&
         (mine.isLoading ? <CardGridSkeleton count={6} /> : renderItems(mine.data ?? null))}
-      {tab === "about" && <AboutPageContent />}
     </AppShell>
   );
 }
