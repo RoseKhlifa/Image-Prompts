@@ -13,6 +13,12 @@ import {
   listAllR2AccountsForOwner,
   getR2AccountForOwner,
 } from "../repositories/r2-accounts.ts";
+import {
+  listUsers,
+  getUserDetail,
+  updateUserRole,
+} from "../repositories/owner-users.ts";
+import { recordAudit } from "../repositories/audit.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 
 const app = new Hono();
@@ -108,5 +114,66 @@ app.get("/r2-accounts/:id", zv("param", UuidParamSchema), async (c) => {
   if (!r) throw new HTTPException(404, { message: "not_found" });
   return c.json(r);
 });
+
+// ── Users (M10b W1) ──────────────────────────────────────────────────────
+//
+// list / detail / PATCH role. Role changes are the only write surface in this
+// wave — ban + email edits arrive in a later M10b migration once the schema
+// columns exist. Every successful PATCH writes an audit_log row so the owner
+// audit feed has a record of role transitions.
+const UsersListQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  role: z.enum(["user", "moderator", "admin"]).optional(),
+  // The shape on the wire is string "true" / "false"; we map it to boolean
+  // before handing off to listUsers(). Anything else fails validation.
+  banned: z.enum(["true", "false"]).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+
+app.get("/users", zv("query", UsersListQuerySchema), async (c) => {
+  const q = c.req.valid("query");
+  // Build filters by spreading only the keys the client actually supplied.
+  // `exactOptionalPropertyTypes: true` rejects `{ k: undefined }` against
+  // Partial<{ k: T }>, so we must omit absent keys rather than set them to
+  // undefined.
+  const filters: Parameters<typeof listUsers>[0] = { limit: q.limit };
+  if (q.q !== undefined) filters.q = q.q;
+  if (q.role !== undefined) filters.role = q.role;
+  if (q.banned !== undefined) filters.banned = q.banned === "true";
+  if (q.cursor !== undefined) filters.cursor = q.cursor;
+  const result = await listUsers(filters);
+  return c.json(result);
+});
+
+app.get("/users/:id", zv("param", UuidParamSchema), async (c) => {
+  const detail = await getUserDetail(c.req.valid("param").id);
+  if (!detail) throw new HTTPException(404, { message: "not_found" });
+  return c.json(detail);
+});
+
+const UserPatchBodySchema = z.object({
+  role: z.enum(["user", "moderator", "admin"]),
+});
+
+app.patch(
+  "/users/:id",
+  zv("param", UuidParamSchema),
+  zv("json", UserPatchBodySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { role } = c.req.valid("json");
+    const ownerId = requireUserId(c);
+    await updateUserRole(id, role);
+    await recordAudit({
+      actorId: ownerId,
+      action: "user.role.update",
+      targetType: "user",
+      targetId: id,
+      payload: { newRole: role },
+    });
+    return c.json({ id, role });
+  },
+);
 
 export default app;

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
-import { eq, inArray, like } from "drizzle-orm";
+import { eq, inArray, like, and } from "drizzle-orm";
 import { createServer } from "../server.ts";
 import { db } from "../db/client.ts";
-import { users, siteSettings, r2Accounts } from "../db/schema/index.ts";
+import { users, siteSettings, r2Accounts, auditLog } from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret } from "../lib/crypto.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
@@ -55,6 +55,18 @@ async function cleanup() {
       .update(siteSettings)
       .set({ updatedBy: null })
       .where(inArray(siteSettings.updatedBy, testUserIds));
+    // audit_log.actor_id FK is NO ACTION (no cascade) — must wipe rows referencing
+    // our test owners before deleting them. We also target rows whose targetId
+    // is one of our test users (the PATCH role-update tests write these).
+    await db.delete(auditLog).where(inArray(auditLog.actorId, testUserIds));
+    await db
+      .delete(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetType, "user"),
+          inArray(auditLog.targetId, testUserIds),
+        ),
+      );
   }
   await db
     .delete(users)
@@ -231,5 +243,152 @@ describe("owner routes — happy path", () => {
       { headers: { Cookie: owner.cookie } },
     );
     expect(res.status).toBe(404);
+  });
+});
+
+// ── /api/owner/users ───────────────────────────────────────────────────────
+//
+// list/detail/PATCH role surface, gated by the same requireOwner() chain.
+// Tests seed a temp non-owner user (the PATCH target) per-case so cleanup is
+// deterministic; the helpers above already wipe by TEST_EMAIL_PREFIX.
+describe("owner users — list & detail", () => {
+  it("GET /users 403 for non-owner", async () => {
+    const sess = await makeNonOwner("user");
+    const res = await app.request("/api/owner/users", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /users 200 returns { items, nextCursor } shape for owner", async () => {
+    const owner = await makeOwner();
+    // Seed at least one non-owner user so the list has predictable content.
+    await makeNonOwner("user");
+    const res = await app.request("/api/owner/users", {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: Array<{ id: string; email: string; role: string }>;
+      nextCursor: string | null;
+    };
+    expect(Array.isArray(j.items)).toBe(true);
+    expect(j.items.length).toBeGreaterThan(0);
+    // nextCursor is either a string or null — never undefined.
+    expect(j.nextCursor === null || typeof j.nextCursor === "string").toBe(true);
+    // Shape check on one row.
+    const row = j.items[0]!;
+    expect(typeof row.id).toBe("string");
+    expect(typeof row.email).toBe("string");
+    expect(typeof row.role).toBe("string");
+  });
+
+  it("GET /users?role=admin filters to admin role only", async () => {
+    const owner = await makeOwner();
+    // Seed a moderator and a regular user; only the owner (admin) should match.
+    await makeNonOwner("moderator");
+    await makeNonOwner("user");
+    const res = await app.request("/api/owner/users?role=admin", {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: Array<{ id: string; email: string; role: string }>;
+    };
+    // Every returned row must have role === 'admin'. We don't assert the exact
+    // count because other admins may pre-exist in the DB — only that our
+    // non-admin seeds were filtered out.
+    expect(j.items.every((r) => r.role === "admin")).toBe(true);
+    expect(j.items.find((r) => r.id === owner.userId)).toBeDefined();
+  });
+
+  it("GET /users/:id 404 for unknown uuid", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/users/00000000-0000-0000-0000-000000000000",
+      { headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /users/:id 200 returns detail for existing user", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}`, {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      id: string;
+      email: string;
+      role: string;
+      recentSubmissions: unknown[];
+    };
+    expect(j.id).toBe(target.userId);
+    expect(j.email).toBe(target.email);
+    expect(j.role).toBe("user");
+    expect(Array.isArray(j.recentSubmissions)).toBe(true);
+  });
+});
+
+describe("owner users — PATCH role", () => {
+  it("PATCH /users/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({ role: "moderator" }),
+    });
+    // admin-not-owner is still 403 (matches the auth-gate convention used in
+    // the settings PUT 403 test above).
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /users/:id 200 updates role and writes audit row", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ role: "moderator" }),
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; role: string };
+    expect(j.id).toBe(target.userId);
+    expect(j.role).toBe("moderator");
+
+    // DB confirmation — the row really changed.
+    const [reread] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, target.userId));
+    expect(reread?.role).toBe("moderator");
+
+    // Audit row exists with the right action + target + payload.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "user.role.update"),
+          eq(auditLog.targetId, target.userId),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("user");
+    expect(auditRows[0]!.payload).toMatchObject({ newRole: "moderator" });
+  });
+
+  it("PATCH /users/:id 400 for invalid role body", async () => {
+    const owner = await makeOwner();
+    const target = await makeNonOwner("user");
+    const res = await app.request(`/api/owner/users/${target.userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ role: "supreme-leader" }),
+    });
+    expect(res.status).toBe(400);
   });
 });
