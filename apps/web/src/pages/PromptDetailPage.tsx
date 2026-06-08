@@ -4,6 +4,7 @@ import { isLocale, pickBilingual, type Locale } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import { usePromptDetail } from "../lib/hooks/usePromptDetail";
 import { useView } from "../lib/hooks/useView";
+import { useUserStats } from "../lib/hooks/useUserStats";
 import { withLocale } from "../lib/locale";
 import Gallery from "../components/PromptDetail/Gallery";
 import PromptTextBlock from "../components/PromptDetail/PromptTextBlock";
@@ -14,6 +15,8 @@ import CopyPromptButton from "../components/PromptDetail/CopyPromptButton";
 import LikeButton from "../components/PromptDetail/LikeButton";
 import FavoriteButton from "../components/PromptDetail/FavoriteButton";
 import MoreMenu from "../components/PromptDetail/MoreMenu";
+import Avatar from "../components/Avatar";
+import StatsCard from "../components/profile/StatsCard";
 import { Skeleton } from "../components/Skeleton";
 
 export default function PromptDetailPage() {
@@ -22,6 +25,8 @@ export default function PromptDetailPage() {
   const locale: Locale = isLocale(param) ? param : "zh";
   const detail = usePromptDetail(slug);
   useView(detail.data?.id);
+  const contributor = detail.data?.contributor ?? null;
+  const uploaderStats = useUserStats(contributor?.id);
 
   if (detail.isLoading) {
     return (
@@ -101,6 +106,30 @@ export default function PromptDetailPage() {
                 ))}
               </div>
             </div>
+
+            {contributor && (
+              <div className="flex items-center gap-3 border-y border-border-soft py-3">
+                <Link
+                  to={withLocale(locale, `/users/${contributor.id}`)}
+                  className="flex items-center gap-2 hover:underline"
+                >
+                  <Avatar
+                    id={contributor.id}
+                    name={contributor.name}
+                    src={contributor.avatarUrl}
+                    size={32}
+                  />
+                  <span className="text-sm font-medium text-ink">
+                    {contributor.name ?? t("common.anonymous")}
+                  </span>
+                </Link>
+                {uploaderStats.data && (
+                  <div className="ml-auto">
+                    <StatsCard stats={uploaderStats.data} variant="compact" />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Send to Studio CTA — M3 wires it to /api/import-tokens + scheme launch. */}
             <SendToStudioButton
