@@ -30,6 +30,8 @@
     "sign_in_subtitle": "Sign in to submit prompts and send them to Image-Studio",
     "sign_out": "Sign Out",
     "signin_required": "Sign in to use this",
+    "sign_in_to_view_favorites": "Sign in to view your favorites",
+    "sign_in_to_view_my_submissions": "Sign in to view your submissions",
     "profile": "Profile",
     "session_expired": "Your session expired — please sign in again",
     "signin_failed": "Sign-in failed, please try again",

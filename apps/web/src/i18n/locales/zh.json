@@ -30,6 +30,8 @@
     "sign_in_subtitle": "登录后即可投稿提示词与一键导入 Image-Studio",
     "sign_out": "退出登录",
     "signin_required": "请先登录",
+    "sign_in_to_view_favorites": "请登录后查看您的收藏",
+    "sign_in_to_view_my_submissions": "请登录后查看您的投稿",
     "profile": "个人资料",
     "session_expired": "登录已过期,请重新登录",
     "signin_failed": "登录失败,请重试",

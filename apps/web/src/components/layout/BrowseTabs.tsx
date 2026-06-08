@@ -1,16 +1,18 @@
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { isLocale, type Locale } from "@ip/shared";
-import { useSession } from "../../lib/hooks/useSession";
 import { withLocale } from "../../lib/locale";
 
 type Tab = "gallery" | "favorites" | "mine" | "about";
 
-const TABS: { key: Tab; labelKey: string; needsAuth: boolean }[] = [
-  { key: "gallery", labelKey: "home.tab_gallery", needsAuth: false },
-  { key: "favorites", labelKey: "home.tab_favorites", needsAuth: true },
-  { key: "mine", labelKey: "home.tab_mine", needsAuth: true },
-  { key: "about", labelKey: "home.tab_about", needsAuth: false },
+// All tabs are visible regardless of auth state. Favorites/mine target pages
+// render a sign-in CTA in their empty state when the visitor isn't logged in
+// — no SignInModal popup, just an explanatory inline message.
+const TABS: { key: Tab; labelKey: string }[] = [
+  { key: "gallery", labelKey: "home.tab_gallery" },
+  { key: "favorites", labelKey: "home.tab_favorites" },
+  { key: "mine", labelKey: "home.tab_mine" },
+  { key: "about", labelKey: "home.tab_about" },
 ];
 
 type Props = {
@@ -37,8 +39,6 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
   const { pathname, search } = useLocation();
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
-  const session = useSession();
-  const userId = (session.data?.user as { id?: string } | undefined)?.id;
 
   const params = new URLSearchParams(search);
   const tabParam = params.get("tab");
@@ -75,50 +75,44 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
   if (variant === "header") {
     return (
       <nav role="tablist" className="hidden gap-1 text-[15px] md:flex">
-        {TABS.map((tt) => {
-          if (tt.needsAuth && !userId) return null;
-          return (
-            <button
-              key={tt.key}
-              type="button"
-              role="tab"
-              aria-selected={active === tt.key}
-              onClick={() => go(tt.key)}
-              className={`rounded-pill px-4 py-2 font-medium transition ${
-                active === tt.key
-                  ? "bg-accent-soft text-accent"
-                  : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              {t(tt.labelKey)}
-            </button>
-          );
-        })}
-      </nav>
-    );
-  }
-
-  return (
-    <div role="tablist" className="flex gap-4 border-b border-border-soft px-6">
-      {TABS.map((tt) => {
-        if (tt.needsAuth && !userId) return null;
-        return (
+        {TABS.map((tt) => (
           <button
             key={tt.key}
             type="button"
             role="tab"
             aria-selected={active === tt.key}
             onClick={() => go(tt.key)}
-            className={`-mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition ${
+            className={`rounded-pill px-4 py-2 font-medium transition ${
               active === tt.key
-                ? "border-accent text-ink"
-                : "border-transparent text-ink-muted hover:text-ink"
+                ? "bg-accent-soft text-accent"
+                : "text-ink-muted hover:text-ink"
             }`}
           >
             {t(tt.labelKey)}
           </button>
-        );
-      })}
+        ))}
+      </nav>
+    );
+  }
+
+  return (
+    <div role="tablist" className="flex gap-4 border-b border-border-soft px-6">
+      {TABS.map((tt) => (
+        <button
+          key={tt.key}
+          type="button"
+          role="tab"
+          aria-selected={active === tt.key}
+          onClick={() => go(tt.key)}
+          className={`-mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition ${
+            active === tt.key
+              ? "border-accent text-ink"
+              : "border-transparent text-ink-muted hover:text-ink"
+          }`}
+        >
+          {t(tt.labelKey)}
+        </button>
+      ))}
     </div>
   );
 }

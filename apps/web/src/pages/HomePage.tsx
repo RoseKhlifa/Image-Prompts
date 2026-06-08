@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router";
+import { useTranslation } from "react-i18next";
 import type { SortOption, PromptSummary } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
@@ -35,6 +36,7 @@ const BREAKPOINTS: MasonryBreakpoint[] = [
 type ListResult = { items: PromptSummary[]; total?: number };
 
 export default function HomePage() {
+  const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const sort = asSort(params.get("sort"));
   const tab = asTab(params.get("tab"));
@@ -87,13 +89,21 @@ export default function HomePage() {
         </>
       )}
       {tab === "favorites" &&
-        (favorites.isLoading ? (
+        (!userId ? (
+          <EmptyState message={t("auth.sign_in_to_view_favorites")} />
+        ) : favorites.isLoading ? (
           <CardGridSkeleton count={6} />
         ) : (
           renderItems(favorites.data ?? null)
         ))}
       {tab === "mine" &&
-        (mine.isLoading ? <CardGridSkeleton count={6} /> : renderItems(mine.data ?? null))}
+        (!userId ? (
+          <EmptyState message={t("auth.sign_in_to_view_my_submissions")} />
+        ) : mine.isLoading ? (
+          <CardGridSkeleton count={6} />
+        ) : (
+          renderItems(mine.data ?? null)
+        ))}
     </AppShell>
   );
 }
