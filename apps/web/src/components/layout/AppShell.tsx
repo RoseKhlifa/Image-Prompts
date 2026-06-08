@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
+import { Plus } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
 import LangSwitcher from "../LangSwitcher";
 import ThemeSwitcher from "../ThemeSwitcher";
@@ -22,6 +23,10 @@ export default function AppShell({
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const session = useSession();
+  const navigate = useNavigate();
+  function openSubmit() {
+    navigate(withLocale(locale, "/submit"));
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
@@ -56,6 +61,15 @@ export default function AppShell({
             placeholder={t("common.search_placeholder")}
             className="hidden h-8 w-56 rounded-pill border border-border-soft bg-surface px-3 text-xs text-ink placeholder:text-ink-dim focus:outline-none focus:ring-2 focus:ring-accent-soft md:block"
           />
+          <button
+            type="button"
+            onClick={openSubmit}
+            className="hidden h-8 items-center gap-1 rounded-pill bg-accent px-3 text-xs font-medium text-white hover:bg-accent-2 md:inline-flex"
+            aria-label={t("nav.submit")}
+          >
+            <Plus size={14} aria-hidden />
+            {t("nav.submit")}
+          </button>
           <ThemeSwitcher />
           <LangSwitcher />
           {session.data ? <NotificationsBell /> : null}
