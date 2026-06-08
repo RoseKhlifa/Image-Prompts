@@ -12,6 +12,7 @@ import BrowseTabs from "./BrowseTabs";
 import NotificationsBell from "../notifications/NotificationsBell";
 import SubmitModal from "../submit/SubmitModal";
 import { useSession } from "../../lib/hooks/useSession";
+import { useStats } from "../../lib/hooks/useStats";
 import { useUiStore } from "../../state/uiStore";
 import { withLocale } from "../../lib/locale";
 
@@ -30,6 +31,8 @@ export default function AppShell({
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const session = useSession();
+  const stats = useStats();
+  const publishedCount = stats.data?.publishedCount ?? 0;
   const openSubmitModal = useUiStore((s) => s.openSubmitModal);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -56,8 +59,13 @@ export default function AppShell({
             className="inline-flex items-center gap-2"
             aria-label="Image-Prompts"
           >
-            <BrandLogo size={22} />
-            <span className="text-base font-semibold tracking-tight">Image-Prompts</span>
+            <BrandLogo size={28} />
+            <div className="flex flex-col leading-tight">
+              <span className="text-base font-semibold tracking-tight">Image-Prompts</span>
+              <span className="text-[10px] text-ink-muted">
+                {t("home.published_subtitle", { formattedCount: publishedCount.toLocaleString() })}
+              </span>
+            </div>
           </Link>
           <BrowseTabs variant="header" />
         </div>
