@@ -23,3 +23,20 @@ if (typeof navigator !== "undefined") {
     configurable: true,
   });
 }
+
+// jsdom does not implement IntersectionObserver. Components like
+// CommunityGuidelinesModal use it to detect scroll-to-bottom, so provide a
+// minimal stub that satisfies the IntersectionObserver interface. Tests that
+// need to simulate intersection can drive state via fireEvent / setState
+// instead — this stub just prevents `new IntersectionObserver(...)` from
+// throwing.
+class IntersectionObserverStub {
+  observe() {}
+  disconnect() {}
+  unobserve() {}
+  takeRecords() {
+    return [];
+  }
+}
+(globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
+  IntersectionObserverStub;
