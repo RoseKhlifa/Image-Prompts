@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ApproveInput } from "@ip/shared";
+import type { AdminSubmissionDetail, ApproveInput } from "@ip/shared";
 import { useSession } from "../../lib/hooks/useSession.ts";
 import { useApproveSubmission } from "../../lib/hooks/useApproveSubmission.ts";
 import { useRejectSubmission } from "../../lib/hooks/useRejectSubmission.ts";
@@ -9,16 +9,39 @@ import AdminEditPanel from "./AdminEditPanel.tsx";
 import RejectReasonModal from "./RejectReasonModal.tsx";
 
 type Edits = NonNullable<ApproveInput["edits"]>;
-type Props = { submissionId: string; onResolved: () => void };
+type Props = { submission: AdminSubmissionDetail; onResolved: () => void };
 
-export default function AdminActionBar({ submissionId, onResolved }: Props) {
+/**
+ * Pre-fill the edit-panel state from the submission's existing values so
+ * admin only types where they want to override. Nullable detail fields map
+ * to absent keys (not `undefined`) for exactOptionalPropertyTypes compatibility.
+ */
+function submissionToEdits(d: AdminSubmissionDetail): Edits {
+  const out: Edits = {
+    categoryId: d.categoryId,
+    tagSlugs: d.tagSlugs,
+  };
+  if (d.titleZh !== null) out.titleZh = d.titleZh;
+  if (d.titleEn !== null) out.titleEn = d.titleEn;
+  if (d.promptZh !== null) out.promptZh = d.promptZh;
+  if (d.promptEn !== null) out.promptEn = d.promptEn;
+  if (d.negativePromptZh !== null) out.negativePromptZh = d.negativePromptZh;
+  if (d.negativePromptEn !== null) out.negativePromptEn = d.negativePromptEn;
+  if (d.notesZh !== null) out.notesZh = d.notesZh;
+  if (d.notesEn !== null) out.notesEn = d.notesEn;
+  if (d.aspectRatio !== null) out.aspectRatio = d.aspectRatio;
+  return out;
+}
+
+export default function AdminActionBar({ submission, onResolved }: Props) {
   const { t } = useTranslation();
   const session = useSession();
   const role = (session.data?.user as { role?: string } | undefined)?.role ?? "user";
   const isAdmin = role === "admin";
   const [editMode, setEditMode] = useState(false);
-  const [edits, setEdits] = useState<Edits>({});
+  const [edits, setEdits] = useState<Edits>(() => submissionToEdits(submission));
   const [showReject, setShowReject] = useState(false);
+  const submissionId = submission.id;
 
   const approve = useApproveSubmission({
     onSuccess: () => {

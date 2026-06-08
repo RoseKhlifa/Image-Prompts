@@ -47,7 +47,7 @@ export default function AdminSubmissionPreview({ id, onResolved }: Props) {
         {t("admin.contributor")}: {d.contributor.email ?? d.contributor.id}
       </div>
       {d.status === "pending" ? (
-        <AdminActionBar submissionId={d.id} onResolved={onResolved} />
+        <AdminActionBar key={d.id} submission={d} onResolved={onResolved} />
       ) : (
         <p className="text-sm text-ink/60">
           {t(`my_submissions.status_${d.status}`)}
