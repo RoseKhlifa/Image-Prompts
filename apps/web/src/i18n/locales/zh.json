@@ -238,6 +238,10 @@
     "mark_all_read": "全部已读",
     "submission_approved": "你的投稿《{title}》已通过审核",
     "submission_rejected": "你的投稿《{title}》未通过审核",
+    "prompt_liked_single": "{actor} 赞了你的《{title}》",
+    "prompt_liked_aggregated": "{actor} 等 {n} 人 赞了你的《{title}》",
+    "prompt_favorited_single": "{actor} 收藏了你的《{title}》",
+    "prompt_favorited_aggregated": "{actor} 等 {n} 人 收藏了你的《{title}》",
     "view": "查看"
   }
 }

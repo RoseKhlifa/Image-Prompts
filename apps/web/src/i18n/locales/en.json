@@ -237,7 +237,11 @@
     "empty": "No notifications",
     "mark_all_read": "Mark all read",
     "submission_approved": "Your submission \"{title}\" was approved",
-    "submission_rejected": "Your submission \"{title}\" was not approved",
+    "submission_rejected": "Your submission \"{title}\" was rejected",
+    "prompt_liked_single": "{actor} liked your \"{title}\"",
+    "prompt_liked_aggregated": "{actor} and {n} others liked your \"{title}\"",
+    "prompt_favorited_single": "{actor} favorited your \"{title}\"",
+    "prompt_favorited_aggregated": "{actor} and {n} others favorited your \"{title}\"",
     "view": "View"
   }
 }

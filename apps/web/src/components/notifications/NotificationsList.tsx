@@ -21,7 +21,7 @@ export default function NotificationsList({ onItemNavigate }: Props) {
 
   function navigateFor(n: NotificationDTO) {
     const p = n.payload as { promptSlug?: string; submissionId?: string };
-    if (n.type === "submission_approved" && p.promptSlug) {
+    if ((n.type === "submission_approved" || n.type === "prompt_liked" || n.type === "prompt_favorited") && p.promptSlug) {
       navigate(withLocale(locale, `/prompts/${p.promptSlug}`));
     } else if (n.type === "submission_rejected" && p.submissionId) {
       navigate(withLocale(locale, `/profile?tab=submissions&highlight=${p.submissionId}`));
@@ -46,11 +46,22 @@ export default function NotificationsList({ onItemNavigate }: Props) {
       </div>
       <ul className="max-h-80 overflow-y-auto">
         {items.map((n) => {
-          const p = n.payload as { titleZh?: string; titleEn?: string };
+          const p = n.payload as {
+            titleZh?: string;
+            titleEn?: string;
+            lastActorName?: string;
+          };
           const title = (locale === "zh" ? p.titleZh ?? p.titleEn : p.titleEn ?? p.titleZh) ?? "";
-          const msgKey = n.type === "submission_approved"
-            ? "notifications.submission_approved"
-            : "notifications.submission_rejected";
+          const actor = p.lastActorName ?? t("common.anonymous");
+          const agg = (n as { aggregatedCount?: number }).aggregatedCount ?? 1;
+
+          let msgKey: string;
+          if (n.type === "submission_approved") msgKey = "notifications.submission_approved";
+          else if (n.type === "submission_rejected") msgKey = "notifications.submission_rejected";
+          else if (n.type === "prompt_liked") msgKey = agg > 1 ? "notifications.prompt_liked_aggregated" : "notifications.prompt_liked_single";
+          else if (n.type === "prompt_favorited") msgKey = agg > 1 ? "notifications.prompt_favorited_aggregated" : "notifications.prompt_favorited_single";
+          else msgKey = "notifications.submission_approved";  // unreachable
+
           return (
             <li key={n.id} className={n.readAt ? "opacity-60" : ""}>
               <button
@@ -62,7 +73,7 @@ export default function NotificationsList({ onItemNavigate }: Props) {
                 }}
                 className="block w-full px-3 py-2 text-left text-xs hover:bg-ink/5"
               >
-                {t(msgKey, { title })}
+                {t(msgKey, { title, actor, n: agg - 1 })}
               </button>
             </li>
           );
