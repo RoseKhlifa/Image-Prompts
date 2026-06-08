@@ -83,3 +83,83 @@ export async function markAllRead(userId: string): Promise<number> {
     .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
   return result.rowCount ?? 0;
 }
+
+type InteractionInput = {
+  userId: string;          // contributor (recipient)
+  type: "prompt_liked" | "prompt_favorited";
+  promptId: string;
+  promptSlug: string;
+  titleZh: string | null;
+  titleEn: string | null;
+  actorId: string;
+  actorName: string | null;
+};
+
+/**
+ * Aggregated interaction notification.
+ *
+ * Strategy: within a single transaction, look up the most recent unread
+ * notification matching (userId, groupKey) within the last hour. If found,
+ * UPDATE aggregated_count + refresh payload's lastActor + bump createdAt
+ * (which floats it to the top of the user's list). If not found, INSERT a
+ * new row with aggregated_count = 1.
+ *
+ * `groupKey` is `<type-prefix>:<promptId>`. The `notifications_group_lookup_idx`
+ * partial index covers the SELECT predicate exactly.
+ *
+ * `SELECT ... FOR UPDATE` prevents concurrent same-group inserts from
+ * creating duplicate rows when two actors hit the like endpoint within ms.
+ */
+export async function createInteractionNotification(
+  input: InteractionInput,
+): Promise<{ created: boolean; aggregatedCount: number }> {
+  const groupKey = `${input.type === "prompt_liked" ? "liked" : "favorited"}:${input.promptId}`;
+  const payload = {
+    promptId: input.promptId,
+    promptSlug: input.promptSlug,
+    titleZh: input.titleZh,
+    titleEn: input.titleEn,
+    lastActorId: input.actorId,
+    lastActorName: input.actorName,
+  };
+  return await db.transaction(async (tx) => {
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000);
+    const [existing] = await tx
+      .select({
+        id: notifications.id,
+        aggregatedCount: notifications.aggregatedCount,
+      })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, input.userId),
+          eq(notifications.groupKey, groupKey),
+          isNull(notifications.readAt),
+          sql`${notifications.createdAt} >= ${cutoff}`,
+        ),
+      )
+      .orderBy(desc(notifications.createdAt))
+      .limit(1)
+      .for("update");
+    if (existing) {
+      const newCount = existing.aggregatedCount + 1;
+      await tx
+        .update(notifications)
+        .set({
+          aggregatedCount: newCount,
+          payload,
+          createdAt: new Date(),
+        })
+        .where(eq(notifications.id, existing.id));
+      return { created: false, aggregatedCount: newCount };
+    }
+    await tx.insert(notifications).values({
+      userId: input.userId,
+      type: input.type,
+      payload,
+      groupKey,
+      aggregatedCount: 1,
+    });
+    return { created: true, aggregatedCount: 1 };
+  });
+}

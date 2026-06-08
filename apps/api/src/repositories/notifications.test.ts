@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { like } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { db } from "../db/client.ts";
-import { users } from "../db/schema/index.ts";
+import { notifications, users } from "../db/schema/index.ts";
 import {
   createNotification,
   listMyNotifications,
@@ -191,5 +191,80 @@ describe("markAllRead", () => {
     expect(await countUnread(u.id)).toBe(0);
     const again = await markAllRead(u.id);
     expect(again).toBe(0);
+  });
+});
+
+import { createInteractionNotification } from "./notifications.ts";
+
+describe("createInteractionNotification (hourly aggregate)", () => {
+  it("INSERTs new row when no recent unread same-group exists", async () => {
+    const u = await makeUser();
+    const actor1 = await makeUser();
+    const promptId = crypto.randomUUID();
+    const result = await createInteractionNotification({
+      userId: u.id,
+      type: "prompt_liked",
+      promptId,
+      promptSlug: "x",
+      titleZh: "T", titleEn: null,
+      actorId: actor1.id,
+      actorName: "A1",
+    });
+    expect(result.created).toBe(true);
+    expect(result.aggregatedCount).toBe(1);
+  });
+
+  it("UPDATEs aggregated_count when same-group recent unread exists", async () => {
+    const u = await makeUser();
+    const actor1 = await makeUser();
+    const actor2 = await makeUser();
+    const promptId = crypto.randomUUID();
+    await createInteractionNotification({
+      userId: u.id, type: "prompt_liked", promptId, promptSlug: "x",
+      titleZh: "T", titleEn: null, actorId: actor1.id, actorName: "A1",
+    });
+    const r2 = await createInteractionNotification({
+      userId: u.id, type: "prompt_liked", promptId, promptSlug: "x",
+      titleZh: "T", titleEn: null, actorId: actor2.id, actorName: "A2",
+    });
+    expect(r2.created).toBe(false);
+    expect(r2.aggregatedCount).toBe(2);
+
+    // Verify only 1 row exists in DB
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, u.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.aggregatedCount).toBe(2);
+    // Payload's lastActor refreshed to the most recent actor
+    expect((rows[0]!.payload as { lastActorName: string }).lastActorName).toBe("A2");
+  });
+
+  it("INSERTs new row when previous notification is already read", async () => {
+    const u = await makeUser();
+    const actor1 = await makeUser();
+    const actor2 = await makeUser();
+    const promptId = crypto.randomUUID();
+    await createInteractionNotification({
+      userId: u.id, type: "prompt_liked", promptId, promptSlug: "x",
+      titleZh: "T", titleEn: null, actorId: actor1.id, actorName: "A1",
+    });
+    // Mark all read
+    await db.update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.userId, u.id));
+    const r2 = await createInteractionNotification({
+      userId: u.id, type: "prompt_liked", promptId, promptSlug: "x",
+      titleZh: "T", titleEn: null, actorId: actor2.id, actorName: "A2",
+    });
+    expect(r2.created).toBe(true);
+    expect(r2.aggregatedCount).toBe(1);
+
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, u.id));
+    expect(rows).toHaveLength(2);  // 1 read + 1 fresh
   });
 });
