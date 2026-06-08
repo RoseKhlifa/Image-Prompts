@@ -17,6 +17,7 @@ import { zodErrorsToMap } from "../../lib/zod-errors.ts";
 import { useUiStore } from "../../state/uiStore.ts";
 import TagPicker from "./TagPicker.tsx";
 import ImageUploadGrid from "./ImageUploadGrid.tsx";
+import TranslateButton from "./TranslateButton.tsx";
 import type { SlotValue } from "./ImageSlot.tsx";
 
 const ASPECTS: AspectRatio[] = [
@@ -177,6 +178,13 @@ export default function SubmissionForm() {
           className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
         <FieldError keyName="promptZh" errors={errors} />
+        <TranslateButton
+          sourceText={values.promptZh ?? ""}
+          fromLocale="zh"
+          toLocale="en"
+          targetHasContent={Boolean(values.promptEn && values.promptEn.trim())}
+          onTranslated={(text) => setField("promptEn", text)}
+        />
         <textarea
           placeholder={t("submit.prompt_en_label")}
           rows={4}
