@@ -41,10 +41,11 @@ export default function HomePage() {
   const [params, setParams] = useSearchParams();
   const sort = asSort(params.get("sort"));
   const tab = asTab(params.get("tab"));
+  const q = params.get("q") ?? undefined;
   const session = useSession();
   const userId = (session.data?.user as { id?: string } | undefined)?.id;
 
-  const gallery = usePromptList({ sort, page: 1, pageSize: 24 });
+  const gallery = usePromptList({ sort, page: 1, pageSize: 24, q });
   const favorites = useUserFavorites(userId, tab === "favorites" && !!userId);
   const mine = useUserPrompts(tab === "mine" ? userId : undefined);
 
