@@ -243,5 +243,10 @@
     "prompt_favorited_single": "{actor} favorited your \"{title}\"",
     "prompt_favorited_aggregated": "{actor} and {n} others favorited your \"{title}\"",
     "view": "View"
+  },
+  "owner": {
+    "forbidden_title": "Access denied",
+    "forbidden_body": "/rosekhlifa is for project owners only.",
+    "forbidden_back": "Back home"
   }
 }

@@ -243,5 +243,10 @@
     "prompt_favorited_single": "{actor} 收藏了你的《{title}》",
     "prompt_favorited_aggregated": "{actor} 等 {n} 人 收藏了你的《{title}》",
     "view": "查看"
+  },
+  "owner": {
+    "forbidden_title": "你没有访问权限",
+    "forbidden_body": "/rosekhlifa 仅对项目所有者开放。",
+    "forbidden_back": "返回首页"
   }
 }
