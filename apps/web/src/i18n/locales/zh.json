@@ -38,6 +38,12 @@
     "hero_subtitle": "{formattedCount}+ 条精选提示词 · 一键送到 Image-Studio",
     "start_browsing": "开始浏览 →"
   },
+  "stats": {
+    "published": "已发布",
+    "views": "总浏览",
+    "likes": "总赞",
+    "favorites": "总收藏"
+  },
   "list": {
     "sort_latest": "最新",
     "sort_popular": "最热",

@@ -38,6 +38,12 @@
     "hero_subtitle": "{formattedCount}+ curated prompts · One click to Image-Studio",
     "start_browsing": "Start Browsing →"
   },
+  "stats": {
+    "published": "Published",
+    "views": "Views",
+    "likes": "Likes",
+    "favorites": "Favorites"
+  },
   "list": {
     "sort_latest": "Latest",
     "sort_popular": "Most Viewed",
