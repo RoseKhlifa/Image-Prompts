@@ -15,18 +15,37 @@ export const SubmissionImageInputSchema = z.object({
 
 export const SubmissionInputSchema = z
   .object({
-    titleZh: z.string().trim().max(200).optional(),
-    titleEn: z.string().trim().max(200).optional(),
-    promptZh: z.string().trim().max(8000).optional(),
-    promptEn: z.string().trim().max(8000).optional(),
-    negativePromptZh: z.string().trim().max(2000).optional(),
-    negativePromptEn: z.string().trim().max(2000).optional(),
-    notesZh: z.string().trim().max(2000).optional(),
-    notesEn: z.string().trim().max(2000).optional(),
+    titleZh: z.string().trim().max(200, { message: "title_too_long" }).optional(),
+    titleEn: z.string().trim().max(200, { message: "title_too_long" }).optional(),
+    promptZh: z.string().trim().max(8000, { message: "prompt_too_long" }).optional(),
+    promptEn: z.string().trim().max(8000, { message: "prompt_too_long" }).optional(),
+    negativePromptZh: z
+      .string()
+      .trim()
+      .max(2000, { message: "negative_too_long" })
+      .optional(),
+    negativePromptEn: z
+      .string()
+      .trim()
+      .max(2000, { message: "negative_too_long" })
+      .optional(),
+    notesZh: z.string().trim().max(2000, { message: "notes_too_long" }).optional(),
+    notesEn: z.string().trim().max(2000, { message: "notes_too_long" }).optional(),
     aspectRatio: AspectRatioSchema.optional(),
-    categoryId: z.string().uuid(),
-    tagSlugs: z.array(TagSlugSchema).max(6).default([]),
-    images: z.array(SubmissionImageInputSchema).min(1).max(5),
+    categoryId: z
+      .string({
+        required_error: "category_required",
+        invalid_type_error: "category_required",
+      })
+      .uuid({ message: "category_required" }),
+    tagSlugs: z
+      .array(TagSlugSchema)
+      .max(6, { message: "too_many_tags" })
+      .default([]),
+    images: z
+      .array(SubmissionImageInputSchema)
+      .min(1, { message: "images_required" })
+      .max(5, { message: "too_many_images" }),
   })
   .refine(
     (v) => Boolean((v.titleZh && v.promptZh) || (v.titleEn && v.promptEn)),

@@ -154,6 +154,14 @@
       "field_required": "Required",
       "too_long": "Too long",
       "invalid_format": "Invalid format",
+      "title_too_long": "Title must be 200 chars or fewer",
+      "prompt_too_long": "Prompt must be 8000 chars or fewer",
+      "negative_too_long": "Negative prompt must be 2000 chars or fewer",
+      "notes_too_long": "Notes must be 2000 chars or fewer",
+      "category_required": "Please select a category",
+      "too_many_tags": "At most 6 tags",
+      "images_required": "Please upload at least one image",
+      "too_many_images": "At most 5 images",
       "generic": "Submission failed, please retry"
     }
   },

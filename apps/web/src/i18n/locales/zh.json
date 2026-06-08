@@ -154,6 +154,14 @@
       "field_required": "此项必填",
       "too_long": "内容过长",
       "invalid_format": "格式不正确",
+      "title_too_long": "标题最多 200 字",
+      "prompt_too_long": "提示词最多 8000 字",
+      "negative_too_long": "负向提示词最多 2000 字",
+      "notes_too_long": "备注最多 2000 字",
+      "category_required": "请选择分类",
+      "too_many_tags": "最多 6 个标签",
+      "images_required": "请至少上传一张图片",
+      "too_many_images": "最多 5 张图片",
       "generic": "提交失败,请重试"
     }
   },
