@@ -60,6 +60,13 @@ export const PromptSummarySchema = z.object({
   // present means the response was personalised for a logged-in viewer.
   userLiked: z.boolean().optional(),
   userFavorited: z.boolean().optional(),
+  contributor: z
+    .object({
+      id: UuidSchema,
+      name: z.string().nullable(),
+      avatarUrl: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 export const PromptDetailSchema = PromptSummarySchema.extend({

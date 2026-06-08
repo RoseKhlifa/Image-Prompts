@@ -119,3 +119,43 @@ describe("getPromptBySlug session-aware", () => {
     await db.delete(favorites).where(eq(favorites.userId, userId));
   });
 });
+
+describe("contributor join", () => {
+  it("returns contributor info for prompts with contributorId", async () => {
+    // Use existing seeded prompt(s); inject a contributor
+    const [u] = await db
+      .insert(users)
+      .values({
+        email: "prompts-test-contributor@example.com",
+        name: "Contributor One",
+        image: "https://example.com/avatar.png",
+      })
+      .returning();
+    const targetSlug = (await latestPromptForTest()).slug;
+    await db
+      .update(prompts)
+      .set({ contributorId: u!.id })
+      .where(eq(prompts.slug, targetSlug));
+
+    const detail = await getPromptBySlug(targetSlug);
+    expect(detail?.contributor).toEqual({
+      id: u!.id,
+      name: "Contributor One",
+      avatarUrl: "https://example.com/avatar.png",
+    });
+
+    // Cleanup
+    await db
+      .update(prompts)
+      .set({ contributorId: null })
+      .where(eq(prompts.contributorId, u!.id));
+    await db.delete(users).where(eq(users.id, u!.id));
+  });
+
+  it("returns contributor:null for prompts without contributorId", async () => {
+    const p = await latestPromptForTest();
+    await db.update(prompts).set({ contributorId: null }).where(eq(prompts.slug, p.slug));
+    const detail = await getPromptBySlug(p.slug);
+    expect(detail?.contributor).toBeNull();
+  });
+});

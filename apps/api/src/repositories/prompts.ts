@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { db } from "../db/client.ts";
 import { categories, prompts, promptImages, promptTags, tags } from "../db/schema/index.ts";
+import { users } from "../db/schema/auth.ts";
 import type { PromptListQuerySchema } from "@ip/shared";
 
 type PromptListQuery = z.infer<typeof PromptListQuerySchema>;
@@ -80,6 +81,9 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
       categoryId: prompts.categoryId,
       categorySlug: categories.slug,
       categoryName: categories.name,
+      contributorId: prompts.contributorId,
+      contributorName: users.name,
+      contributorImage: users.image,
       userLiked: currentUserId
         ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE likes.prompt_id = ${prompts.id} AND likes.user_id = ${currentUserId})`
         : sql<boolean>`FALSE`,
@@ -89,6 +93,7 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
     })
     .from(prompts)
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
+    .leftJoin(users, eq(users.id, prompts.contributorId))
     .where(where)
     .orderBy(orderBy(q.sort))
     .limit(q.pageSize)
@@ -157,6 +162,13 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
             lqip: img.lqip,
           }
         : null,
+      contributor: r.contributorId
+        ? {
+            id: r.contributorId,
+            name: r.contributorName,
+            avatarUrl: r.contributorImage,
+          }
+        : null,
       viewCount: r.viewCount,
       likeCount: r.likeCount,
       sendCount: r.sendCount,
@@ -197,6 +209,8 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
       categoryId: prompts.categoryId,
       categorySlug: categories.slug,
       categoryName: categories.name,
+      contributorName: users.name,
+      contributorImage: users.image,
       userLiked: currentUserId
         ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE likes.prompt_id = ${prompts.id} AND likes.user_id = ${currentUserId})`
         : sql<boolean>`FALSE`,
@@ -206,6 +220,7 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
     })
     .from(prompts)
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
+    .leftJoin(users, eq(users.id, prompts.contributorId))
     .where(eq(prompts.slug, slug));
 
   if (!row) return null;
@@ -251,7 +266,13 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
       height: i.height,
       lqip: i.lqip,
     })),
-    contributor: null, // M3 will join users when contributor exists
+    contributor: row.contributorId
+      ? {
+          id: row.contributorId,
+          name: row.contributorName,
+          avatarUrl: row.contributorImage,
+        }
+      : null,
     viewCount: row.viewCount,
     likeCount: row.likeCount,
     sendCount: row.sendCount,
