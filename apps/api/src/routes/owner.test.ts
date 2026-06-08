@@ -10,7 +10,7 @@ import {
   announcements,
 } from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
-import { encryptSecret } from "../lib/crypto.ts";
+import { encryptSecret, decryptSecret } from "../lib/crypto.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 
 // Test isolation conventions follow admin.test.ts:
@@ -19,6 +19,10 @@ import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 //  - process.env.OWNER_EMAILS is set so isOwnerEmail() picks our owner up.
 const TEST_EMAIL_PREFIX = "owner-route-test-";
 const TEST_R2_NAME = "owner-route-test-r2";
+// M10b W3.2 CRUD tests seed r2_accounts rows with this prefix on `name`
+// so cleanup() can sweep them via LIKE without touching dev-primary or
+// the W3.1 repo-test rows ("tw31r-%").
+const TEST_R2_CRUD_PREFIX = "tw32r-";
 // Marker embedded in announcement title.en for test-row sweeping. Matches
 // the same pattern repo/announcements.test.ts uses.
 const TEST_ANN_MARKER = "[owner-route-ann-test]";
@@ -50,6 +54,27 @@ async function cleanup() {
     .set({ value: 10 as unknown as never })
     .where(eq(siteSettings.key, "submit.daily_limit"));
   await db.delete(r2Accounts).where(eq(r2Accounts.name, TEST_R2_NAME));
+  // M10b W3.2 CRUD: sweep any rows the CRUD tests inserted (tw32r-* prefix on
+  // `name`) AND their audit_log rows. The audit_log.target_id FK is NO ACTION,
+  // so audit rows must be deleted before the parent r2_accounts row. The W3.1
+  // repo tests use a different "tw31r-" prefix and have their own sweep.
+  const crudR2Ids = (
+    await db
+      .select({ id: r2Accounts.id })
+      .from(r2Accounts)
+      .where(like(r2Accounts.name, `${TEST_R2_CRUD_PREFIX}%`))
+  ).map((r) => r.id);
+  if (crudR2Ids.length > 0) {
+    await db
+      .delete(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetType, "r2_account"),
+          inArray(auditLog.targetId, crudR2Ids),
+        ),
+      );
+    await db.delete(r2Accounts).where(inArray(r2Accounts.id, crudR2Ids));
+  }
   // Wipe test-tagged announcements + their audit rows. We sweep on
   // title->>'en' LIKE %marker% because the announcement rows are seeded
   // through the POST endpoint and aren't tied to a specific test-user id.
@@ -938,5 +963,303 @@ describe("owner announcements — DELETE", () => {
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0]!.actorId).toBe(owner.userId);
     expect(auditRows[0]!.targetType).toBe("announcement");
+  });
+});
+
+// ── /api/owner/r2-accounts CRUD (M10b W3.2) ──────────────────────────────
+//
+// Plaintext `accessKeySecret` arrives on the request body for create/update,
+// is encrypted at rest by the repo (W3.1 / lib/crypto), and MUST NEVER leak
+// back in any response. Every write records an audit row whose payload notes
+// the affected fields (or, for create/delete, just identifying metadata) but
+// never the secret value itself.
+//
+// All seeded rows use the TEST_R2_CRUD_PREFIX ("tw32r-") on `name` so the
+// top-level cleanup() sweeps them — including the audit_log rows their FK
+// would otherwise pin. The W3.1 repo tests use a separate "tw31r-" prefix
+// and the real dev-primary pool member is untouched.
+
+function makeCreateBody(suffix: string) {
+  return {
+    name: `${TEST_R2_CRUD_PREFIX}${suffix}`,
+    accountId: `${TEST_R2_CRUD_PREFIX}acc-${suffix}`,
+    endpoint: `https://${suffix}.test.r2.cloudflarestorage.com`,
+    accessKeyId: `AKIA-route-${suffix}`,
+    accessKeySecret: `plain-secret-${suffix}`,
+    bucket: `${TEST_R2_CRUD_PREFIX}bucket-${suffix}`,
+    publicUrl: `https://${suffix}.test.r2.dev`,
+    priority: 250,
+    enabled: true,
+  };
+}
+
+describe("owner r2-accounts — POST", () => {
+  it("POST 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify(makeCreateBody("forbidden")),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST 201 inserts row with encrypted secret + audit + never echoes secret", async () => {
+    const owner = await makeOwner();
+    const body = makeCreateBody("create-A");
+    const res = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(201);
+    const j = (await res.json()) as Record<string, unknown>;
+    expect(typeof j.id).toBe("string");
+    expect(j.name).toBe(body.name);
+    expect(j.bucket).toBe(body.bucket);
+    // The plaintext secret MUST NOT appear anywhere in the response — neither
+    // as `accessKeySecret` (the field name) nor as a stray string value.
+    expect(j.accessKeySecret).toBeUndefined();
+    expect(JSON.stringify(j)).not.toContain(body.accessKeySecret);
+
+    // DB row exists and the ciphertext round-trips to the supplied plaintext.
+    const [row] = await db
+      .select()
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, j.id as string));
+    expect(row).toBeDefined();
+    expect(row!.accessKeySecretEncrypted).not.toBe(body.accessKeySecret);
+    expect(decryptSecret(row!.accessKeySecretEncrypted)).toBe(
+      body.accessKeySecret,
+    );
+
+    // Audit row recorded — payload notes name/bucket/enabled, NOT the secret.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "r2.create"),
+          eq(auditLog.targetId, j.id as string),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("r2_account");
+    expect(auditRows[0]!.payload).toMatchObject({
+      name: body.name,
+      bucket: body.bucket,
+      enabled: true,
+    });
+    expect(JSON.stringify(auditRows[0]!.payload)).not.toContain(
+      body.accessKeySecret,
+    );
+  });
+
+  it("POST 400 with invalid endpoint URL", async () => {
+    const owner = await makeOwner();
+    const body = { ...makeCreateBody("bad-url"), endpoint: "not-a-url" };
+    const res = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST 400 with empty bucket", async () => {
+    const owner = await makeOwner();
+    const body = { ...makeCreateBody("empty-bucket"), bucket: "" };
+    const res = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("owner r2-accounts — PATCH", () => {
+  it("PATCH 200 partial priority update + audit + secret untouched", async () => {
+    const owner = await makeOwner();
+    // Seed via the POST endpoint so the whole pipeline (validation + encrypt)
+    // runs end-to-end and we capture the real id.
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("patch-prio")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    const [before] = await db
+      .select()
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, id));
+    const cipherBefore = before!.accessKeySecretEncrypted;
+    const nameBefore = before!.name;
+    const bucketBefore = before!.bucket;
+
+    const res = await app.request(`/api/owner/r2-accounts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ priority: 17 }),
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; priority: number; name: string };
+    expect(j.id).toBe(id);
+    expect(j.priority).toBe(17);
+    // Secret never appears in PATCH response either.
+    expect((j as Record<string, unknown>).accessKeySecret).toBeUndefined();
+    expect(JSON.stringify(j)).not.toContain("plain-secret-");
+
+    // DB confirmation — priority changed; secret + other fields untouched.
+    const [row] = await db
+      .select()
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, id));
+    expect(row!.priority).toBe(17);
+    expect(row!.accessKeySecretEncrypted).toBe(cipherBefore);
+    expect(row!.name).toBe(nameBefore);
+    expect(row!.bucket).toBe(bucketBefore);
+    // Round-trip still yields the original plaintext.
+    expect(decryptSecret(row!.accessKeySecretEncrypted)).toBe(
+      "plain-secret-patch-prio",
+    );
+
+    // Audit row: `fields` lists what changed, never the secret literal.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "r2.update"), eq(auditLog.targetId, id)),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("r2_account");
+    expect(auditRows[0]!.payload).toMatchObject({ fields: ["priority"] });
+  });
+
+  it("PATCH 200 with accessKeySecret rotates ciphertext (audit omits secret)", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("rotate-secret")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    const [before] = await db
+      .select()
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, id));
+    const cipherBefore = before!.accessKeySecretEncrypted;
+
+    const newSecret = "rotated-secret-xyz";
+    const res = await app.request(`/api/owner/r2-accounts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ accessKeySecret: newSecret }),
+    });
+    expect(res.status).toBe(200);
+    // Response body MUST NOT contain the new secret in any form.
+    const raw = await res.text();
+    expect(raw).not.toContain(newSecret);
+
+    // Ciphertext changed and round-trips to the new plaintext.
+    const [row] = await db
+      .select()
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, id));
+    expect(row!.accessKeySecretEncrypted).not.toBe(cipherBefore);
+    expect(row!.accessKeySecretEncrypted).not.toBe(newSecret);
+    expect(decryptSecret(row!.accessKeySecretEncrypted)).toBe(newSecret);
+
+    // Audit row: `fields` should mention the rotation happened, but the
+    // accessKeySecret value itself must not be present anywhere.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "r2.update"), eq(auditLog.targetId, id)),
+      );
+    expect(auditRows).toHaveLength(1);
+    const fields = (auditRows[0]!.payload as { fields: string[] }).fields;
+    expect(fields).not.toContain("accessKeySecret");
+    expect(JSON.stringify(auditRows[0]!.payload)).not.toContain(newSecret);
+  });
+
+  it("PATCH 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/r2-accounts/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ priority: 5 }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("PATCH 400 with invalid endpoint URL", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("patch-bad-url")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    const res = await app.request(`/api/owner/r2-accounts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ endpoint: "totally not a url" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("owner r2-accounts — DELETE", () => {
+  it("DELETE 200 soft-deletes + writes audit", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("delete-me")),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const res = await app.request(`/api/owner/r2-accounts/${id}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; deleted: boolean };
+    expect(j.id).toBe(id);
+    expect(j.deleted).toBe(true);
+
+    // DB confirmation — row still exists (soft delete only) and deletedAt set.
+    const [row] = await db
+      .select()
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, id));
+    expect(row).toBeDefined();
+    expect(row!.deletedAt).not.toBeNull();
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "r2.delete"), eq(auditLog.targetId, id)),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("r2_account");
+  });
+
+  it("DELETE 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/r2-accounts/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
   });
 });

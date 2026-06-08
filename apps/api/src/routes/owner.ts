@@ -13,6 +13,10 @@ import {
 import {
   listAllR2AccountsForOwner,
   getR2AccountForOwner,
+  createR2Account,
+  updateR2Account,
+  softDeleteR2Account,
+  type R2UpdateInput,
 } from "../repositories/r2-accounts.ts";
 import {
   listUsers,
@@ -118,7 +122,12 @@ app.put(
   },
 );
 
-// ── R2 accounts (read-only in M10a) ──────────────────────────────────────
+// ── R2 accounts (M10b W3.2: full CRUD) ───────────────────────────────────
+//
+// Read paths come from M10a. POST / PATCH / DELETE land in W3.2 alongside the
+// crypto-aware repo from W3.1: secrets arrive in plaintext on the request
+// body, are encrypted at rest, and are NEVER echoed back in any response
+// (cleartext lives in the request only). Every write records an audit row.
 app.get("/r2-accounts", async (c) => {
   const items = await listAllR2AccountsForOwner();
   return c.json({ items });
@@ -130,6 +139,130 @@ app.get("/r2-accounts/:id", zv("param", UuidParamSchema), async (c) => {
   if (!r) throw new HTTPException(404, { message: "not_found" });
   return c.json(r);
 });
+
+const R2CreateBodySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  accountId: z.string().trim().min(1).max(120),
+  endpoint: z.string().url().max(400),
+  accessKeyId: z.string().trim().min(1).max(200),
+  // Plaintext on the wire; repo encrypts before insert. Length cap matches
+  // R2 secret max (~80) plus generous slack so we never reject a real secret.
+  accessKeySecret: z.string().min(1).max(400),
+  bucket: z.string().trim().min(1).max(120),
+  publicUrl: z.string().url().max(400),
+  priority: z.number().int().min(0).max(1000).optional(),
+  enabled: z.boolean().optional(),
+});
+
+const R2UpdateBodySchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  accountId: z.string().trim().min(1).max(120).optional(),
+  endpoint: z.string().url().max(400).optional(),
+  accessKeyId: z.string().trim().min(1).max(200).optional(),
+  accessKeySecret: z.string().min(1).max(400).optional(),
+  bucket: z.string().trim().min(1).max(120).optional(),
+  publicUrl: z.string().url().max(400).optional(),
+  priority: z.number().int().min(0).max(1000).optional(),
+  enabled: z.boolean().optional(),
+});
+
+app.post(
+  "/r2-accounts",
+  zv("json", R2CreateBodySchema),
+  async (c) => {
+    const ownerId = requireUserId(c);
+    const input = c.req.valid("json");
+    // exactOptionalPropertyTypes:true rejects `{ priority: undefined }` against
+    // R2CreateInput's `priority?: number`. Only forward keys the caller set.
+    const createInput: Parameters<typeof createR2Account>[0] = {
+      name: input.name,
+      accountId: input.accountId,
+      endpoint: input.endpoint,
+      accessKeyId: input.accessKeyId,
+      accessKeySecret: input.accessKeySecret,
+      bucket: input.bucket,
+      publicUrl: input.publicUrl,
+    };
+    if (input.priority !== undefined) createInput.priority = input.priority;
+    if (input.enabled !== undefined) createInput.enabled = input.enabled;
+    const { id } = await createR2Account(createInput);
+    await recordAudit({
+      actorId: ownerId,
+      action: "r2.create",
+      targetType: "r2_account",
+      targetId: id,
+      payload: {
+        name: input.name,
+        bucket: input.bucket,
+        enabled: input.enabled ?? true,
+      },
+    });
+    // NEVER echo accessKeySecret back in the response — even though we just
+    // received it. The request body is the only place it lives in cleartext;
+    // at rest it's encrypted. JSON.stringify drops `undefined` keys, so this
+    // returns the rest of the input without the secret.
+    return c.json({ id, ...input, accessKeySecret: undefined }, 201);
+  },
+);
+
+app.patch(
+  "/r2-accounts/:id",
+  zv("param", UuidParamSchema),
+  zv("json", R2UpdateBodySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const input = c.req.valid("json");
+    const ownerId = requireUserId(c);
+    // Strip undefined keys before forwarding. exactOptionalPropertyTypes:true
+    // rejects `{ k: undefined }` against R2UpdateInput, so build the patch
+    // key-by-key (same pattern as updateAnnouncement above).
+    const cleaned: R2UpdateInput = {};
+    if (input.name !== undefined) cleaned.name = input.name;
+    if (input.accountId !== undefined) cleaned.accountId = input.accountId;
+    if (input.endpoint !== undefined) cleaned.endpoint = input.endpoint;
+    if (input.accessKeyId !== undefined) cleaned.accessKeyId = input.accessKeyId;
+    if (input.accessKeySecret !== undefined)
+      cleaned.accessKeySecret = input.accessKeySecret;
+    if (input.bucket !== undefined) cleaned.bucket = input.bucket;
+    if (input.publicUrl !== undefined) cleaned.publicUrl = input.publicUrl;
+    if (input.priority !== undefined) cleaned.priority = input.priority;
+    if (input.enabled !== undefined) cleaned.enabled = input.enabled;
+    const ok = await updateR2Account(id, cleaned);
+    if (!ok) throw new HTTPException(404, { message: "not_found" });
+    await recordAudit({
+      actorId: ownerId,
+      action: "r2.update",
+      targetType: "r2_account",
+      targetId: id,
+      // Log WHICH fields changed (audit trail), never the secret itself.
+      payload: {
+        fields: Object.keys(cleaned).filter((k) => k !== "accessKeySecret"),
+      },
+    });
+    // Re-read via the owner projection (secret column already omitted there).
+    const updated = await getR2AccountForOwner(id);
+    return c.json(updated);
+  },
+);
+
+app.delete(
+  "/r2-accounts/:id",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const ok = await softDeleteR2Account(id);
+    if (!ok) throw new HTTPException(404, { message: "not_found" });
+    await recordAudit({
+      actorId: ownerId,
+      action: "r2.delete",
+      targetType: "r2_account",
+      targetId: id,
+      payload: {},
+    });
+    return c.json({ id, deleted: true });
+  },
+);
 
 // ── Users (M10b W1) ──────────────────────────────────────────────────────
 //
