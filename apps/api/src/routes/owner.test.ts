@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
 import { eq, inArray, like, and, sql } from "drizzle-orm";
+import { mockClient } from "aws-sdk-client-mock";
+import { S3Client, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { createServer } from "../server.ts";
 import { db } from "../db/client.ts";
 import {
@@ -12,6 +14,7 @@ import {
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret, decryptSecret } from "../lib/crypto.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
+import { clearR2ClientCache } from "../lib/r2-client-cache.ts";
 
 // Test isolation conventions follow admin.test.ts:
 //  - Email prefix marks owned-by-test users so cleanup can sweep them safely.
@@ -163,10 +166,18 @@ async function makeNonOwner(role: "user" | "moderator" | "admin" = "user") {
 
 const app = createServer();
 
+// aws-sdk-client-mock is used by the W3.3 tests below to drive r2-ops without
+// reaching the network. It's reset per-test alongside the in-process S3 client
+// cache so a previous test's mock state can't leak. The CRUD tests above don't
+// touch S3 at all, so this is a passive setup for them.
+const s3Mock = mockClient(S3Client);
+
 beforeEach(async () => {
   await cleanup();
   await setupSeedR2();
   resetSubmitConfigCache();
+  s3Mock.reset();
+  clearR2ClientCache();
 });
 
 afterEach(cleanup);
@@ -1261,5 +1272,208 @@ describe("owner r2-accounts — DELETE", () => {
       { method: "DELETE", headers: { Cookie: owner.cookie } },
     );
     expect(res.status).toBe(404);
+  });
+});
+
+// ── /api/owner/r2-accounts/:id/test (M10b W3.3) ──────────────────────────
+//
+// testConnection HEADs a non-existent probe key. We exercise the route end
+// to end with the S3Client mocked at the SDK layer: the route invokes
+// r2-ops.testConnection, which builds a real S3Client via the
+// r2-client-cache (decrypting the secret with crypto), and the mock
+// intercepts the HeadObjectCommand call. The route is auth-gated through
+// the same requireOwner() chain as the CRUD endpoints.
+describe("owner r2-accounts — POST /:id/test", () => {
+  it("POST 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    // Seed a row so the 404 path doesn't pre-empt the 403 check.
+    const created = await db
+      .insert(r2Accounts)
+      .values({
+        name: `${TEST_R2_CRUD_PREFIX}test-403`,
+        accountId: "t",
+        endpoint: "https://t.r2.cloudflarestorage.com",
+        accessKeyId: "K",
+        accessKeySecretEncrypted: encryptSecret("s"),
+        bucket: "b",
+        publicUrl: "https://t.r2.dev",
+      })
+      .returning({ id: r2Accounts.id });
+    const id = created[0]!.id;
+    const res = await app.request(`/api/owner/r2-accounts/${id}/test`, {
+      method: "POST",
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/r2-accounts/00000000-0000-0000-0000-000000000000/test",
+      { method: "POST", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("POST 200 returns { ok, status, latencyMs } shape on 404 probe response", async () => {
+    const owner = await makeOwner();
+    // Seed via the POST endpoint so the encrypted-secret round-trip works.
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("test-200")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    s3Mock.on(HeadObjectCommand).rejects(
+      Object.assign(new Error("Not Found"), {
+        name: "NotFound",
+        $metadata: { httpStatusCode: 404 },
+      }),
+    );
+
+    const res = await app.request(`/api/owner/r2-accounts/${id}/test`, {
+      method: "POST",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      ok: boolean;
+      status: number | null;
+      latencyMs: number;
+    };
+    expect(j.ok).toBe(true);
+    expect(j.status).toBe(404);
+    expect(typeof j.latencyMs).toBe("number");
+  });
+
+  it("POST 200 returns { ok:false, status:503 } when S3 returns server error", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("test-503")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    s3Mock.on(HeadObjectCommand).rejects(
+      Object.assign(new Error("ServiceUnavailable"), {
+        name: "ServiceUnavailable",
+        $metadata: { httpStatusCode: 503 },
+      }),
+    );
+
+    const res = await app.request(`/api/owner/r2-accounts/${id}/test`, {
+      method: "POST",
+      headers: { Cookie: owner.cookie },
+    });
+    // Endpoint always returns 200 with a result body; the `ok` flag carries
+    // the verdict so the UI can show a contextual error.
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { ok: boolean; status: number | null };
+    expect(j.ok).toBe(false);
+    expect(j.status).toBe(503);
+  });
+});
+
+// ── /api/owner/r2-accounts/:id/sync-usage (M10b W3.3) ────────────────────
+//
+// Full pipeline: route handler decrypts secret via the repo helper, runs
+// paginated ListObjectsV2 against the mocked S3 client, persists totals via
+// repo.setUsageStats, and records an audit row. We use mockedListObjects
+// (set per-test) to drive the pagination + size math.
+describe("owner r2-accounts — POST /:id/sync-usage", () => {
+  it("POST 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const created = await db
+      .insert(r2Accounts)
+      .values({
+        name: `${TEST_R2_CRUD_PREFIX}sync-403`,
+        accountId: "t",
+        endpoint: "https://t.r2.cloudflarestorage.com",
+        accessKeyId: "K",
+        accessKeySecretEncrypted: encryptSecret("s"),
+        bucket: "b",
+        publicUrl: "https://t.r2.dev",
+      })
+      .returning({ id: r2Accounts.id });
+    const id = created[0]!.id;
+    const res = await app.request(
+      `/api/owner/r2-accounts/${id}/sync-usage`,
+      { method: "POST", headers: { Cookie: sess.cookie } },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("POST 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/r2-accounts/00000000-0000-0000-0000-000000000000/sync-usage",
+      { method: "POST", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("POST 200 sums sizes, persists used_bytes + last_synced_at, writes audit", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/r2-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCreateBody("sync-200")),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    // 2 paginated pages: 100 + 200 + 50 = 350 bytes, 3 objects.
+    s3Mock
+      .on(ListObjectsV2Command)
+      .resolvesOnce({
+        Contents: [
+          { Key: "a", Size: 100 },
+          { Key: "b", Size: 200 },
+        ],
+        IsTruncated: true,
+        NextContinuationToken: "next1",
+      })
+      .resolvesOnce({
+        Contents: [{ Key: "c", Size: 50 }],
+        IsTruncated: false,
+      });
+
+    const res = await app.request(
+      `/api/owner/r2-accounts/${id}/sync-usage`,
+      { method: "POST", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { usedBytes: number; objectCount: number };
+    expect(j.usedBytes).toBe(350);
+    expect(j.objectCount).toBe(3);
+
+    // DB confirmation: used_bytes + last_synced_at really got written.
+    const [row] = await db
+      .select({
+        usedBytes: r2Accounts.usedBytes,
+        lastSyncedAt: r2Accounts.lastSyncedAt,
+      })
+      .from(r2Accounts)
+      .where(eq(r2Accounts.id, id));
+    expect(row!.usedBytes).toBe(350);
+    expect(row!.lastSyncedAt).not.toBeNull();
+
+    // Audit row.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "r2.sync_usage"),
+          eq(auditLog.targetId, id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("r2_account");
+    expect(auditRows[0]!.payload).toMatchObject({
+      usedBytes: 350,
+      objectCount: 3,
+    });
   });
 });

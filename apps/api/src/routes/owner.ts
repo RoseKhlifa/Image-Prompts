@@ -13,11 +13,13 @@ import {
 import {
   listAllR2AccountsForOwner,
   getR2AccountForOwner,
+  getR2AccountWithSecret,
   createR2Account,
   updateR2Account,
   softDeleteR2Account,
   type R2UpdateInput,
 } from "../repositories/r2-accounts.ts";
+import { testConnection, syncUsage } from "../lib/r2-ops.ts";
 import {
   listUsers,
   getUserDetail,
@@ -261,6 +263,56 @@ app.delete(
       payload: {},
     });
     return c.json({ id, deleted: true });
+  },
+);
+
+// ── R2 owner-only ops (M10b W3.3) ────────────────────────────────────────
+//
+// /test       — probe reachability via a single HEAD on a guaranteed-absent
+//               key. Always returns 200 with a `{ ok, status, latencyMs }`
+//               body (the UI distinguishes via the `ok` flag); 404 is reserved
+//               for "no such r2_accounts row".
+// /sync-usage — paginate ListObjectsV2 across the bucket, sum sizes, persist
+//               used_bytes + last_synced_at, record an audit row. Synchronous
+//               in-request (no background job); the W3.4 UI must show a
+//               spinner while it runs.
+//
+// Both endpoints call getR2AccountWithSecret() (not getR2AccountForOwner)
+// because they need the encrypted secret column to build an S3 client. The
+// result is consumed in-process only — neither endpoint echoes the row back
+// in its response body.
+app.post(
+  "/r2-accounts/:id/test",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const account = await getR2AccountWithSecret(id);
+    if (!account) throw new HTTPException(404, { message: "not_found" });
+    const result = await testConnection(account);
+    return c.json(result);
+  },
+);
+
+app.post(
+  "/r2-accounts/:id/sync-usage",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const account = await getR2AccountWithSecret(id);
+    if (!account) throw new HTTPException(404, { message: "not_found" });
+    const result = await syncUsage(account);
+    await recordAudit({
+      actorId: ownerId,
+      action: "r2.sync_usage",
+      targetType: "r2_account",
+      targetId: id,
+      payload: {
+        usedBytes: result.usedBytes,
+        objectCount: result.objectCount,
+      },
+    });
+    return c.json(result);
   },
 );
 

@@ -46,6 +46,31 @@ export async function listAllR2AccountsForOwner() {
 }
 
 /**
+ * Read a single R2 account by id including its (encrypted) secret. Only the
+ * owner-only ops (testConnection, syncUsage) need this — the lib functions
+ * decrypt via the shared r2-client-cache helper. NEVER expose the result of
+ * this query in a response body; the encrypted secret is for in-process use
+ * only. The "regular" owner read endpoint must continue to call
+ * getR2AccountForOwner (which omits the secret column).
+ */
+export async function getR2AccountWithSecret(id: string) {
+  const [row] = await db
+    .select({
+      id: r2Accounts.id,
+      name: r2Accounts.name,
+      endpoint: r2Accounts.endpoint,
+      bucket: r2Accounts.bucket,
+      accessKeyId: r2Accounts.accessKeyId,
+      accessKeySecretEncrypted: r2Accounts.accessKeySecretEncrypted,
+      publicUrl: r2Accounts.publicUrl,
+    })
+    .from(r2Accounts)
+    .where(eq(r2Accounts.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
  * Read a single R2 account by id for the owner UI. Same column projection as
  * listAllR2AccountsForOwner — secrets omitted. Returns null on miss.
  */
