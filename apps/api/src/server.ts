@@ -17,6 +17,7 @@ import meRoute from "./routes/me.ts";
 import submissionsRoute from "./routes/submissions.ts";
 import adminRoute from "./routes/admin.ts";
 import usersRoute from "./routes/users.ts";
+import statsRoutes from "./routes/stats.ts";
 
 export function createServer() {
   const app = new Hono();
@@ -55,6 +56,7 @@ export function createServer() {
   app.route("/api/submissions", submissionsRoute);
   app.route("/api/admin", adminRoute);
   app.route("/api/users", usersRoute);
+  app.route("/api/stats", statsRoutes);
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
   app.onError(errorHandler);
