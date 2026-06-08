@@ -16,6 +16,7 @@ import interactionsRoute from "./routes/interactions.ts";
 import meRoute from "./routes/me.ts";
 import submissionsRoute from "./routes/submissions.ts";
 import adminRoute from "./routes/admin.ts";
+import ownerRoute from "./routes/owner.ts";
 import usersRoute from "./routes/users.ts";
 import statsRoutes from "./routes/stats.ts";
 
@@ -55,6 +56,7 @@ export function createServer() {
   app.route("/api/me", meRoute);
   app.route("/api/submissions", submissionsRoute);
   app.route("/api/admin", adminRoute);
+  app.route("/api/owner", ownerRoute);
   app.route("/api/users", usersRoute);
   app.route("/api/stats", statsRoutes);
 
