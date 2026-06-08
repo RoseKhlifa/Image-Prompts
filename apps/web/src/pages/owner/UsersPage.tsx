@@ -5,8 +5,10 @@ import { X } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
 import AvatarBadge from "../../components/auth/AvatarBadge";
 import {
+  useBanUser,
   useOwnerUsersList,
   useOwnerUserDetail,
+  useUnbanUser,
   useUpdateUserRole,
   type OwnerUserListRow,
   type OwnerUserRole,
@@ -29,11 +31,9 @@ function isRole(v: string | null): v is OwnerUserRole {
  * not hardcode zinc-* / emerald-* classes for body content — letting the
  * theme tokens drive presentation keeps the read-skin contract clean.
  *
- * Out of scope for W1:
- *   - ban / unban (no `banned_at` column yet)
- *   - force-logout, delete user, rejected_count reset
- *
- * The drawer is the scaffolding W2 will plug those controls into.
+ * M10b W2 wired ban/unban into the drawer (banned_at + banned_reason now
+ * live on `users`). Still out of scope: force-logout, delete user, and
+ * resetting rejected_count.
  */
 export default function UsersPage() {
   const { t } = useTranslation();
@@ -153,6 +153,9 @@ export default function UsersPage() {
                 {t("owner.users.col_rejected")}
               </th>
               <th className="px-4 py-3 text-left font-semibold">
+                {t("owner.users.col_status")}
+              </th>
+              <th className="px-4 py-3 text-left font-semibold">
                 {t("owner.users.col_joined")}
               </th>
             </tr>
@@ -160,21 +163,21 @@ export default function UsersPage() {
           <tbody className="divide-y divide-border-soft">
             {q.isLoading && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-muted">
                   {t("common.loading")}
                 </td>
               </tr>
             )}
             {q.isError && !q.isLoading && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-danger">
+                <td colSpan={8} className="px-4 py-6 text-center text-danger">
                   {t("common.error_load")}
                 </td>
               </tr>
             )}
             {!q.isLoading && items.length === 0 && !q.isError && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-muted">
                   {t("common.empty")}
                 </td>
               </tr>
@@ -255,10 +258,34 @@ function UserRow({
       <td className="px-4 py-3 text-right text-sm tabular-nums text-ink-muted">
         {user.rejectedCount.toLocaleString()}
       </td>
+      <td className="px-4 py-3">
+        <BanStatusPill bannedAt={user.bannedAt} />
+      </td>
       <td className="px-4 py-3 text-xs text-ink-muted">
         {new Date(user.createdAt).toLocaleDateString()}
       </td>
     </tr>
+  );
+}
+
+/**
+ * Active / Banned pill. Driven by `users.banned_at IS NOT NULL`. Uses the
+ * `--success` / `--danger` tokens exposed via the Tailwind theme block, so
+ * the colour is consistent across the Apple HIG and owner zinc/emerald
+ * skins without per-page overrides.
+ */
+function BanStatusPill({ bannedAt }: { bannedAt: string | null }) {
+  const { t } = useTranslation();
+  const banned = bannedAt !== null;
+  const className = banned
+    ? "bg-danger/15 text-danger"
+    : "bg-success/15 text-success";
+  return (
+    <span
+      className={`inline-flex items-center rounded-pill px-2 py-0.5 text-xs font-medium ${className}`}
+    >
+      {banned ? t("owner.users.status_banned") : t("owner.users.status_active")}
+    </span>
   );
 }
 
@@ -285,7 +312,10 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const { t } = useTranslation();
   const detail = useOwnerUserDetail(id);
   const mut = useUpdateUserRole();
+  const banMut = useBanUser();
+  const unbanMut = useUnbanUser();
   const [roleDraft, setRoleDraft] = useState<OwnerUserRole | null>(null);
+  const [banModalOpen, setBanModalOpen] = useState(false);
 
   // Initialize the role draft from the loaded detail (without overriding a
   // pending in-flight selection if the user is in the middle of editing).
@@ -295,9 +325,11 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     }
   }, [detail.data, roleDraft]);
 
-  // Reset the draft when switching users.
+  // Reset the draft when switching users. Also close the ban modal so a
+  // half-typed reason can't leak across drawer subjects.
   useEffect(() => {
     setRoleDraft(null);
+    setBanModalOpen(false);
   }, [id]);
 
   const dirty =
@@ -321,7 +353,25 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     );
   }
 
+  function unban() {
+    if (!detail.data) return;
+    // Cheap inline confirm — the user is the operator, not an end-user, so
+    // the platform-level `confirm()` is sufficient and keeps us free of an
+    // extra modal in the drawer. The list+detail invalidate covers
+    // optimistic UI without us touching the cache directly.
+    if (!window.confirm(t("owner.users.unban_confirm_question"))) return;
+    unbanMut.mutate(id, {
+      onSuccess: () => {
+        toast.success(t("owner.users.unban_success"));
+      },
+      onError: (err) => {
+        toast.error(err.message ?? t("owner.users.unban_failed"));
+      },
+    });
+  }
+
   return (
+    <>
     <aside
       role="dialog"
       aria-label={t("owner.users.drawer_role_label")}
@@ -416,6 +466,55 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             </div>
           </div>
 
+          {/* Moderation (ban / unban) */}
+          <div className="mt-5 rounded-card border border-border-soft bg-panel p-4">
+            <div className="text-xs uppercase tracking-wider text-ink-muted">
+              {t("owner.users.ban_section_title")}
+            </div>
+            {detail.data.bannedAt !== null && (
+              <div className="mt-2 space-y-1.5 rounded-control bg-danger/10 px-3 py-2 text-xs text-danger">
+                <div className="flex items-center gap-2 font-medium">
+                  <BanStatusPill bannedAt={detail.data.bannedAt} />
+                  <span>
+                    {t("owner.users.ban_since")}{" "}
+                    {new Date(detail.data.bannedAt).toLocaleString()}
+                  </span>
+                </div>
+                {detail.data.bannedReason !== null && (
+                  <div>
+                    <span className="text-ink-muted">
+                      {t("owner.users.ban_reason_label_shown")}:
+                    </span>{" "}
+                    <span className="text-ink">{detail.data.bannedReason}</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-3">
+              {detail.data.bannedAt === null ? (
+                <button
+                  type="button"
+                  onClick={() => setBanModalOpen(true)}
+                  disabled={banMut.isPending}
+                  className="rounded-control bg-danger px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40"
+                >
+                  {t("owner.users.ban_button")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={unban}
+                  disabled={unbanMut.isPending}
+                  className="rounded-control border border-border-soft px-3 py-1.5 text-xs font-medium text-ink hover:bg-panel-2 disabled:opacity-40"
+                >
+                  {unbanMut.isPending
+                    ? t("owner.users.drawer_saving")
+                    : t("owner.users.unban_button")}
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Recent submissions */}
           <div className="mt-5">
             <div className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
@@ -447,6 +546,117 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
         </div>
       )}
     </aside>
+    {banModalOpen && (
+      <BanModal
+        pending={banMut.isPending}
+        onCancel={() => setBanModalOpen(false)}
+        onConfirm={(reason) => {
+          banMut.mutate(
+            { id, reason },
+            {
+              onSuccess: () => {
+                toast.success(t("owner.users.ban_success"));
+                setBanModalOpen(false);
+              },
+              onError: (err) => {
+                toast.error(err.message ?? t("owner.users.ban_failed"));
+              },
+            },
+          );
+        }}
+      />
+    )}
+    </>
+  );
+}
+
+/**
+ * Tiny inline modal for the ban-reason form. Deliberately styled inline
+ * rather than reaching for a shared Dialog primitive — it's a single
+ * narrow case (operator-only, locale-aware, no nested focus traps) so the
+ * fixed-overlay + bg-panel pair below is enough.
+ *
+ * Trims the reason before validating + submitting (matches the API
+ * z.string().trim().min(1).max(500) schema in routes/owner.ts).
+ */
+function BanModal({
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [reason, setReason] = useState("");
+  const [showError, setShowError] = useState(false);
+  const trimmed = reason.trim();
+
+  function submit() {
+    if (trimmed.length === 0) {
+      setShowError(true);
+      return;
+    }
+    onConfirm(trimmed);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("owner.users.ban_modal_title")}
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 px-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-card bg-panel p-6 shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-ink">
+          {t("owner.users.ban_modal_title")}
+        </h2>
+        <label className="mt-4 block text-xs uppercase tracking-wider text-ink-muted">
+          {t("owner.users.ban_reason_label")}
+        </label>
+        <textarea
+          autoFocus
+          value={reason}
+          onChange={(e) => {
+            setReason(e.target.value);
+            if (showError && e.target.value.trim().length > 0) setShowError(false);
+          }}
+          placeholder={t("owner.users.ban_reason_placeholder")}
+          rows={4}
+          maxLength={500}
+          disabled={pending}
+          className="mt-2 w-full resize-none rounded-control border border-border-soft bg-panel-2 px-3 py-2 text-sm text-ink placeholder:text-ink-dim focus:border-accent focus:outline-none"
+        />
+        {showError && (
+          <div className="mt-1 text-xs text-danger">
+            {t("owner.users.ban_reason_required")}
+          </div>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+            className="rounded-control border border-border-soft px-3 py-1.5 text-xs font-medium text-ink hover:bg-panel-2 disabled:opacity-40"
+          >
+            {t("owner.users.ban_cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={pending}
+            className="rounded-control bg-danger px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40"
+          >
+            {pending ? t("owner.users.drawer_saving") : t("owner.users.ban_confirm")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

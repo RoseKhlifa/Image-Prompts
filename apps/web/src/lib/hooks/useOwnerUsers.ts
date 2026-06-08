@@ -33,6 +33,7 @@ export type OwnerUserRecentSubmission = {
 };
 
 export type OwnerUserDetail = OwnerUserListRow & {
+  bannedReason: string | null;
   communityGuidelinesVersion: number;
   dailySubmissionCount: number;
   dailySubmissionResetAt: string | null;
@@ -110,6 +111,57 @@ export function useUpdateUserRole(): UseMutationResult<
       // refetch here.
       qc.invalidateQueries({ queryKey: ["owner", "users", "list"] });
       qc.invalidateQueries({ queryKey: ["owner", "users", "detail", vars.id] });
+    },
+  });
+}
+
+/**
+ * Ban a user. The route layer (POST /api/owner/users/:id/ban) writes
+ * `users.banned_at = now()` + `banned_reason`, and records an audit row.
+ * banCheck middleware on the rest of the API kicks the user out of their
+ * next request once the ban lands.
+ *
+ * On success we invalidate both the list (so the new status pill appears in
+ * place) and the specific detail (so the open drawer flips Ban→Unban).
+ */
+export function useBanUser(): UseMutationResult<
+  { id: string; banned: true },
+  ApiError,
+  { id: string; reason: string }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }) =>
+      apiFetch<{ id: string; banned: true }>(`/api/owner/users/${id}/ban`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["owner", "users", "list"] });
+      qc.invalidateQueries({ queryKey: ["owner", "users", "detail", data.id] });
+    },
+  });
+}
+
+/**
+ * Unban a user. POST /api/owner/users/:id/unban clears `banned_at` and
+ * `banned_reason` and records an audit row. Same invalidation pattern as
+ * useBanUser so the drawer + list reflect the new state immediately.
+ */
+export function useUnbanUser(): UseMutationResult<
+  { id: string; banned: false },
+  ApiError,
+  string
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) =>
+      apiFetch<{ id: string; banned: false }>(`/api/owner/users/${id}/unban`, {
+        method: "POST",
+      }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["owner", "users", "list"] });
+      qc.invalidateQueries({ queryKey: ["owner", "users", "detail", data.id] });
     },
   });
 }
