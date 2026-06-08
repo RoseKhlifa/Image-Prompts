@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { like } from "drizzle-orm";
+import { eq, inArray, like } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db, pool } from "../db/client.ts";
 import { users, sessions } from "../db/schema/auth.ts";
 import { likes, favorites, viewLog } from "../db/schema/interactions.ts";
 import { prompts } from "../db/schema/prompts.ts";
+import { notifications } from "../db/schema/notifications.ts";
 import { createServer } from "../server.ts";
 import { createTestSession } from "../auth/test-session.ts";
 
@@ -15,16 +17,63 @@ async function anyPromptId(): Promise<string> {
   return row.id;
 }
 
+async function makeUser(input?: { name?: string }) {
+  const email = `test-${randomUUID()}@example.com`;
+  const [u] = await db
+    .insert(users)
+    .values({ email, name: input?.name ?? "Test User" })
+    .returning();
+  return u!;
+}
+
+// Borrow an existing seeded prompt's category so we don't need to seed one.
+async function createTestPrompt(opts: { contributorId: string | null }): Promise<string> {
+  const [seed] = await db.select({ categoryId: prompts.categoryId }).from(prompts).limit(1);
+  if (!seed) throw new Error("seed missing");
+  const slug = `interactions-test-${randomUUID()}`;
+  const [row] = await db
+    .insert(prompts)
+    .values({
+      slug,
+      title: { zh: "测试", en: "Test" },
+      prompt: { zh: "提示", en: "Prompt" },
+      categoryId: seed.categoryId,
+      contributorId: opts.contributorId,
+    })
+    .returning({ id: prompts.id });
+  return row!.id;
+}
+
+async function cleanupTestPrompts() {
+  await db.delete(prompts).where(like(prompts.slug, "interactions-test-%"));
+}
+
 beforeEach(async () => {
   await db.delete(viewLog);
   await db.delete(likes);
   await db.delete(favorites);
+  // Notifications cascade-delete with the user, but we clear here for safety
+  // across tests that share users with other suites.
+  const testUserIds = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(like(users.email, "test-%@example.com"));
+  if (testUserIds.length > 0) {
+    await db.delete(notifications).where(
+      inArray(
+        notifications.userId,
+        testUserIds.map((u) => u.id),
+      ),
+    );
+  }
+  await cleanupTestPrompts();
 });
 
 afterAll(async () => {
   await db.delete(viewLog);
   await db.delete(likes);
   await db.delete(favorites);
+  await cleanupTestPrompts();
   await db.delete(sessions);
   await db.delete(users).where(like(users.email, "test-%@example.com"));
   await pool.end();
@@ -188,5 +237,108 @@ describe("POST /api/prompts/:id/view", () => {
     expect(second.status).toBe(200);
     const secondBody = await second.json();
     expect(secondBody.recorded).toBe(false);
+  });
+});
+
+describe("POST /api/prompts/:id/like — notification side effect", () => {
+  it("creates a notification for the prompt contributor on first like (different user)", async () => {
+    const contributor = await makeUser();
+    const promptId = await createTestPrompt({ contributorId: contributor.id });
+    const actor = await makeUser({ name: "ActorName" });
+    const session = await createTestSession({ email: actor.email });
+
+    const res = await app.request(`/api/prompts/${promptId}/like`, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+    });
+    expect(res.status).toBe(201);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, contributor.id));
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0]!.type).toBe("prompt_liked");
+    expect(notifs[0]!.aggregatedCount).toBe(1);
+    expect((notifs[0]!.payload as { lastActorName: string }).lastActorName).toBe("ActorName");
+  });
+
+  it("does NOT create a notification when actor === contributor (liking own prompt)", async () => {
+    const me = await makeUser();
+    const promptId = await createTestPrompt({ contributorId: me.id });
+    const session = await createTestSession({ email: me.email });
+
+    const res = await app.request(`/api/prompts/${promptId}/like`, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+    });
+    expect(res.status).toBe(201);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, me.id));
+    expect(notifs).toHaveLength(0);
+  });
+
+  it("does NOT create a notification when prompt has no contributor (seeded source)", async () => {
+    const promptId = await createTestPrompt({ contributorId: null });
+    const actor = await makeUser({ name: "Solo" });
+    const session = await createTestSession({ email: actor.email });
+
+    const res = await app.request(`/api/prompts/${promptId}/like`, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+    });
+    expect(res.status).toBe(201);
+
+    // No notifications anywhere (actor is the only test user we touched)
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, actor.id));
+    expect(notifs).toHaveLength(0);
+  });
+});
+
+describe("POST /api/prompts/:id/favorite — notification side effect", () => {
+  it("creates a prompt_favorited notification for the contributor", async () => {
+    const contributor = await makeUser();
+    const promptId = await createTestPrompt({ contributorId: contributor.id });
+    const actor = await makeUser({ name: "FavActor" });
+    const session = await createTestSession({ email: actor.email });
+
+    const res = await app.request(`/api/prompts/${promptId}/favorite`, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+    });
+    expect(res.status).toBe(201);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, contributor.id));
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0]!.type).toBe("prompt_favorited");
+    expect(notifs[0]!.aggregatedCount).toBe(1);
+    expect((notifs[0]!.payload as { lastActorName: string }).lastActorName).toBe("FavActor");
+  });
+
+  it("does NOT create a notification when actor === contributor (favoriting own prompt)", async () => {
+    const me = await makeUser();
+    const promptId = await createTestPrompt({ contributorId: me.id });
+    const session = await createTestSession({ email: me.email });
+
+    const res = await app.request(`/api/prompts/${promptId}/favorite`, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+    });
+    expect(res.status).toBe(201);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, me.id));
+    expect(notifs).toHaveLength(0);
   });
 });

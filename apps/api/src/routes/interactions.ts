@@ -2,10 +2,13 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { verifyAuth, getAuthUser } from "@hono/auth-js";
 import { PromptIdParamSchema } from "@ip/shared";
+import { eq } from "drizzle-orm";
 import { zv } from "../lib/validate.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
 import { hashIp } from "../lib/ip-hash.ts";
 import { env } from "../env.ts";
+import { db } from "../db/client.ts";
+import { prompts, users } from "../db/schema/index.ts";
 import {
   toggleLike,
   toggleFavorite,
@@ -13,6 +16,44 @@ import {
   AlreadyExistsError,
   NotFoundError,
 } from "../repositories/interactions.ts";
+import { createInteractionNotification } from "../repositories/notifications.ts";
+
+/**
+ * Look up the prompt's contributor + actor's display name in one round trip.
+ * Returns null if the prompt has no contributor or contributor === actor (caller
+ * should skip the side-effect in either case).
+ */
+async function loadNotificationContext(
+  promptId: string,
+  actorId: string,
+): Promise<{
+  contributorId: string;
+  slug: string;
+  titleZh: string | null;
+  titleEn: string | null;
+  actorName: string | null;
+} | null> {
+  const [info] = await db
+    .select({
+      contributorId: prompts.contributorId,
+      slug: prompts.slug,
+      title: prompts.title,
+      actorName: users.name,
+    })
+    .from(prompts)
+    .leftJoin(users, eq(users.id, actorId))
+    .where(eq(prompts.id, promptId))
+    .limit(1);
+  if (!info || !info.contributorId || info.contributorId === actorId) return null;
+  const title = (info.title ?? {}) as { zh?: string; en?: string };
+  return {
+    contributorId: info.contributorId,
+    slug: info.slug,
+    titleZh: title.zh ?? null,
+    titleEn: title.en ?? null,
+    actorName: info.actorName ?? null,
+  };
+}
 
 const app = new Hono();
 
@@ -39,13 +80,33 @@ app.post("/:id/like", verifyAuth(), zv("param", PromptIdParamSchema), async (c) 
   if (!toggleUserLimiter.check(userId)) throw new HTTPException(429, { message: "rate_limit" });
   if (!toggleIpLimiter.check(ip)) throw new HTTPException(429, { message: "rate_limit" });
   const { id } = c.req.valid("param");
+  let result;
   try {
-    const result = await toggleLike(userId, id, "add");
-    return c.json({ liked: true, like_count: result.like_count }, 201);
+    result = await toggleLike(userId, id, "add");
   } catch (e) {
     if (e instanceof AlreadyExistsError) return c.json({ error: "already_liked" }, 409);
     throw e;
   }
+  // Side-effect: notify contributor unless actor IS contributor. Errors are
+  // swallowed because the notification is best-effort, not on the critical path.
+  try {
+    const ctx = await loadNotificationContext(id, userId);
+    if (ctx) {
+      await createInteractionNotification({
+        userId: ctx.contributorId,
+        type: "prompt_liked",
+        promptId: id,
+        promptSlug: ctx.slug,
+        titleZh: ctx.titleZh,
+        titleEn: ctx.titleEn,
+        actorId: userId,
+        actorName: ctx.actorName,
+      });
+    }
+  } catch (e) {
+    console.warn("[like] notification side-effect failed (non-fatal)", e);
+  }
+  return c.json({ liked: true, like_count: result.like_count }, 201);
 });
 
 app.delete("/:id/like", verifyAuth(), zv("param", PromptIdParamSchema), async (c) => {
@@ -69,13 +130,33 @@ app.post("/:id/favorite", verifyAuth(), zv("param", PromptIdParamSchema), async 
   if (!toggleUserLimiter.check(userId)) throw new HTTPException(429, { message: "rate_limit" });
   if (!toggleIpLimiter.check(ip)) throw new HTTPException(429, { message: "rate_limit" });
   const { id } = c.req.valid("param");
+  let result;
   try {
-    const result = await toggleFavorite(userId, id, "add");
-    return c.json({ favorited: true, favorite_count: result.favorite_count }, 201);
+    result = await toggleFavorite(userId, id, "add");
   } catch (e) {
     if (e instanceof AlreadyExistsError) return c.json({ error: "already_favorited" }, 409);
     throw e;
   }
+  // Side-effect: notify contributor unless actor IS contributor. Errors are
+  // swallowed because the notification is best-effort, not on the critical path.
+  try {
+    const ctx = await loadNotificationContext(id, userId);
+    if (ctx) {
+      await createInteractionNotification({
+        userId: ctx.contributorId,
+        type: "prompt_favorited",
+        promptId: id,
+        promptSlug: ctx.slug,
+        titleZh: ctx.titleZh,
+        titleEn: ctx.titleEn,
+        actorId: userId,
+        actorName: ctx.actorName,
+      });
+    }
+  } catch (e) {
+    console.warn("[favorite] notification side-effect failed (non-fatal)", e);
+  }
+  return c.json({ favorited: true, favorite_count: result.favorite_count }, 201);
 });
 
 app.delete("/:id/favorite", verifyAuth(), zv("param", PromptIdParamSchema), async (c) => {
