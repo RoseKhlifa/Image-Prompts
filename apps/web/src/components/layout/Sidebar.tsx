@@ -3,8 +3,9 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Github } from "lucide-react";
 import { isLocale, pickBilingual, type Locale } from "@ip/shared";
-import { useCategories } from "../../lib/hooks/useCategories";
-import { useTags } from "../../lib/hooks/useTags";
+import { useCategories, type CategoryScope } from "../../lib/hooks/useCategories";
+import { useTags, type TagScope } from "../../lib/hooks/useTags";
+import { useSession } from "../../lib/hooks/useSession";
 import { withLocale } from "../../lib/locale";
 
 const REPO_IMAGE_PROMPTS = "https://github.com/RoseKhlifa/Image-Prompts";
@@ -18,8 +19,25 @@ export default function Sidebar() {
   const activeCategory = searchParams.get("category");
   const activeTag = searchParams.get("tag");
 
-  const categories = useCategories();
-  const tags = useTags();
+  // Counts are derived from whichever tab the visitor is currently browsing
+  // on the home page. On `?tab=favorites` we count the user's favorited
+  // prompts per category/tag; on `?tab=mine` we count their own submitted
+  // prompts. Otherwise (gallery / no tab) we keep the global counts. The
+  // scope is only meaningful when authenticated — falls back to global
+  // when there's no session so the sidebar stays useful for anon visitors
+  // who somehow land on a scoped URL.
+  const session = useSession();
+  const isAuthed = !!session.data?.user.id;
+  const tabParam = searchParams.get("tab");
+  const scope: CategoryScope | undefined =
+    isAuthed && tabParam === "favorites"
+      ? "favorites"
+      : isAuthed && tabParam === "mine"
+        ? "mine"
+        : undefined;
+
+  const categories = useCategories(scope);
+  const tags = useTags(scope as TagScope | undefined);
 
   const totalCount = categories.data?.reduce((n, c) => n + c.promptCount, 0);
 
