@@ -68,45 +68,45 @@ export default function AppShell({
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border-soft bg-panel-2/85 px-5 py-3 backdrop-blur">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border-soft bg-panel-2/85 px-6 backdrop-blur">
         <div className="flex items-center gap-6">
           <Link
             to={withLocale(locale, "/")}
-            className="inline-flex items-center gap-2"
+            className="inline-flex items-center gap-2.5"
             aria-label="Image-Prompts"
           >
-            <BrandLogo size={28} />
+            <BrandLogo size={32} />
             <div className="flex flex-col leading-tight">
-              <span className="text-base font-semibold tracking-tight">Image-Prompts</span>
-              <span className="text-[10px] text-ink-muted">
+              <span className="text-lg font-semibold tracking-tight">Image-Prompts</span>
+              <span className="text-[11px] text-ink-muted">
                 {t("home.published_subtitle", { formattedCount: publishedCount.toLocaleString() })}
               </span>
             </div>
           </Link>
           <BrowseTabs variant="header" />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <input
             type="search"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             placeholder={t("common.search_placeholder")}
-            className="hidden h-8 w-56 rounded-pill border border-border-soft bg-surface px-3 text-xs text-ink placeholder:text-ink-dim focus:outline-none focus:ring-2 focus:ring-accent-soft md:block"
+            className="hidden h-9 w-64 rounded-pill border border-border-soft bg-surface px-3.5 text-sm text-ink placeholder:text-ink-dim focus:outline-none focus:ring-2 focus:ring-accent-soft md:block"
           />
           <button
             type="button"
             onClick={openSubmitModal}
-            className="hidden h-8 items-center gap-1 rounded-pill bg-accent px-3 text-xs font-medium text-white hover:bg-accent-2 md:inline-flex"
+            className="hidden h-9 items-center gap-1.5 rounded-pill bg-accent px-3.5 text-sm font-medium text-white hover:bg-accent-2 md:inline-flex"
             aria-label={t("nav.submit")}
           >
-            <Plus size={14} aria-hidden />
+            <Plus size={16} aria-hidden />
             {t("nav.submit")}
           </button>
           <ThemeSwitcher />
           <LangSwitcher />
           {session.data ? <NotificationsBell /> : null}
           {session.isLoading ? (
-            <div className="h-7 w-7 animate-pulse rounded-full bg-panel" />
+            <div className="h-8 w-8 animate-pulse rounded-full bg-panel" />
           ) : session.data ? (
             <ProfileMenu session={session.data} />
           ) : (

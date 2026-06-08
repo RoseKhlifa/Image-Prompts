@@ -74,7 +74,7 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
 
   if (variant === "header") {
     return (
-      <nav role="tablist" className="hidden gap-1 text-sm md:flex">
+      <nav role="tablist" className="hidden gap-1 text-[15px] md:flex">
         {TABS.map((tt) => {
           if (tt.needsAuth && !userId) return null;
           return (
@@ -84,7 +84,7 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
               role="tab"
               aria-selected={active === tt.key}
               onClick={() => go(tt.key)}
-              className={`rounded-pill px-3 py-1.5 transition ${
+              className={`rounded-pill px-4 py-2 font-medium transition ${
                 active === tt.key
                   ? "bg-accent-soft text-accent"
                   : "text-ink-muted hover:text-ink"

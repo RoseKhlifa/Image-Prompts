@@ -24,9 +24,9 @@ export default function Sidebar() {
   const totalCount = categories.data?.reduce((n, c) => n + c.promptCount, 0);
 
   return (
-    <aside className="sticky top-[49px] hidden h-[calc(100dvh-49px)] w-56 shrink-0 self-start border-r border-border-soft md:flex md:flex-col">
+    <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 self-start border-r border-border-soft md:flex md:flex-col">
       {/* Scrollable middle: categories + tags */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
         <SidebarSection label={t("detail.category")}>
           <SidebarLink
             locale={locale}
@@ -62,26 +62,26 @@ export default function Sidebar() {
       </div>
 
       {/* Footer: open-source attribution */}
-      <div className="shrink-0 border-t border-border-soft px-3 py-3">
-        <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+      <div className="shrink-0 border-t border-border-soft px-4 py-4">
+        <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-dim">
           {t("sidebar.repositories")}
         </div>
         <a
           href={REPO_IMAGE_PROMPTS}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] text-ink-muted hover:bg-surface hover:text-ink"
+          className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-ink-muted hover:bg-surface hover:text-ink"
         >
-          <Github size={12} aria-hidden className="shrink-0" />
+          <Github size={14} aria-hidden className="shrink-0" />
           <span className="truncate">Image-Prompts</span>
         </a>
         <a
           href={REPO_IMAGE_STUDIO}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[12px] text-ink-muted hover:bg-surface hover:text-ink"
+          className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-ink-muted hover:bg-surface hover:text-ink"
         >
-          <Github size={12} aria-hidden className="shrink-0" />
+          <Github size={14} aria-hidden className="shrink-0" />
           <span className="truncate">Image-Studio</span>
         </a>
       </div>
@@ -91,11 +91,11 @@ export default function Sidebar() {
 
 function SidebarSection({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="mb-5">
-      <div className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+    <section className="mb-6">
+      <div className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-dim">
         {label}
       </div>
-      <div className="flex flex-col gap-0.5">{children}</div>
+      <div className="flex flex-col gap-1">{children}</div>
     </section>
   );
 }
@@ -117,12 +117,12 @@ function SidebarLink({
     <Link
       to={withLocale(locale, pathOverride)}
       className={[
-        "flex items-center justify-between gap-2 rounded-md px-3 py-1.5 text-[13px]",
+        "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-[15px]",
         isActive ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface hover:text-ink",
       ].join(" ")}
     >
       <span className="truncate">{label}</span>
-      {count !== undefined && <span className="shrink-0 text-[11px] text-ink-dim">{count}</span>}
+      {count !== undefined && <span className="shrink-0 text-[12px] text-ink-dim">{count}</span>}
     </Link>
   );
 }
