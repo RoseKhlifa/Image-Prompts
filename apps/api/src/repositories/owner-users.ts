@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import {
   users,
@@ -10,12 +10,7 @@ export type UsersListFilters = {
   /** ILIKE match against name, email, or id::text. */
   q?: string;
   role?: "user" | "moderator" | "admin";
-  /**
-   * true → banned_at IS NOT NULL; false → IS NULL; undefined → no filter.
-   * NOTE: the banned_at column is not yet present on `users` — it lands in a
-   * later M10b migration. Until then this filter is a no-op (we still accept
-   * the value so callers don't change). See bannedAt in the SELECT below.
-   */
+  /** true → banned_at IS NOT NULL; false → IS NULL; undefined → no filter. */
   banned?: boolean;
   /** base64 of `${createdAt.toISOString()}|${id}` for keyset pagination. */
   cursor?: string;
@@ -32,16 +27,12 @@ export type UserListRow = {
   publishedPrompts: number;
   totalSubmissions: number;
   rejectedCount: number;
-  /**
-   * Always null for now — the banned_at column does not exist on `users` yet.
-   * It is added in a follow-up M10b migration; once the column lands we'll
-   * project `users.bannedAt` here.
-   */
   bannedAt: Date | null;
   createdAt: Date;
 };
 
 export type UserDetail = UserListRow & {
+  bannedReason: string | null;
   communityGuidelinesVersion: number;
   dailySubmissionCount: number;
   dailySubmissionResetAt: Date | null;
@@ -121,8 +112,11 @@ export async function listUsers(
     conditions.push(eq(users.role, filters.role));
   }
 
-  // banned filter is a no-op until the banned_at column ships (see type doc above).
-  // Intentional: callers can pass it today, behavior will light up post-migration.
+  if (filters.banned === true) {
+    conditions.push(isNotNull(users.bannedAt));
+  } else if (filters.banned === false) {
+    conditions.push(isNull(users.bannedAt));
+  }
 
   if (filters.cursor) {
     const decoded = decodeCursor(filters.cursor);
@@ -148,6 +142,7 @@ export async function listUsers(
       publishedPrompts: publishedPromptsSql,
       totalSubmissions: totalSubmissionsSql,
       rejectedCount: users.rejectedCount,
+      bannedAt: users.bannedAt,
       createdAt: users.createdAt,
     })
     .from(users)
@@ -165,8 +160,7 @@ export async function listUsers(
     publishedPrompts: Number(r.publishedPrompts ?? 0),
     totalSubmissions: Number(r.totalSubmissions ?? 0),
     rejectedCount: r.rejectedCount,
-    // bannedAt hardcoded null — column not yet in schema (see type doc above).
-    bannedAt: null,
+    bannedAt: r.bannedAt,
     createdAt: r.createdAt,
   }));
 
@@ -193,6 +187,8 @@ export async function getUserDetail(id: string): Promise<UserDetail | null> {
         publishedPrompts: publishedPromptsSql,
         totalSubmissions: totalSubmissionsSql,
         rejectedCount: users.rejectedCount,
+        bannedAt: users.bannedAt,
+        bannedReason: users.bannedReason,
         createdAt: users.createdAt,
         communityGuidelinesVersion: users.communityGuidelinesVersion,
         dailySubmissionCount: users.dailySubmissionCount,
@@ -226,8 +222,8 @@ export async function getUserDetail(id: string): Promise<UserDetail | null> {
     publishedPrompts: Number(u.publishedPrompts ?? 0),
     totalSubmissions: Number(u.totalSubmissions ?? 0),
     rejectedCount: u.rejectedCount,
-    // bannedAt hardcoded null — see UserListRow.bannedAt note.
-    bannedAt: null,
+    bannedAt: u.bannedAt,
+    bannedReason: u.bannedReason,
     createdAt: u.createdAt,
     communityGuidelinesVersion: u.communityGuidelinesVersion,
     dailySubmissionCount: u.dailySubmissionCount,

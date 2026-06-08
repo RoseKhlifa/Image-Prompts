@@ -57,6 +57,20 @@
       "when": 1780989917000,
       "tag": "0007_m9_notifications_agg",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780938168197,
+      "tag": "0008_m10b_user_bans",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780938208323,
+      "tag": "0009_m10b_announcements_polish",
+      "breakpoints": true
     }
   ]
 }

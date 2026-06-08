@@ -68,6 +68,10 @@ export const announcements = pgTable(
       .notNull()
       .references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    dismissible: boolean().notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => ({
     periodIdx: index("announcements_period_idx").on(t.startsAt, t.endsAt),

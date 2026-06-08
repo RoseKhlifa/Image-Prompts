@@ -20,6 +20,8 @@ export const users = pgTable("users", {
   dailySubmissionCount: integer("daily_submission_count").notNull().default(0),
   dailySubmissionResetAt: timestamp("daily_submission_reset_at", { withTimezone: true }),
   rejectedCount: integer("rejected_count").notNull().default(0),
+  bannedAt: timestamp("banned_at", { withTimezone: true }),
+  bannedReason: text("banned_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
