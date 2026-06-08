@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
-import BrowseTabs from "../components/layout/BrowseTabs";
 import Toolbar from "../components/Toolbar";
 import PromptCard from "../components/PromptCard";
 import { CardGridSkeleton } from "../components/Skeleton";
@@ -61,7 +60,7 @@ export default function PromptListPage() {
   }
 
   return (
-    <AppShell sidebar={<Sidebar />} topBar={<BrowseTabs />}>
+    <AppShell sidebar={<Sidebar />}>
       <Toolbar total={list.data?.total ?? 0} sort={sort} onSortChange={setSort} />
       {list.isLoading && <CardGridSkeleton count={12} />}
       {list.isError && (

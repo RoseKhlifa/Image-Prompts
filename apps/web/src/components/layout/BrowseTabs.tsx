@@ -13,9 +13,15 @@ const TABS: { key: Tab; labelKey: string; needsAuth: boolean }[] = [
   { key: "about", labelKey: "home.tab_about", needsAuth: false },
 ];
 
+type Props = {
+  /** "header" = inline pills (sits in AppShell header next to the logo);
+   *  "strip"  = full-width strip with bottom border (sits below header). */
+  variant?: "header" | "strip";
+};
+
 /**
- * Shared browse-tab strip. Rendered on HomePage, PromptListPage, AboutPage
- * so the tab control is consistent everywhere.
+ * Shared browse tabs. Rendered globally in AppShell header (variant="header")
+ * so the tab control is consistent on every page.
  *
  * Navigation rules:
  *   - gallery   → stay on current `/zh/prompts` if we're there; otherwise go to `/zh/`. Drops `?tab=`.
@@ -23,10 +29,9 @@ const TABS: { key: Tab; labelKey: string; needsAuth: boolean }[] = [
  *   - mine      → `/zh/?tab=mine`     (same)
  *   - about     → `/zh/about` (the dedicated route)
  *
- * Active state is derived from current pathname + ?tab=, so the visual
- * highlight stays in sync regardless of which page renders the strip.
+ * Active state is derived from current pathname + ?tab=.
  */
-export default function BrowseTabs() {
+export default function BrowseTabs({ variant = "strip" }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
@@ -65,6 +70,32 @@ export default function BrowseTabs() {
     }
     // favorites / mine — these data modes only live on HomePage.
     navigate(`${withLocale(locale, "/")}?tab=${key}`);
+  }
+
+  if (variant === "header") {
+    return (
+      <nav role="tablist" className="hidden gap-1 text-sm md:flex">
+        {TABS.map((tt) => {
+          if (tt.needsAuth && !userId) return null;
+          return (
+            <button
+              key={tt.key}
+              type="button"
+              role="tab"
+              aria-selected={active === tt.key}
+              onClick={() => go(tt.key)}
+              className={`rounded-pill px-3 py-1.5 transition ${
+                active === tt.key
+                  ? "bg-accent-soft text-accent"
+                  : "text-ink-muted hover:text-ink"
+              }`}
+            >
+              {t(tt.labelKey)}
+            </button>
+          );
+        })}
+      </nav>
+    );
   }
 
   return (

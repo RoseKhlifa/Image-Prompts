@@ -2,7 +2,6 @@ import { useSearchParams } from "react-router";
 import type { SortOption, PromptSummary } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
-import BrowseTabs from "../components/layout/BrowseTabs";
 import Hero from "../components/Hero";
 import Toolbar from "../components/Toolbar";
 import PromptCard from "../components/PromptCard";
@@ -74,15 +73,7 @@ export default function HomePage() {
   }
 
   return (
-    <AppShell
-      sidebar={<Sidebar />}
-      topBar={
-        <>
-          <Hero />
-          <BrowseTabs />
-        </>
-      }
-    >
+    <AppShell sidebar={<Sidebar />} topBar={<Hero />}>
       {tab === "gallery" && (
         <>
           <Toolbar total={gallery.data?.total ?? 0} sort={sort} onSortChange={setSort} />

@@ -8,6 +8,7 @@ import ThemeSwitcher from "../ThemeSwitcher";
 import SignInButton from "../auth/SignInButton";
 import ProfileMenu from "../auth/ProfileMenu";
 import BrandLogo from "../BrandLogo";
+import BrowseTabs from "./BrowseTabs";
 import NotificationsBell from "../notifications/NotificationsBell";
 import SubmitModal from "../submit/SubmitModal";
 import { useSession } from "../../lib/hooks/useSession";
@@ -58,6 +59,7 @@ export default function AppShell({
             <BrandLogo size={22} />
             <span className="text-base font-semibold tracking-tight">Image-Prompts</span>
           </Link>
+          <BrowseTabs variant="header" />
         </div>
         <div className="flex items-center gap-2">
           <input
