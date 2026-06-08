@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
-import { eq, inArray, like, and } from "drizzle-orm";
+import { eq, inArray, like, and, sql } from "drizzle-orm";
 import { createServer } from "../server.ts";
 import { db } from "../db/client.ts";
-import { users, siteSettings, r2Accounts, auditLog } from "../db/schema/index.ts";
+import {
+  users,
+  siteSettings,
+  r2Accounts,
+  auditLog,
+  announcements,
+} from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret } from "../lib/crypto.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
@@ -13,6 +19,9 @@ import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 //  - process.env.OWNER_EMAILS is set so isOwnerEmail() picks our owner up.
 const TEST_EMAIL_PREFIX = "owner-route-test-";
 const TEST_R2_NAME = "owner-route-test-r2";
+// Marker embedded in announcement title.en for test-row sweeping. Matches
+// the same pattern repo/announcements.test.ts uses.
+const TEST_ANN_MARKER = "[owner-route-ann-test]";
 
 let origOwnerEmails: string | undefined;
 let origR2Key: string | undefined;
@@ -41,6 +50,21 @@ async function cleanup() {
     .set({ value: 10 as unknown as never })
     .where(eq(siteSettings.key, "submit.daily_limit"));
   await db.delete(r2Accounts).where(eq(r2Accounts.name, TEST_R2_NAME));
+  // Wipe test-tagged announcements + their audit rows. We sweep on
+  // title->>'en' LIKE %marker% because the announcement rows are seeded
+  // through the POST endpoint and aren't tied to a specific test-user id.
+  const annIds = (
+    await db
+      .select({ id: announcements.id })
+      .from(announcements)
+      .where(
+        sql`${announcements.title}->>'en' LIKE ${"%" + TEST_ANN_MARKER + "%"}`,
+      )
+  ).map((r) => r.id);
+  if (annIds.length > 0) {
+    await db.delete(auditLog).where(inArray(auditLog.targetId, annIds));
+    await db.delete(announcements).where(inArray(announcements.id, annIds));
+  }
   // Sweep any test-owned users (they're created with the prefixed email).
   const testUserIds = (
     await db
@@ -50,7 +74,9 @@ async function cleanup() {
   ).map((u) => u.id);
   if (testUserIds.length > 0) {
     // Setting-rows with updated_by pointing at our test users would block the
-    // user delete with FK 23503 — null them first.
+    // user delete with FK 23503 — null them first. announcements.created_by /
+    // updated_by point at test users too; the test announcements get wiped
+    // above, but any stragglers (e.g., from older runs) would still block.
     await db
       .update(siteSettings)
       .set({ updatedBy: null })
@@ -590,5 +616,327 @@ describe("owner audit feed", () => {
     };
     expect(j.items.length).toBeGreaterThan(0);
     expect(j.items.every((r) => r.action.startsWith("user."))).toBe(true);
+  });
+});
+
+// ── /api/owner/announcements (M10b W2.4) ─────────────────────────────────
+//
+// Owner CRUD surface for announcements. Public read is mounted separately
+// at /api/announcements — those tests live in routes/announcements.test.ts.
+// Each test seeds rows tagged with TEST_ANN_MARKER so cleanup() can sweep
+// them by `title->>'en' LIKE %marker%` regardless of which owner planted
+// them.
+describe("owner announcements — auth gate", () => {
+  it("GET /announcements 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/announcements", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /announcements 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({
+        title: { en: `x ${TEST_ANN_MARKER}` },
+        body: { en: "y" },
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /announcements/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/announcements/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+        body: JSON.stringify({ severity: "warning" }),
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /announcements/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/announcements/00000000-0000-0000-0000-000000000000",
+      {
+        method: "DELETE",
+        headers: { Cookie: sess.cookie },
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("owner announcements — POST", () => {
+  it("POST 201 creates row + writes audit", async () => {
+    const owner = await makeOwner();
+    const startsAt = new Date("2026-06-01T00:00:00Z").toISOString();
+    const endsAt = new Date("2026-07-01T00:00:00Z").toISOString();
+    const res = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `Hello ${TEST_ANN_MARKER}`, zh: "你好" },
+        body: { en: "body", zh: "正文" },
+        severity: "warning",
+        startsAt,
+        endsAt,
+        dismissible: false,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const j = (await res.json()) as {
+      id: string;
+      title: { en?: string; zh?: string };
+      severity: string;
+      dismissible: boolean;
+    };
+    expect(j.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(j.title).toEqual({ en: `Hello ${TEST_ANN_MARKER}`, zh: "你好" });
+    expect(j.severity).toBe("warning");
+    expect(j.dismissible).toBe(false);
+
+    // DB confirmation — row really exists with the right createdBy.
+    const [row] = await db
+      .select()
+      .from(announcements)
+      .where(eq(announcements.id, j.id));
+    expect(row).toBeDefined();
+    expect(row!.createdBy).toBe(owner.userId);
+
+    // Audit row recorded the create.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "announcement.create"),
+          eq(auditLog.targetId, j.id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("announcement");
+    expect(auditRows[0]!.payload).toMatchObject({ severity: "warning" });
+  });
+
+  it("POST 400 when both title.zh and title.en are missing", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: {},
+        body: { en: "body" },
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST 400 when both body.zh and body.en are missing", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `x ${TEST_ANN_MARKER}` },
+        body: {},
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST 400 when severity is invalid", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `x ${TEST_ANN_MARKER}` },
+        body: { en: "y" },
+        severity: "danger", // not in enum
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("owner announcements — GET list", () => {
+  it("GET /announcements 200 returns items including soft-deleted", async () => {
+    const owner = await makeOwner();
+    // Seed one row, then soft-delete a second so both shapes are exercised.
+    const a = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `Live ${TEST_ANN_MARKER}` },
+        body: { en: "x" },
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    const aBody = (await a.json()) as { id: string };
+    const b = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `Tombstoned ${TEST_ANN_MARKER}` },
+        body: { en: "y" },
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    const bBody = (await b.json()) as { id: string };
+    await app.request(`/api/owner/announcements/${bBody.id}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+
+    const res = await app.request("/api/owner/announcements", {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: Array<{ id: string; title: { en?: string }; deletedAt: string | null }>;
+    };
+    const ours = j.items.filter((r) =>
+      (r.title.en ?? "").includes(TEST_ANN_MARKER),
+    );
+    expect(ours.map((r) => r.id)).toEqual(
+      expect.arrayContaining([aBody.id, bBody.id]),
+    );
+    const tomb = ours.find((r) => r.id === bBody.id);
+    expect(tomb?.deletedAt).not.toBeNull();
+  });
+});
+
+describe("owner announcements — PATCH", () => {
+  it("PATCH 200 partial + writes audit", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `Orig ${TEST_ANN_MARKER}` },
+        body: { en: "orig" },
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const res = await app.request(`/api/owner/announcements/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        severity: "critical",
+        body: { en: "patched" },
+      }),
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      id: string;
+      severity: string;
+      body: { en?: string };
+      title: { en?: string };
+      updatedBy: string;
+    };
+    expect(j.severity).toBe("critical");
+    expect(j.body).toEqual({ en: "patched" });
+    // Title untouched.
+    expect(j.title).toEqual({ en: `Orig ${TEST_ANN_MARKER}` });
+    expect(j.updatedBy).toBe(owner.userId);
+
+    // Audit row.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "announcement.update"),
+          eq(auditLog.targetId, id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("announcement");
+  });
+
+  it("PATCH 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/announcements/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ severity: "warning" }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("owner announcements — DELETE", () => {
+  it("DELETE 200 soft-deletes + writes audit", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/announcements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        title: { en: `ToDelete ${TEST_ANN_MARKER}` },
+        body: { en: "x" },
+        severity: "info",
+        startsAt: new Date().toISOString(),
+      }),
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const res = await app.request(`/api/owner/announcements/${id}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; deleted: boolean };
+    expect(j.id).toBe(id);
+    expect(j.deleted).toBe(true);
+
+    // DB confirmation — row still exists (soft delete only) and deletedAt set.
+    const [row] = await db
+      .select()
+      .from(announcements)
+      .where(eq(announcements.id, id));
+    expect(row).toBeDefined();
+    expect(row!.deletedAt).not.toBeNull();
+    expect(row!.updatedBy).toBe(owner.userId);
+
+    // Audit row.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "announcement.delete"),
+          eq(auditLog.targetId, id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("announcement");
   });
 });

@@ -19,6 +19,7 @@ import adminRoute from "./routes/admin.ts";
 import ownerRoute from "./routes/owner.ts";
 import usersRoute from "./routes/users.ts";
 import statsRoutes from "./routes/stats.ts";
+import announcementsRoute from "./routes/announcements.ts";
 
 export function createServer() {
   const app = new Hono();
@@ -59,6 +60,9 @@ export function createServer() {
   app.route("/api/owner", ownerRoute);
   app.route("/api/users", usersRoute);
   app.route("/api/stats", statsRoutes);
+  // ★ M10b W2.4: public announcements feed (active rows only). No auth, no
+  //   banCheck — banned users and anons alike must be able to see banners.
+  app.route("/api/announcements", announcementsRoute);
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
   app.onError(errorHandler);
