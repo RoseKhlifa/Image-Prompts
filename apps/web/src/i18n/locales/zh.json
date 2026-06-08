@@ -11,6 +11,7 @@
     "loading": "加载中…",
     "empty": "暂无内容",
     "error": "出错了",
+    "error_load": "加载失败",
     "retry": "重试",
     "not_found_title": "找不到此提示词",
     "not_found_body": "可能已删除或未通过审核。",
@@ -256,6 +257,48 @@
       "submissions": "审核队列",
       "root": "站长后台",
       "back_to_site": "回主站"
+    },
+    "dashboard": {
+      "title": "概览",
+      "subtitle": "最近活动 + 关键指标",
+      "published_prompts": "已发布提示词",
+      "total_users": "总用户数",
+      "pending_submissions": "待审核",
+      "total_views": "总浏览",
+      "total_likes": "总点赞",
+      "total_favorites": "总收藏",
+      "total_submissions": "总投稿",
+      "r2_used": "R2 已用",
+      "recent_activity": "最近操作",
+      "no_activity": "暂无活动"
+    },
+    "config": {
+      "title": "全局配置",
+      "subtitle": "改完即时生效(submit.* 缓存 60 秒)",
+      "col_key": "键",
+      "col_value": "值",
+      "col_description": "说明",
+      "save": "保存",
+      "parse_error": "JSON 解析失败"
+    },
+    "r2": {
+      "title": "R2 池",
+      "subtitle_readonly": "只读视图(M10b 加 CRUD + sync)",
+      "col_name": "名称",
+      "col_endpoint": "Endpoint",
+      "col_bucket": "Bucket",
+      "col_priority": "优先级",
+      "col_enabled": "状态",
+      "col_used": "已用",
+      "col_synced": "上次同步",
+      "enabled_yes": "启用",
+      "enabled_no": "禁用",
+      "crud_coming_in_b": "新增 / 编辑 / 同步等写操作将在 M10b 加入。"
+    },
+    "submissions": {
+      "title": "审核队列",
+      "subtitle": "投稿审核入口跟 /admin/submissions 共用,这里只是一个链接。",
+      "go": "前往审核队列"
     }
   }
 }

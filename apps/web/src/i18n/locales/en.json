@@ -11,6 +11,7 @@
     "loading": "Loading…",
     "empty": "No content",
     "error": "Something went wrong",
+    "error_load": "Failed to load",
     "retry": "Retry",
     "not_found_title": "Prompt not found",
     "not_found_body": "It may have been removed or hasn't been approved.",
@@ -256,6 +257,48 @@
       "submissions": "Submissions",
       "root": "Owner Console",
       "back_to_site": "Back to site"
+    },
+    "dashboard": {
+      "title": "Overview",
+      "subtitle": "Recent activity + key metrics",
+      "published_prompts": "Published prompts",
+      "total_users": "Total users",
+      "pending_submissions": "Pending review",
+      "total_views": "Total views",
+      "total_likes": "Total likes",
+      "total_favorites": "Total favorites",
+      "total_submissions": "Total submissions",
+      "r2_used": "R2 used",
+      "recent_activity": "Recent activity",
+      "no_activity": "No activity yet"
+    },
+    "config": {
+      "title": "Site settings",
+      "subtitle": "Changes go live immediately (submit.* cached 60 s)",
+      "col_key": "Key",
+      "col_value": "Value",
+      "col_description": "Description",
+      "save": "Save",
+      "parse_error": "JSON parse error"
+    },
+    "r2": {
+      "title": "R2 Pool",
+      "subtitle_readonly": "Read-only view (CRUD + sync ship in M10b)",
+      "col_name": "Name",
+      "col_endpoint": "Endpoint",
+      "col_bucket": "Bucket",
+      "col_priority": "Priority",
+      "col_enabled": "Enabled",
+      "col_used": "Used",
+      "col_synced": "Last synced",
+      "enabled_yes": "Enabled",
+      "enabled_no": "Disabled",
+      "crud_coming_in_b": "Create / edit / sync ship in M10b."
+    },
+    "submissions": {
+      "title": "Submission queue",
+      "subtitle": "Owner shares /admin/submissions — this is a deep link.",
+      "go": "Open submission queue"
     }
   }
 }

@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router";
 import LocaleRedirect from "./locale-redirect";
 import LocaleLayout from "./locale-layout";
+import OwnerGuard from "./owner-guard";
 import HomePage from "../pages/HomePage";
 import PromptListPage from "../pages/PromptListPage";
 import PromptDetailPage from "../pages/PromptDetailPage";
@@ -10,6 +11,11 @@ import SubmitPage from "../pages/SubmitPage";
 import UserPage from "../pages/UserPage";
 import AdminSubmissionsPage from "../pages/AdminSubmissionsPage";
 import NotFoundPage from "../pages/NotFoundPage";
+import OwnerLayout from "../pages/owner/OwnerLayout";
+import DashboardPage from "../pages/owner/DashboardPage";
+import ConfigPage from "../pages/owner/ConfigPage";
+import R2Page from "../pages/owner/R2Page";
+import SubmissionsBridgePage from "../pages/owner/SubmissionsBridgePage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LocaleRedirect /> },
@@ -27,6 +33,21 @@ export const router = createBrowserRouter([
       { path: "users/:id", element: <UserPage /> },
       { path: "admin/submissions", element: <AdminSubmissionsPage /> },
       { path: "admin/submissions/:id", element: <AdminSubmissionsPage /> },
+      {
+        path: "rosekhlifa",
+        element: <OwnerGuard />,
+        children: [
+          {
+            element: <OwnerLayout />,
+            children: [
+              { index: true, element: <DashboardPage /> },
+              { path: "config", element: <ConfigPage /> },
+              { path: "r2", element: <R2Page /> },
+              { path: "submissions", element: <SubmissionsBridgePage /> },
+            ],
+          },
+        ],
+      },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
