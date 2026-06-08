@@ -7,6 +7,7 @@ import ThemeSwitcher from "../ThemeSwitcher";
 import SignInButton from "../auth/SignInButton";
 import ProfileMenu from "../auth/ProfileMenu";
 import BrandLogo from "../BrandLogo";
+import NotificationsBell from "../notifications/NotificationsBell";
 import { useSession } from "../../lib/hooks/useSession";
 import { withLocale } from "../../lib/locale";
 
@@ -57,6 +58,7 @@ export default function AppShell({
           />
           <ThemeSwitcher />
           <LangSwitcher />
+          {session.data ? <NotificationsBell /> : null}
           {session.isLoading ? (
             <div className="h-7 w-7 animate-pulse rounded-full bg-panel" />
           ) : session.data ? (
