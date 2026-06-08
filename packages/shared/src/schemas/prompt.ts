@@ -73,13 +73,6 @@ export const PromptDetailSchema = PromptSummarySchema.extend({
   prompt: BilingualTextSchema,
   negativePrompt: OptionalBilingualTextSchema.nullable(),
   notes: OptionalBilingualTextSchema.nullable(),
-  contributor: z
-    .object({
-      id: UuidSchema,
-      name: z.string().nullable(),
-      avatarUrl: z.string().nullable(),
-    })
-    .nullable(),
   images: z.array(PromptImageSchema),
   source: z.enum(["site", "nanobanana_seed"]),
   createdAt: z.string(),

@@ -137,19 +137,21 @@ describe("contributor join", () => {
       .set({ contributorId: u!.id })
       .where(eq(prompts.slug, targetSlug));
 
-    const detail = await getPromptBySlug(targetSlug);
-    expect(detail?.contributor).toEqual({
-      id: u!.id,
-      name: "Contributor One",
-      avatarUrl: "https://example.com/avatar.png",
-    });
-
-    // Cleanup
-    await db
-      .update(prompts)
-      .set({ contributorId: null })
-      .where(eq(prompts.contributorId, u!.id));
-    await db.delete(users).where(eq(users.id, u!.id));
+    try {
+      const detail = await getPromptBySlug(targetSlug);
+      expect(detail?.contributor).toEqual({
+        id: u!.id,
+        name: "Contributor One",
+        avatarUrl: "https://example.com/avatar.png",
+      });
+    } finally {
+      // Cleanup
+      await db
+        .update(prompts)
+        .set({ contributorId: null })
+        .where(eq(prompts.contributorId, u!.id));
+      await db.delete(users).where(eq(users.id, u!.id));
+    }
   });
 
   it("returns contributor:null for prompts without contributorId", async () => {
