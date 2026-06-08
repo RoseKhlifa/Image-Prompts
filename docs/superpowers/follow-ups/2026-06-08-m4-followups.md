@@ -33,6 +33,14 @@
 - **Fix**: bump `staleTime` to ~30_000 (30s) so route changes within the window are cache hits. Keep `refetchOnWindowFocus: true` as the primary freshness signal.
 - **Touches**: `apps/web/src/lib/hooks/useNotificationCount.ts`.
 
+### P1.6 Test isolation — interaction tests pollute dev counters
+- **Why**: `interactions.test.ts` (and import-tokens / prompts session-aware tests) call `anyPrompt()` / `latestPromptForTest()` against **the first real prompt in the dev DB**, then bump its `like_count` / `favorite_count` / `view_count` / `send_count` via `toggleLike` etc. `beforeEach` deletes the fact-table rows (`likes`, `favorites`, `view_log`) but **does not roll back the denormalized counter columns** on `prompts`. After running the suite N times the counters drift by 10s-50s. User-visible: fresh prompts appear to have "几十个赞" out of nowhere. Workaround applied 2026-06-08: `apps/api/scripts/resync-prompt-counters.ts` rebuilds counters from source tables.
+- **Fix options** (any one is enough):
+  - **A.** Each interaction test creates its own throwaway prompt instead of reusing `anyPrompt()`. Cleanest. ~30 lines per test file.
+  - **B.** Wrap test bodies in a savepoint / sub-transaction that rolls back at the end (Drizzle has limited support — may not fit).
+  - **C.** `afterEach` snapshot counters before each test, restore after. Brittle.
+- **Touches**: `apps/api/src/repositories/interactions.test.ts`, `apps/api/src/routes/interactions.test.ts`, `apps/api/src/repositories/import-tokens.test.ts`, `apps/api/src/repositories/prompts.test.ts`.
+
 ---
 
 ## P2 — Code cleanup
