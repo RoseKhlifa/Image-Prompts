@@ -286,6 +286,8 @@ export async function approveSubmission(input: ApproveInput): Promise<{
     const prompt = bi(final.promptZh, final.promptEn);
     if (!title || !prompt) throw new Error("approve: title/prompt cannot be empty");
 
+    // 1. INSERT prompt first — we need promptId for the conditional UPDATE.
+    //    If the race gate below fails, the transaction rollback will undo this INSERT.
     const [p] = await tx
       .insert(promptsTable)
       .values({
@@ -304,6 +306,28 @@ export async function approveSubmission(input: ApproveInput): Promise<{
 
     const promptId = p!.id;
 
+    // 2. RACE GATE: conditional UPDATE on submissions WHERE status='pending'.
+    //    If 0 rows are affected, another concurrent approve/reject won the race
+    //    — throw to roll back this transaction (including the prompt INSERT above).
+    const updateResult = await tx
+      .update(submissions)
+      .set({
+        status: "approved",
+        promotedTo: promptId,
+        reviewedBy: input.actorId,
+        reviewedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(submissions.id, input.submissionId),
+          eq(submissions.status, "pending"),
+        ),
+      );
+    if ((updateResult.rowCount ?? 0) === 0) {
+      throw new AlreadyResolvedError();
+    }
+
+    // 3. We own this submission now — apply the rest of the side effects.
     if (final.tagSlugs.length > 0) {
       const tagRows = await tx
         .select({ id: tagsTable.id, slug: tagsTable.slug })
@@ -319,16 +343,6 @@ export async function approveSubmission(input: ApproveInput): Promise<{
           .where(inArray(tagsTable.slug, final.tagSlugs));
       }
     }
-
-    await tx
-      .update(submissions)
-      .set({
-        status: "approved",
-        promotedTo: promptId,
-        reviewedBy: input.actorId,
-        reviewedAt: new Date(),
-      })
-      .where(eq(submissions.id, input.submissionId));
 
     await tx.insert(notifications).values({
       userId: sub.contributor.id,
@@ -369,7 +383,10 @@ export async function rejectSubmission(input: RejectInput): Promise<void> {
   if (sub.status !== "pending") throw new AlreadyResolvedError();
 
   await db.transaction(async (tx) => {
-    await tx
+    // RACE GATE: conditional UPDATE on submissions WHERE status='pending'.
+    //    If 0 rows are affected, another concurrent approve/reject won the race
+    //    — throw to roll back this transaction.
+    const updateResult = await tx
       .update(submissions)
       .set({
         status: "rejected",
@@ -377,8 +394,17 @@ export async function rejectSubmission(input: RejectInput): Promise<void> {
         reviewedBy: input.actorId,
         reviewedAt: new Date(),
       })
-      .where(eq(submissions.id, input.submissionId));
+      .where(
+        and(
+          eq(submissions.id, input.submissionId),
+          eq(submissions.status, "pending"),
+        ),
+      );
+    if ((updateResult.rowCount ?? 0) === 0) {
+      throw new AlreadyResolvedError();
+    }
 
+    // We own this submission now — apply the rest of the side effects.
     await tx
       .update(users)
       .set({ rejectedCount: sql`${users.rejectedCount} + 1` })
