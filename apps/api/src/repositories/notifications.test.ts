@@ -78,6 +78,7 @@ describe("createNotification + listMyNotifications", () => {
         type: "submission_approved",
         payload: approvedPayload(`s${i}`),
       });
+      if (i < 4) await new Promise((r) => setTimeout(r, 2));
     }
     const page1 = await listMyNotifications(u.id, {
       cursor: null,
