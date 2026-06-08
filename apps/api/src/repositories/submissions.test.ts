@@ -77,7 +77,6 @@ async function cleanup() {
 
   // R2 row isolation: delete test r2_account row
   await db.delete(r2Accounts).where(eq(r2Accounts.name, "subs-repo-test-r2"));
-  await db.update(r2Accounts).set({ enabled: true });
 }
 
 beforeEach(cleanup);
