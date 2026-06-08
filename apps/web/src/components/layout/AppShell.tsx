@@ -46,8 +46,16 @@ export default function AppShell({
 
   // Debounced live search: 300ms after the last keystroke, sync ?q= to the
   // URL. If user is on a browse page (/ or /prompts), update in place; else
-  // jump to home so they see results. Skipping the navigate when value is
-  // already in sync prevents a feedback loop with the URL→state effect above.
+  // (e.g. typing a fresh query while on /profile or /users/:id) jump home so
+  // they see results.
+  //
+  // Critical: only navigate when the user actually changed the query. The
+  // earlier `trimmed === currentQ && pathname === targetPath` check looked
+  // sufficient but bounced anyone visiting a non-browse page with no query
+  // back to home — because targetPath collapses to homePath off the browse
+  // pages, so pathname always disagreed even when the search input was
+  // empty. That manifested as a "page flashes then disappears" bug on
+  // /profile, /admin/submissions, /users/:id, etc.
   useEffect(() => {
     const homePath = withLocale(locale, "/");
     const promptsPath = withLocale(locale, "/prompts");
@@ -56,7 +64,10 @@ export default function AppShell({
     const handler = setTimeout(() => {
       const trimmed = searchValue.trim();
       const currentQ = searchParams.get("q") ?? "";
-      if (trimmed === currentQ && pathname === targetPath) return;
+      // Nothing changed about the query — stay put, even if pathname differs
+      // from targetPath (we're not auto-redirecting users who happen to be
+      // on a non-browse page with an empty search box).
+      if (trimmed === currentQ) return;
       const updated = new URLSearchParams(searchParams);
       if (trimmed) updated.set("q", trimmed);
       else updated.delete("q");
