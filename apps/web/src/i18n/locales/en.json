@@ -299,8 +299,7 @@
     },
     "submissions": {
       "title": "Submission queue",
-      "subtitle": "Owner shares /admin/submissions — this is a deep link.",
-      "go": "Open submission queue"
+      "subtitle_queue": "Review submissions: approve / reject / browse history"
     }
   }
 }

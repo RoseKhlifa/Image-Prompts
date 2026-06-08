@@ -68,6 +68,35 @@
   --shadow-card-hover: 0 24px 60px rgb(0 0 0 / 0.46);
 }
 
+/*
+ * Owner console scope (/rosekhlifa/*). Overrides the Apple HIG palette with
+ * a zinc + emerald set so admin/owner UIs share the dashboard visual style
+ * regardless of the user's light/dark toggle. Any descendant that consumes
+ * the standard tokens (`bg-canvas / bg-panel / text-ink / bg-accent-soft /
+ * border-border-soft`) automatically picks up these values — including the
+ * pre-existing AdminSubmissionList/Preview/Row/ActionBar/EditPanel tree
+ * surfaced verbatim under /rosekhlifa/submissions.
+ */
+.owner-theme {
+  --accent: #10b981;            /* emerald-500 */
+  --accent-2: #34d399;          /* emerald-400 */
+  --accent-soft: rgb(16 185 129 / 0.15);
+
+  --canvas: #09090b;            /* zinc-950 */
+  --bg-2: #18181b;              /* zinc-900 */
+  --panel: #18181b;             /* zinc-900 */
+  --panel-2: #1a1a1d;
+  --surface: #27272a;           /* zinc-800 */
+  --surface-2: #3f3f46;         /* zinc-700 */
+
+  --ink: #fafafa;               /* zinc-50 */
+  --ink-muted: rgb(228 228 231 / 0.78);
+  --ink-dim: rgb(228 228 231 / 0.54);
+
+  --border: rgb(82 82 91 / 0.6);
+  --border-soft: rgb(82 82 91 / 0.32);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

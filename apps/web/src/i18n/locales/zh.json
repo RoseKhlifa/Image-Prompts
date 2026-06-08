@@ -299,8 +299,7 @@
     },
     "submissions": {
       "title": "审核队列",
-      "subtitle": "投稿审核入口跟 /admin/submissions 共用,这里只是一个链接。",
-      "go": "前往审核队列"
+      "subtitle_queue": "审核投稿:批准 / 拒绝 / 查看历史"
     }
   }
 }

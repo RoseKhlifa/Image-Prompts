@@ -82,7 +82,16 @@ export default function ProfileMenu({ session }: { session: Session }) {
           </Link>
           {(session.user.role === "admin" || session.user.role === "moderator") && (
             <Link
-              to={withLocale(locale, "/admin/submissions")}
+              // Owners jump straight into the unified /rosekhlifa dashboard
+              // (dark-themed submission queue + the rest of the console).
+              // Non-owner admins/moderators keep using the legacy
+              // /admin/submissions surface (OwnerGuard would 403 them).
+              to={withLocale(
+                locale,
+                (session.user as { isOwner?: boolean }).isOwner
+                  ? "/rosekhlifa/submissions"
+                  : "/admin/submissions",
+              )}
               onClick={() => setOpen(false)}
               className="block rounded-md px-2 py-1.5 text-[12.5px] text-ink hover:bg-panel-2"
               role="menuitem"

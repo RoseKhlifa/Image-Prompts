@@ -15,7 +15,7 @@ import OwnerLayout from "../pages/owner/OwnerLayout";
 import DashboardPage from "../pages/owner/DashboardPage";
 import ConfigPage from "../pages/owner/ConfigPage";
 import R2Page from "../pages/owner/R2Page";
-import SubmissionsBridgePage from "../pages/owner/SubmissionsBridgePage";
+import OwnerSubmissionsPage from "../pages/owner/SubmissionsPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LocaleRedirect /> },
@@ -43,7 +43,8 @@ export const router = createBrowserRouter([
               { index: true, element: <DashboardPage /> },
               { path: "config", element: <ConfigPage /> },
               { path: "r2", element: <R2Page /> },
-              { path: "submissions", element: <SubmissionsBridgePage /> },
+              { path: "submissions", element: <OwnerSubmissionsPage /> },
+              { path: "submissions/:id", element: <OwnerSubmissionsPage /> },
             ],
           },
         ],
