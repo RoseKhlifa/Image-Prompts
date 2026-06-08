@@ -150,6 +150,10 @@
       "unsupported_mime": "仅支持 JPG / PNG / WebP",
       "rate_limited": "操作过于频繁,请稍候",
       "session_expired": "登录已过期,请重新登录",
+      "summary": "{count} 项校验失败,请检查标红字段",
+      "field_required": "此项必填",
+      "too_long": "内容过长",
+      "invalid_format": "格式不正确",
       "generic": "提交失败,请重试"
     }
   },

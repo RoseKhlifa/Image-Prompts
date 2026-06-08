@@ -150,6 +150,10 @@
       "unsupported_mime": "Only JPG, PNG, or WebP are supported",
       "rate_limited": "Too many requests, slow down",
       "session_expired": "Your session expired; please sign in again",
+      "summary": "{count} validation error(s), see fields marked red",
+      "field_required": "Required",
+      "too_long": "Too long",
+      "invalid_format": "Invalid format",
       "generic": "Submission failed, please retry"
     }
   },

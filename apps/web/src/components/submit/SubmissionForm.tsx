@@ -13,6 +13,7 @@ import { useCreateSubmission } from "../../lib/hooks/useCreateSubmission.ts";
 import { toast } from "../../lib/toast.ts";
 import { saveDraft, loadDraft } from "../../lib/submission-draft.ts";
 import { withLocale } from "../../lib/locale.ts";
+import { zodErrorsToMap } from "../../lib/zod-errors.ts";
 import TagPicker from "./TagPicker.tsx";
 import ImageUploadGrid from "./ImageUploadGrid.tsx";
 import type { SlotValue } from "./ImageSlot.tsx";
@@ -28,6 +29,31 @@ const ASPECTS: AspectRatio[] = [
   "21:9",
   "9:21",
 ];
+
+/**
+ * Renders a red error message under a form field when `errors[keyName]` is
+ * set. The error value is treated as an i18n key under `submit.error.*`; if
+ * the key isn't in the catalog (e.g. Zod's default "Required" message), we
+ * fall back to `submit.error.field_required`.
+ */
+function FieldError({
+  keyName,
+  errors,
+}: {
+  keyName: string;
+  errors: Record<string, string>;
+}) {
+  const { t } = useTranslation();
+  const code = errors[keyName];
+  if (!code) return null;
+  return (
+    <p className="mt-1 text-xs text-red-600">
+      {t(`submit.error.${code}`, {
+        defaultValue: t("submit.error.field_required"),
+      })}
+    </p>
+  );
+}
 
 /**
  * Orchestrates the whole submission flow: bilingual title/prompt fields,
@@ -54,6 +80,7 @@ export default function SubmissionForm() {
     images: [],
     ...initial,
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     saveDraft(values);
@@ -77,17 +104,24 @@ export default function SubmissionForm() {
     v: SubmissionInput[K] | undefined,
   ) {
     setValues((prev) => ({ ...prev, [k]: v }));
+    setErrors((prev) => {
+      if (!(k in prev)) return prev;
+      const next = { ...prev };
+      delete next[k as string];
+      return next;
+    });
   }
 
   function submit() {
     const parsed = SubmissionInputSchema.safeParse(values);
     if (!parsed.success) {
-      const code = parsed.error.issues[0]?.message ?? "generic";
-      toast.error(
-        t(`submit.error.${code}`, { defaultValue: t("submit.error.generic") }),
-      );
+      const map = zodErrorsToMap(parsed.error);
+      setErrors(map);
+      const issueCount = parsed.error.issues.length;
+      toast.error(t("submit.error.summary", { count: issueCount }));
       return;
     }
+    setErrors({});
     create.mutate(parsed.data, {
       onSuccess: () => {
         toast.success(t("my_submissions.status_pending"));
@@ -107,15 +141,17 @@ export default function SubmissionForm() {
           placeholder={t("submit.title_zh_label")}
           value={values.titleZh ?? ""}
           onChange={(e) => setField("titleZh", e.target.value || undefined)}
-          className="mb-2 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="titleZh" errors={errors} />
         <input
           type="text"
           placeholder={t("submit.title_en_label")}
           value={values.titleEn ?? ""}
           onChange={(e) => setField("titleEn", e.target.value || undefined)}
-          className="block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mt-2 mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="titleEn" errors={errors} />
       </section>
 
       <section>
@@ -127,15 +163,17 @@ export default function SubmissionForm() {
           rows={4}
           value={values.promptZh ?? ""}
           onChange={(e) => setField("promptZh", e.target.value || undefined)}
-          className="mb-2 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="promptZh" errors={errors} />
         <textarea
           placeholder={t("submit.prompt_en_label")}
           rows={4}
           value={values.promptEn ?? ""}
           onChange={(e) => setField("promptEn", e.target.value || undefined)}
-          className="block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mt-2 mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="promptEn" errors={errors} />
       </section>
 
       <section>
@@ -149,8 +187,9 @@ export default function SubmissionForm() {
           onChange={(e) =>
             setField("negativePromptZh", e.target.value || undefined)
           }
-          className="mb-2 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="negativePromptZh" errors={errors} />
         <textarea
           placeholder={t("submit.negative_en_label")}
           rows={2}
@@ -158,8 +197,9 @@ export default function SubmissionForm() {
           onChange={(e) =>
             setField("negativePromptEn", e.target.value || undefined)
           }
-          className="mb-2 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mt-2 mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="negativePromptEn" errors={errors} />
         <select
           value={values.aspectRatio ?? ""}
           onChange={(e) =>
@@ -168,7 +208,7 @@ export default function SubmissionForm() {
               (e.target.value || undefined) as AspectRatio | undefined,
             )
           }
-          className="block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mt-2 mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         >
           <option value="">{t("submit.aspect_label")}</option>
           {ASPECTS.map((a) => (
@@ -177,6 +217,7 @@ export default function SubmissionForm() {
             </option>
           ))}
         </select>
+        <FieldError keyName="aspectRatio" errors={errors} />
       </section>
 
       <section>
@@ -186,7 +227,7 @@ export default function SubmissionForm() {
         <select
           value={values.categoryId ?? ""}
           onChange={(e) => setField("categoryId", e.target.value || undefined)}
-          className="mb-2 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         >
           <option value="">{t("submit.category_label")}</option>
           {(categories.data ?? []).map((c) => (
@@ -195,10 +236,14 @@ export default function SubmissionForm() {
             </option>
           ))}
         </select>
-        <TagPicker
-          value={values.tagSlugs ?? []}
-          onChange={(slugs) => setField("tagSlugs", slugs)}
-        />
+        <FieldError keyName="categoryId" errors={errors} />
+        <div className="mt-2">
+          <TagPicker
+            value={values.tagSlugs ?? []}
+            onChange={(slugs) => setField("tagSlugs", slugs)}
+          />
+          <FieldError keyName="tagSlugs" errors={errors} />
+        </div>
       </section>
 
       <section>
@@ -209,6 +254,7 @@ export default function SubmissionForm() {
           value={(values.images ?? []) as SlotValue[]}
           onChange={(imgs) => setField("images", imgs)}
         />
+        <FieldError keyName="images" errors={errors} />
       </section>
 
       <section>
@@ -220,17 +266,26 @@ export default function SubmissionForm() {
           rows={2}
           value={values.notesZh ?? ""}
           onChange={(e) => setField("notesZh", e.target.value || undefined)}
-          className="mb-2 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="notesZh" errors={errors} />
         <textarea
           placeholder={t("submit.notes_en_label")}
           rows={2}
           value={values.notesEn ?? ""}
           onChange={(e) => setField("notesEn", e.target.value || undefined)}
-          className="block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
+          className="mt-2 mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
+        <FieldError keyName="notesEn" errors={errors} />
       </section>
 
+      {errors[""] && (
+        <p className="text-xs text-red-600">
+          {t(`submit.error.${errors[""]}`, {
+            defaultValue: t("submit.error.generic"),
+          })}
+        </p>
+      )}
       <button
         type="button"
         disabled={create.isPending}
