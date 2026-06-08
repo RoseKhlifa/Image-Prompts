@@ -7,7 +7,7 @@ import { useAcceptGuidelines } from "../../lib/hooks/useAcceptGuidelines";
  * Bump both together whenever the body text changes materially.
  */
 const REQUIRED_VERSION = 1;
-const READ_SECONDS = 30;
+const READ_SECONDS = 5;
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -16,7 +16,7 @@ type Props = { open: boolean; onClose: () => void };
  * before the user can accept the community guidelines. On accept it PATCHes
  * /api/me/community-guidelines (via useAcceptGuidelines), then calls onClose.
  *
- * The 30-second timer and IntersectionObserver-based scroll sentinel are both
+ * The read timer (READ_SECONDS) and IntersectionObserver-based scroll sentinel are both
  * gates on the checkbox — only when both are satisfied does the checkbox
  * become enabled, and only when the checkbox is checked does the "I agree"
  * button fire the mutation.

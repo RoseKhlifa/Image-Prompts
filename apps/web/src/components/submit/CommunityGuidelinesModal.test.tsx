@@ -46,18 +46,21 @@ describe("CommunityGuidelinesModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("countdown ticks down from 30 to 0", () => {
+  it("countdown ticks down from 5 to 0", () => {
     render(wrap(<CommunityGuidelinesModal open onClose={() => {}} />));
-    // Initially: submit button text mentions 30 seconds
-    expect(screen.queryByText(/30/)).toBeDefined();
+    // Initially: submit button text mentions "5"
+    const initialButtons = screen.getAllByRole("button");
+    const initialSubmitBtn = initialButtons.find((b) =>
+      /5/.test(b.textContent ?? ""),
+    );
+    expect(initialSubmitBtn).toBeDefined();
     act(() => {
-      vi.advanceTimersByTime(30_000);
+      vi.advanceTimersByTime(5_000);
     });
-    // After 30s: the countdown should be at 0 (or absent from button)
-    // We check that the button text changed — either to "我同意" / "I agree" or no longer mentions a positive countdown
+    // After 5s: countdown reaches 0; submit button text changes from "wait_seconds" template to "submit" label
     const buttons = screen.getAllByRole("button");
     const submitBtn = buttons.find((b) =>
-      /我同意|I agree|滚动|Scroll/.test(b.textContent ?? ""),
+      /我同意|I agree/.test(b.textContent ?? ""),
     );
     expect(submitBtn).toBeDefined();
   });
