@@ -6,7 +6,9 @@ import AppShell from "../components/layout/AppShell";
 import ProfileInfoTab from "../components/profile/ProfileInfoTab";
 import FavoritesTab from "../components/profile/FavoritesTab";
 import MySubmissionsTab from "../components/profile/MySubmissionsTab";
+import StatsCard from "../components/profile/StatsCard";
 import { useSession } from "../lib/hooks/useSession";
+import { useUserStats } from "../lib/hooks/useUserStats";
 import { withLocale } from "../lib/locale";
 
 type TabKey = "profile" | "favorites" | "submissions";
@@ -23,6 +25,8 @@ export default function ProfilePage() {
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const session = useSession();
+  const userId = session.data?.user.id;
+  const stats = useUserStats(userId);
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = readTab(searchParams.get("tab"));
 
@@ -53,6 +57,12 @@ export default function ProfilePage() {
     <AppShell>
       <article className="mx-auto w-full max-w-5xl px-6 py-8">
         <h1 className="mb-4 text-xl font-semibold tracking-tight">{t("profile.page_title")}</h1>
+
+        {stats.data && (
+          <div className="mb-6">
+            <StatsCard stats={stats.data} />
+          </div>
+        )}
 
         <div role="tablist" className="mb-6 flex gap-4 border-b border-border-soft">
           <TabButton active={tab === "profile"} onClick={() => setTab("profile")}>
