@@ -261,6 +261,7 @@
       "dashboard": "Overview",
       "config": "Settings",
       "r2": "R2 Pool",
+      "users": "Users",
       "submissions": "Submissions",
       "root": "Owner Console",
       "back_to_site": "Back to site"
@@ -305,6 +306,26 @@
     "submissions": {
       "title": "Submission queue",
       "subtitle_queue": "Review submissions: approve / reject / browse history"
+    },
+    "users": {
+      "title": "User management",
+      "subtitle": "Search, view details, adjust roles",
+      "search_placeholder": "Search name / email / id",
+      "col_user": "User",
+      "col_email": "Email",
+      "col_role": "Role",
+      "col_published": "Published",
+      "col_submissions": "Submissions",
+      "col_rejected": "Rejected",
+      "col_joined": "Joined",
+      "role_all": "All roles",
+      "drawer_close": "Close",
+      "drawer_role_label": "Role",
+      "drawer_save": "Save",
+      "drawer_saving": "Saving…",
+      "drawer_role_updated": "Role updated",
+      "drawer_recent_submissions": "Recent submissions",
+      "drawer_no_recent": "No submissions yet"
     }
   }
 }

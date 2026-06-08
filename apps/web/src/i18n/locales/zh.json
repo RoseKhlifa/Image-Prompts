@@ -261,6 +261,7 @@
       "dashboard": "概览",
       "config": "全局配置",
       "r2": "R2 池",
+      "users": "用户",
       "submissions": "审核队列",
       "root": "站长后台",
       "back_to_site": "回主站"
@@ -305,6 +306,26 @@
     "submissions": {
       "title": "审核队列",
       "subtitle_queue": "审核投稿:批准 / 拒绝 / 查看历史"
+    },
+    "users": {
+      "title": "用户管理",
+      "subtitle": "搜索、查看详细、调整角色",
+      "search_placeholder": "搜索名称 / 邮箱 / ID",
+      "col_user": "用户",
+      "col_email": "邮箱",
+      "col_role": "角色",
+      "col_published": "发布",
+      "col_submissions": "投稿",
+      "col_rejected": "被拒",
+      "col_joined": "加入时间",
+      "role_all": "全部角色",
+      "drawer_close": "关闭",
+      "drawer_role_label": "角色",
+      "drawer_save": "保存",
+      "drawer_saving": "保存中…",
+      "drawer_role_updated": "角色已更新",
+      "drawer_recent_submissions": "最近投稿",
+      "drawer_no_recent": "暂无投稿"
     }
   }
 }

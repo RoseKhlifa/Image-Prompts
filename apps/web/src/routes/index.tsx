@@ -16,6 +16,7 @@ import DashboardPage from "../pages/owner/DashboardPage";
 import ConfigPage from "../pages/owner/ConfigPage";
 import R2Page from "../pages/owner/R2Page";
 import OwnerSubmissionsPage from "../pages/owner/SubmissionsPage";
+import UsersPage from "../pages/owner/UsersPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LocaleRedirect /> },
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
               { path: "r2", element: <R2Page /> },
               { path: "submissions", element: <OwnerSubmissionsPage /> },
               { path: "submissions/:id", element: <OwnerSubmissionsPage /> },
+              { path: "users", element: <UsersPage /> },
             ],
           },
         ],

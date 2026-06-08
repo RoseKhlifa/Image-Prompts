@@ -5,6 +5,7 @@ import {
   Settings,
   HardDrive,
   Inbox,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
@@ -21,6 +22,7 @@ export default function OwnerSidebar() {
     { to: withLocale(locale, "/rosekhlifa"), label: t("owner.nav.dashboard"), icon: LayoutDashboard, end: true },
     { to: withLocale(locale, "/rosekhlifa/config"), label: t("owner.nav.config"), icon: Settings },
     { to: withLocale(locale, "/rosekhlifa/r2"), label: t("owner.nav.r2"), icon: HardDrive },
+    { to: withLocale(locale, "/rosekhlifa/users"), label: t("owner.nav.users"), icon: Users },
     { to: withLocale(locale, "/rosekhlifa/submissions"), label: t("owner.nav.submissions"), icon: Inbox },
   ];
 
