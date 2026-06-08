@@ -136,39 +136,76 @@ contributor: z.object({
 
 ### 3.4 点赞 / 收藏触发通知(#8)
 
-**Schema 改**:扩展 `notification_type` enum,加两个值:
+**决策(2026-06-08 用户拍板)**:**按小时聚合**。理由:用户怕被赞高峰刷屏通知列表;聚合方案 UX 更好,只多一两个 column 的复杂度可接受。
+
+**Schema 改**:
 ```sql
+-- enum 扩展
 ALTER TYPE notification_type ADD VALUE 'prompt_liked';
 ALTER TYPE notification_type ADD VALUE 'prompt_favorited';
+
+-- notifications 表加 2 列(支持聚合)
+ALTER TABLE notifications ADD COLUMN group_key TEXT;
+ALTER TABLE notifications ADD COLUMN aggregated_count INTEGER NOT NULL DEFAULT 1;
+
+-- group_key 加索引以快速查找最近未读的同 group
+CREATE INDEX notifications_group_lookup_idx ON notifications
+  (user_id, group_key, read_at, created_at DESC)
+  WHERE group_key IS NOT NULL;
 ```
+
+`group_key` 的取值:
+- 已有 type(submission_approved / submission_rejected):**NULL**(不聚合)
+- `prompt_liked`:`liked:<promptId>`
+- `prompt_favorited`:`favorited:<promptId>`
 
 **Payload 类型(TS)**:
 ```ts
 type NotificationPayload =
-  | { submissionId, promptId, promptSlug, titleZh, titleEn }
-  | { submissionId, reason, titleZh, titleEn }
-  | { promptId, promptSlug, titleZh, titleEn, actorId, actorName }  // liked / favorited 共用
+  | { submissionId, promptId, promptSlug, titleZh, titleEn }      // approved
+  | { submissionId, reason, titleZh, titleEn }                    // rejected
+  | {                                                              // liked / favorited (aggregated)
+      promptId, promptSlug, titleZh, titleEn,
+      lastActorId: string, lastActorName: string | null,           // 用于显示"X 等 N 人"的 X
+    }
 ```
 
+**聚合算法**(`createInteractionNotification`):
+1. 计算 `groupKey = '<type-prefix>:<promptId>'`
+2. 事务里查找最近 1 小时**未读**的同 group:
+   ```sql
+   SELECT id, aggregated_count, payload
+   FROM notifications
+   WHERE user_id = $contributor AND group_key = $groupKey
+     AND read_at IS NULL AND created_at >= now() - INTERVAL '1 hour'
+   ORDER BY created_at DESC LIMIT 1
+   FOR UPDATE
+   ```
+3. 找到 → UPDATE:`aggregated_count = aggregated_count + 1`,`payload.lastActorId/lastActorName = $newActor`,`created_at = now()`(冒泡到列表顶端)
+4. 没找到(>1 小时 / 已读 / 不存在)→ INSERT 新行 aggregated_count=1
+5. 同一 actor 重复点(取消后再点)算新事件,允许 +1。如果担心刷屏,后续可以加"同 actor + group 1 小时内只算一次"的 dedupe,但 MVP 不做。
+
 **触发点**:
-- `apps/api/src/routes/interactions.ts` 的 `POST /:id/like` 路由,toggleLike 成功且是 "新增 like"(不是 undo)时,**给 prompt 的 contributor 插 notification**。
-- 同样 favorite。
+- `apps/api/src/routes/interactions.ts` 的 `POST /:id/like` / `/:id/favorite`,在 `toggleLike(action: "add")` 成功后调 `createInteractionNotification({ type, promptId, contributorId, actorId, actorName })`
 - 不给自己发(actor === contributor 跳过)
-- 防 spam:同一对 (actor, prompt, type) 只发一次(去重通过 notifications.payload->>actorId + 唯一索引)。或者每次都发 — 大型应用会按时间窗 collapse,但 MVP 每次都发也行。
-  - **决策**:每次都发,简单。**ASK USER**:你想要"小红 1"还是聚合成"3 人赞了你的 X"?
-  - **默认**:每次都发,通知列表显示"<actor> 赞了你的《X》"。
+- `action: "remove"`(取消赞/收藏)**不**回滚 notification 聚合计数(unread 已知逻辑里这不可逆,MVP 接受)
+
+**展示**(NotificationsList):
+- `aggregated_count === 1` → `"<lastActorName> 赞了你的《X》"`
+- `aggregated_count > 1` → `"<lastActorName> 等 {n} 人 赞了你的《X》"`(n = aggregated_count)
+- 点击跳 prompt 详情
 
 **Files:**
-- 新 migration:`0007_notification_types_for_interactions.sql` — ALTER TYPE
-- `apps/api/src/db/schema/notifications.ts` — `notificationTypeEnum` 加值 + payload 类型 union 扩展
-- `apps/api/src/repositories/notifications.ts` — `createNotification` 接受新 type
-- `apps/api/src/routes/interactions.ts` — 触发 createNotification(在 toggleLike/toggleFavorite 成功且 is_new=true 时)
-- `apps/web/src/i18n/locales/*.json` — 加 `notifications.prompt_liked` / `prompt_favorited` 文案
-- `apps/web/src/components/notifications/NotificationsList.tsx` — 加新 type 的渲染分支 + 点击跳 prompt 详情
+- 新 migration:`0007_notification_aggregation.sql` — ALTER TYPE + ALTER TABLE + CREATE INDEX
+- `apps/api/src/db/schema/notifications.ts` — enum + groupKey/aggregatedCount 列
+- `apps/api/src/repositories/notifications.ts` — 新 `createInteractionNotification` 含聚合算法 + 事务
+- `apps/api/src/routes/interactions.ts` — 触发(在 toggleLike/toggleFavorite "add" 成功后)
+- `apps/web/src/i18n/locales/*.json` — 加 `notifications.prompt_liked_single` / `prompt_liked_aggregated` / 同 favorited
+- `apps/web/src/components/notifications/NotificationsList.tsx` — 新 type 渲染分支 + 数字插值
 
 **测试**:
-- routes/interactions.test.ts:like 一个别人的 prompt → assert notification 写入;like 自己的 → 不写。
-- 同 favorite。
+- repo:第一次 like → INSERT,aggregated_count=1。第二次 like(不同 actor,1 小时内,未读)→ UPDATE,aggregated_count=2。隔 2 小时再 like → INSERT 新行。已读后 like → INSERT 新行(不修改已读的)。
+- routes:like 别人 prompt → notification 写入;like 自己 → 不写。同 favorite。
 
 ### 3.5 搜索功能(#14)
 
@@ -348,14 +385,14 @@ src/
 
 ---
 
-## 8. Open Questions(ASK USER)
+## 8. Open Questions(已 close, 2026-06-08)
 
-1. **用户主页 URL**:`/zh/users/:id` (UUID)还是 `/zh/u/:slug`(需要 username slug)?**默认 UUID**。
-2. **点赞通知频率**:每次都发 vs 按小时聚合("3 人赞了你的 X")?**默认每次都发**。
-3. **用户主页 favorites tab**:别人能不能看?**默认仅自己可见**。
-4. **ProfilePage 简化策略**:精简后保留哪些 tab?**默认 保留 资料 + 状态 + 数据卡**;首页 tabs 与之并存(不同视角)。
-5. **搜索匹配范围**:title + prompt + tag 三层匹配,还是只 title + tag?**默认 三层**。
-6. **首页副标题 publishedCount 缓存窗口**:30 分钟够吗?**默认 30 min**。
+1. **用户主页 URL** → ✅ `/zh/users/:id` (UUID)。后续要 SEO URL 再加 slug。
+2. **点赞/收藏通知频率** → ✅ **按小时聚合**("X 等 N 人 赞了你的《Y》")。详细算法见 §3.4。
+3. **用户主页 favorites tab** → ✅ 仅自己可见。
+4. **ProfilePage 简化策略** → ✅ 保留 资料 + 状态 + 数据卡 3 tab;首页 tabs 与之并存。
+5. **搜索匹配范围** → ✅ title + prompt + tag 三层 ILIKE。
+6. **首页副标题 publishedCount 缓存窗口** → ✅ 30 分钟 staleTime。
 
 ---
 
