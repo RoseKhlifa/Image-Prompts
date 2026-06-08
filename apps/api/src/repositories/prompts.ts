@@ -53,7 +53,18 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
     promptIdsByTag ? inArray(prompts.id, promptIdsByTag) : undefined,
     q.aspect ? eq(prompts.aspectRatio, q.aspect) : undefined,
     q.q
-      ? sql`(${prompts.title}->>'zh' ILIKE ${"%" + q.q + "%"} OR ${prompts.title}->>'en' ILIKE ${"%" + q.q + "%"} OR ${prompts.prompt}->>'zh' ILIKE ${"%" + q.q + "%"} OR ${prompts.prompt}->>'en' ILIKE ${"%" + q.q + "%"})`
+      ? sql`(${prompts.title}->>'zh' ILIKE ${"%" + q.q + "%"}
+            OR ${prompts.title}->>'en' ILIKE ${"%" + q.q + "%"}
+            OR ${prompts.prompt}->>'zh' ILIKE ${"%" + q.q + "%"}
+            OR ${prompts.prompt}->>'en' ILIKE ${"%" + q.q + "%"}
+            OR EXISTS (
+              SELECT 1 FROM prompt_tags pt
+              JOIN tags t ON pt.tag_id = t.id
+              WHERE pt.prompt_id = ${prompts.id}
+                AND (t.slug ILIKE ${"%" + q.q + "%"}
+                  OR t.name->>'zh' ILIKE ${"%" + q.q + "%"}
+                  OR t.name->>'en' ILIKE ${"%" + q.q + "%"}))
+            )`
       : undefined,
   ].filter((c): c is NonNullable<typeof c> => c !== undefined);
 
