@@ -15,8 +15,18 @@ export const SubmissionImageInputSchema = z.object({
 
 export const SubmissionInputSchema = z
   .object({
-    titleZh: z.string().trim().max(200, { message: "title_too_long" }).optional(),
-    titleEn: z.string().trim().max(200, { message: "title_too_long" }).optional(),
+    // Title is language-agnostic — a single string the contributor types in
+    // whatever language they prefer. The API ingest writes it to BOTH
+    // `prompts.title_zh` and `prompts.title_en` so the existing bilingual
+    // fallback display (`pickBilingual`) doesn't need changes.
+    title: z
+      .string({
+        required_error: "title_required",
+        invalid_type_error: "title_required",
+      })
+      .trim()
+      .min(1, { message: "title_required" })
+      .max(200, { message: "title_too_long" }),
     promptZh: z.string().trim().max(8000, { message: "prompt_too_long" }).optional(),
     promptEn: z.string().trim().max(8000, { message: "prompt_too_long" }).optional(),
     negativePromptZh: z
@@ -47,10 +57,12 @@ export const SubmissionInputSchema = z
       .min(1, { message: "images_required" })
       .max(5, { message: "too_many_images" }),
   })
-  .refine(
-    (v) => Boolean((v.titleZh && v.promptZh) || (v.titleEn && v.promptEn)),
-    { message: "bilingual_required", path: ["titleZh"] },
-  );
+  // Prompt is still bilingual but only ONE language is required. The
+  // contributor can fill zh, en, or both — at least one non-empty.
+  .refine((v) => Boolean(v.promptZh || v.promptEn), {
+    message: "prompt_required",
+    path: ["promptZh"],
+  });
 
 export const PresignRequestSchema = z.object({
   filename: z.string().max(200),

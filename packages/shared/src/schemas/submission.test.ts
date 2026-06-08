@@ -13,9 +13,9 @@ const validImage = {
 const validCategoryId = "22222222-2222-2222-2222-222222222222";
 
 describe("SubmissionInputSchema", () => {
-  it("accepts zh-only with one image", () => {
+  it("accepts a language-agnostic title + zh-only prompt", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "中文标题",
+      title: "我的标题",
       promptZh: "中文提示词",
       categoryId: validCategoryId,
       tagSlugs: [],
@@ -24,9 +24,9 @@ describe("SubmissionInputSchema", () => {
     expect(r.success).toBe(true);
   });
 
-  it("accepts en-only with one image", () => {
+  it("accepts a title + en-only prompt", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleEn: "English title",
+      title: "My title",
       promptEn: "English prompt",
       categoryId: validCategoryId,
       tagSlugs: [],
@@ -35,34 +35,59 @@ describe("SubmissionInputSchema", () => {
     expect(r.success).toBe(true);
   });
 
-  it("rejects when neither language has both title+prompt (bilingual_required)", () => {
+  it("accepts a title + both prompt languages", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "中文标题", // title only, no zh prompt
+      title: "Title",
+      promptZh: "中文",
+      promptEn: "English",
       categoryId: validCategoryId,
       tagSlugs: [],
       images: [validImage],
     });
-    expect(r.success).toBe(false);
-    if (!r.success) {
-      expect(JSON.stringify(r.error.issues)).toContain("bilingual_required");
-    }
+    expect(r.success).toBe(true);
   });
 
-  it("rejects when only en has title and only zh has prompt", () => {
+  it("rejects when title is missing", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleEn: "English title",
       promptZh: "中文提示词",
       categoryId: validCategoryId,
       tagSlugs: [],
       images: [validImage],
     });
     expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(JSON.stringify(r.error.issues)).toContain("title_required");
+    }
+  });
+
+  it("rejects when title is whitespace only", () => {
+    const r = SubmissionInputSchema.safeParse({
+      title: "   ",
+      promptZh: "中文",
+      categoryId: validCategoryId,
+      tagSlugs: [],
+      images: [validImage],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when both prompt languages are empty (prompt_required)", () => {
+    const r = SubmissionInputSchema.safeParse({
+      title: "Title",
+      categoryId: validCategoryId,
+      tagSlugs: [],
+      images: [validImage],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(JSON.stringify(r.error.issues)).toContain("prompt_required");
+    }
   });
 
   it("rejects > 6 tags", () => {
     const tags = Array.from({ length: 7 }, (_, i) => `tag-${i}`);
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "x", promptZh: "y",
+      title: "x", promptZh: "y",
       categoryId: validCategoryId,
       tagSlugs: tags,
       images: [validImage],
@@ -72,7 +97,7 @@ describe("SubmissionInputSchema", () => {
 
   it("rejects 0 images", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "x", promptZh: "y",
+      title: "x", promptZh: "y",
       categoryId: validCategoryId,
       tagSlugs: [],
       images: [],
@@ -82,7 +107,7 @@ describe("SubmissionInputSchema", () => {
 
   it("rejects > 5 images", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "x", promptZh: "y",
+      title: "x", promptZh: "y",
       categoryId: validCategoryId,
       tagSlugs: [],
       images: Array.from({ length: 6 }, () => validImage),
@@ -92,7 +117,7 @@ describe("SubmissionInputSchema", () => {
 
   it("rejects an r2Key that doesn't start with submissions/", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "x", promptZh: "y",
+      title: "x", promptZh: "y",
       categoryId: validCategoryId,
       tagSlugs: [],
       images: [{ ...validImage, r2Key: "prompts/abc.jpg" }],
@@ -102,7 +127,7 @@ describe("SubmissionInputSchema", () => {
 
   it("rejects a tag slug with uppercase or space", () => {
     const r = SubmissionInputSchema.safeParse({
-      titleZh: "x", promptZh: "y",
+      title: "x", promptZh: "y",
       categoryId: validCategoryId,
       tagSlugs: ["Bad Slug"],
       images: [validImage],

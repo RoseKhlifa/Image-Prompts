@@ -56,16 +56,17 @@ function FieldError({
 }
 
 /**
- * Orchestrates the whole submission flow: bilingual title/prompt fields,
- * optional negative prompts + aspect ratio, category select, tag picker,
- * image upload grid, optional notes. Persists every change to sessionStorage
+ * Orchestrates the whole submission flow: single language-agnostic title,
+ * bilingual prompt fields (at least one language required), optional
+ * negative prompts + aspect ratio, category select, tag picker, image
+ * upload grid, optional notes. Persists every change to sessionStorage
  * (`submit-draft-v1`) so a reload or accidental nav-away doesn't wipe the
  * user's work; `useCreateSubmission` clears the draft on success.
  *
  * Validation: `SubmissionInputSchema.safeParse(values)` runs only on submit.
- * The schema's `bilingual_required` refine guarantees the user filled at
- * least one of (titleZh+promptZh) or (titleEn+promptEn). Server errors are
- * routed to the toast via the `onError` callback in the mutation.
+ * The schema requires a non-empty title and at least one of promptZh /
+ * promptEn. Server errors are routed to the toast via the `onError`
+ * callback in the mutation.
  */
 export default function SubmissionForm() {
   const { t } = useTranslation();
@@ -147,26 +148,21 @@ export default function SubmissionForm() {
         </h3>
         <input
           type="text"
-          placeholder={t("submit.title_zh_label")}
-          value={values.titleZh ?? ""}
-          onChange={(e) => setField("titleZh", e.target.value || undefined)}
+          placeholder={t("submit.title_label")}
+          value={values.title ?? ""}
+          onChange={(e) => setField("title", e.target.value || undefined)}
           className="mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
         />
-        <FieldError keyName="titleZh" errors={errors} />
-        <input
-          type="text"
-          placeholder={t("submit.title_en_label")}
-          value={values.titleEn ?? ""}
-          onChange={(e) => setField("titleEn", e.target.value || undefined)}
-          className="mt-2 mb-1 block w-full rounded-card border border-border-soft bg-panel px-2 py-1.5 text-sm"
-        />
-        <FieldError keyName="titleEn" errors={errors} />
+        <FieldError keyName="title" errors={errors} />
       </section>
 
       <section>
         <h3 className="mb-2 text-sm font-semibold text-ink">
           {t("submit.section_prompt")}
         </h3>
+        <p className="mb-2 text-xs text-ink-muted">
+          {t("submit.prompt_section_hint")}
+        </p>
         <textarea
           placeholder={t("submit.prompt_zh_label")}
           rows={4}

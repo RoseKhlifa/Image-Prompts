@@ -204,8 +204,13 @@ app.post(
 
     const id = await createSubmission({
       contributorId: userId,
-      titleZh: input.titleZh ?? null,
-      titleEn: input.titleEn ?? null,
+      // Title is now a single language-agnostic field on the input. Mirror it
+      // into both DB columns so the existing bilingual fallback in display
+      // code (pickBilingual / titleZh ?? titleEn) keeps working without
+      // a schema migration. Admins can still differentiate per language
+      // post-approval via AdminEditPanel.
+      titleZh: input.title,
+      titleEn: input.title,
       promptZh: input.promptZh ?? null,
       promptEn: input.promptEn ?? null,
       negativePromptZh: input.negativePromptZh ?? null,

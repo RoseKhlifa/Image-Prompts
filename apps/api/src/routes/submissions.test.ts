@@ -224,7 +224,7 @@ describe("POST /api/submissions (create)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: sess.cookie },
       body: JSON.stringify({
-        titleZh: "标题",
+        title: "标题",
         promptZh: "提示词",
         categoryId,
         tagSlugs: [tagSlug],
@@ -249,7 +249,7 @@ describe("POST /api/submissions (create)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: sess.cookie },
       body: JSON.stringify({
-        titleZh: "标题",
+        title: "标题",
         promptZh: "提示词",
         categoryId,
         tagSlugs: [tagSlug],
@@ -284,7 +284,7 @@ describe("POST /api/submissions (create)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: sess.cookie },
       body: JSON.stringify({
-        titleZh: "x",
+        title: "x",
         promptZh: "y",
         categoryId,
         tagSlugs: [tagSlug, "task19-ghost-tag"],
@@ -311,7 +311,7 @@ describe("POST /api/submissions (create)", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: sess.cookie },
       body: JSON.stringify({
-        titleZh: "x",
+        title: "x",
         promptZh: "y",
         categoryId,
         tagSlugs: [tagSlug],
