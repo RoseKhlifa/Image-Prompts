@@ -141,9 +141,10 @@ describe("PresignRequestSchema", () => {
 });
 
 describe("RejectInputSchema", () => {
-  it("requires ≥ 10 chars", () => {
-    expect(RejectInputSchema.safeParse({ reason: "short" }).success).toBe(false);
-    expect(RejectInputSchema.safeParse({ reason: "1234567890" }).success).toBe(true);
+  it("requires ≥ 1 char (rejects empty / whitespace-only)", () => {
+    expect(RejectInputSchema.safeParse({ reason: "" }).success).toBe(false);
+    expect(RejectInputSchema.safeParse({ reason: "   " }).success).toBe(false);
+    expect(RejectInputSchema.safeParse({ reason: "x" }).success).toBe(true);
   });
   it("rejects > 500 chars", () => {
     expect(

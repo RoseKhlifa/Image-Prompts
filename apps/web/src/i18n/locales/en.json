@@ -189,7 +189,7 @@
     "approving": "Processing…",
     "reject": "Reject",
     "reject_modal_title": "Reject submission",
-    "reject_reason_placeholder": "Reason (≥10 chars), shown to the contributor",
+    "reject_reason_placeholder": "Reason (will be shown to the contributor, e.g. off-topic / low quality / policy violation)",
     "reject_confirm": "Confirm rejection",
     "cancel": "Cancel",
     "approved_toast": "Approved — the prompt is live",

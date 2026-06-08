@@ -395,7 +395,7 @@ describe("rejectSubmission (transaction)", () => {
       aspectRatio: null, categoryId: c.id,
       tagSlugs: [], images: [img1], agreedGuidelinesVersion: 1,
     });
-    await db.update(submissions).set({ status: "rejected", rejectReason: "x".repeat(10) }).where(eq(submissions.id, subId));
+    await db.update(submissions).set({ status: "rejected", rejectReason: "x" }).where(eq(submissions.id, subId));
     await expect(
       rejectSubmission({
         submissionId: subId, actorId: a.id, reason: "1234567890",

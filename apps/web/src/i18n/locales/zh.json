@@ -189,7 +189,7 @@
     "approving": "处理中…",
     "reject": "拒绝",
     "reject_modal_title": "拒绝投稿",
-    "reject_reason_placeholder": "请填写拒绝原因(≥10 字),将发送给投稿人",
+    "reject_reason_placeholder": "请填写拒绝原因(将发送给投稿人,如:与平台主题不符 / 图片质量低 / 内容违规等)",
     "reject_confirm": "确认拒绝",
     "cancel": "取消",
     "approved_toast": "已批准,提示词已发布",

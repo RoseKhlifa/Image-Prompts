@@ -12,7 +12,7 @@ export default function RejectReasonModal({ open, onClose, onSubmit, isSubmittin
   const { t } = useTranslation();
   const [reason, setReason] = useState("");
   if (!open) return null;
-  const ok = reason.trim().length >= 10 && reason.trim().length <= 500;
+  const ok = reason.trim().length >= 1 && reason.trim().length <= 500;
   return (
     <div
       role="dialog"

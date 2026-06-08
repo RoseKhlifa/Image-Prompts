@@ -340,7 +340,7 @@ describe("POST /api/admin/submissions/:id/reject", () => {
     s3Mock.reset();
   });
 
-  it("requires reason >= 10 chars (400)", async () => {
+  it("requires non-empty reason (400)", async () => {
     const c = await setup();
     const contrib = await createTestSession({ email: `${TEST_EMAIL_PREFIX}contrib-r-${Date.now()}@example.com` });
     const a = await makeUserWithRole("admin");
@@ -353,7 +353,7 @@ describe("POST /api/admin/submissions/:id/reject", () => {
     const res = await app.request(`/api/admin/submissions/${sub!.id}/reject`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: a.cookie },
-      body: JSON.stringify({ reason: "短" }),
+      body: JSON.stringify({ reason: "   " }),
     });
     expect(res.status).toBe(400);
   });

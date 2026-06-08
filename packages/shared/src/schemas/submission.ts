@@ -47,7 +47,7 @@ export const PresignResponseSchema = z.object({
 });
 
 export const RejectInputSchema = z.object({
-  reason: z.string().trim().min(10).max(500),
+  reason: z.string().trim().min(1).max(500),
 });
 
 export const ApproveInputSchema = z.object({
