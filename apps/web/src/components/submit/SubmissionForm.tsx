@@ -14,6 +14,7 @@ import { toast } from "../../lib/toast.ts";
 import { saveDraft, loadDraft } from "../../lib/submission-draft.ts";
 import { withLocale } from "../../lib/locale.ts";
 import { zodErrorsToMap } from "../../lib/zod-errors.ts";
+import { useUiStore } from "../../state/uiStore.ts";
 import TagPicker from "./TagPicker.tsx";
 import ImageUploadGrid from "./ImageUploadGrid.tsx";
 import type { SlotValue } from "./ImageSlot.tsx";
@@ -74,6 +75,10 @@ export default function SubmissionForm() {
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const categories = useCategories();
+  // Used when the form is mounted inside the global SubmitModal — closes the
+  // modal after a successful submit. Calling it when the form is the standalone
+  // /submit page is a harmless no-op (modal is already closed).
+  const closeSubmitModal = useUiStore((s) => s.closeSubmitModal);
 
   const initial = loadDraft<Partial<SubmissionInput>>() ?? {};
   const [values, setValues] = useState<Partial<SubmissionInput>>({
@@ -135,6 +140,7 @@ export default function SubmissionForm() {
     create.mutate(parsed.data, {
       onSuccess: () => {
         toast.success(t("my_submissions.status_pending"));
+        closeSubmitModal();
         navigate(withLocale(locale, "/profile?tab=submissions"));
       },
     });
