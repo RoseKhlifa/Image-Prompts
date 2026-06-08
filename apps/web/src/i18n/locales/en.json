@@ -22,7 +22,8 @@
     "theme": "Theme",
     "all": "All",
     "anonymous": "Anonymous",
-    "close": "Close"
+    "close": "Close",
+    "load_more": "Load more"
   },
   "auth": {
     "sign_in": "Sign In",

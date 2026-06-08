@@ -22,7 +22,8 @@
     "theme": "主题",
     "all": "全部",
     "anonymous": "匿名",
-    "close": "关闭"
+    "close": "关闭",
+    "load_more": "加载更多"
   },
   "auth": {
     "sign_in": "登录",

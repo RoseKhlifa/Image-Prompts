@@ -36,7 +36,7 @@ export default function AdminSubmissionList({ status, selectedId, onSelect }: Pr
           disabled={query.isFetchingNextPage}
           className="block w-full rounded-card border border-border-soft px-3 py-1.5 text-sm"
         >
-          {query.isFetchingNextPage ? t("common.loading") : "Load more"}
+          {query.isFetchingNextPage ? t("common.loading") : t("common.load_more")}
         </button>
       )}
     </div>
