@@ -80,6 +80,16 @@ export default function ProfileMenu({ session }: { session: Session }) {
           >
             {t("auth.profile")}
           </Link>
+          {(session.user.role === "admin" || session.user.role === "moderator") && (
+            <Link
+              to={withLocale(locale, "/admin/submissions")}
+              onClick={() => setOpen(false)}
+              className="block rounded-md px-2 py-1.5 text-[12.5px] text-ink hover:bg-panel-2"
+              role="menuitem"
+            >
+              {t("nav.admin")}
+            </Link>
+          )}
           <button
             type="button"
             onClick={handleSignOut}
