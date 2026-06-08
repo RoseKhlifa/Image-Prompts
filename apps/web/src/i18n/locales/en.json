@@ -36,7 +36,12 @@
   "home": {
     "hero_title": "AI Image Prompt Library",
     "hero_subtitle": "{formattedCount}+ curated prompts · One click to Image-Studio",
-    "start_browsing": "Start Browsing →"
+    "published_subtitle": "{formattedCount} prompts published",
+    "start_browsing": "Start Browsing →",
+    "tab_gallery": "Gallery",
+    "tab_favorites": "Favorites",
+    "tab_mine": "Mine",
+    "tab_about": "About"
   },
   "stats": {
     "published": "Published",

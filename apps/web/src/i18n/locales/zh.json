@@ -36,7 +36,12 @@
   "home": {
     "hero_title": "生图提示词聚合",
     "hero_subtitle": "{formattedCount}+ 条精选提示词 · 一键送到 Image-Studio",
-    "start_browsing": "开始浏览 →"
+    "published_subtitle": "本站已收录 {formattedCount} 条图片提示词",
+    "start_browsing": "开始浏览 →",
+    "tab_gallery": "画廊",
+    "tab_favorites": "我的收藏",
+    "tab_mine": "我的投稿",
+    "tab_about": "关于"
   },
   "stats": {
     "published": "已发布",
