@@ -180,14 +180,9 @@
 
     "section_sources_title": "Data sources",
     "section_sources_intro": "Content here comes from three streams: user submissions (UGC, copyright retained by submitter), maintainer-direct uploads (archives from public sources), and the crawled archives below — each either with consent or under public-display norms. We preserve the originating link on every imported prompt and surface it on the detail page.",
-    "section_sources_note": "\"Items\" reflects what the upstream site has publicly available and that we either crawled or plan to migrate; the on-site count may differ (see status column).",
     "sources_col_source": "Source",
     "sources_col_url": "URL",
     "sources_col_count": "Items",
-    "sources_col_status": "Status",
-    "sources_status_live": "Live",
-    "sources_status_partial": "Partial",
-    "sources_status_pending": "Pending",
 
     "section_submit_title": "Submitting & community",
     "section_submit_p1": "Signed-in users can submit prompts via the \"Submit\" entry. Accepted entries go live; rejected ones include a reason via in-site notification. Please read the community guidelines before submitting.",

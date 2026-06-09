@@ -80,10 +80,7 @@ export default function AboutPageContent() {
             title={t("about.section_sources_title")}
             paragraphs={[t("about.section_sources_intro")]}
           >
-            <SourcesTable
-              t={t}
-              note={t("about.section_sources_note")}
-            />
+            <SourcesTable t={t} />
           </Section>
 
           <Section
@@ -279,125 +276,77 @@ const DATA_SOURCES: Array<{
   name: string;
   url: string;
   count: number;
-  status: "live" | "partial" | "pending";
 }> = [
-  // Sorted by upstream count desc. `count` is the total available
-  // upstream; `status` records whether we've ingested it yet.
+  // Sorted by upstream count desc.
   {
     name: "Liblib Inspiration",
     url: "https://www.liblib.art/inspiration",
     count: 21826,
-    status: "pending",
   },
   {
     name: "YouMind GPT Image 2 Prompts",
     url: "https://youmind.com/zh-CN/gpt-image-2-prompts",
     count: 9303,
-    status: "pending",
   },
   {
     name: "AI2Image GPT Image 2",
     url: "https://www.ai2image.cn/category?cat=gptimage2",
     count: 1913,
-    status: "pending",
   },
   {
     name: "Nanobanana Website Vercel",
     url: "https://nanobanana-website.vercel.app/",
     count: 1205,
-    status: "live",
   },
   {
     name: "NanoBananaPrompt",
     url: "https://nanobananaprompt.co/zh/prompts",
     count: 192,
-    status: "partial",
   },
 ];
 
-function SourcesTable({
-  t,
-  note,
-}: {
-  t: (k: string) => string;
-  note: string;
-}) {
+function SourcesTable({ t }: { t: (k: string) => string }) {
   return (
-    <div className="mt-6 space-y-3">
-      <div className="overflow-x-auto rounded-card border border-border-soft bg-panel">
-        <table className="w-full text-[13px]">
-          <thead className="border-b border-border-soft text-[11px] uppercase tracking-wider text-ink-dim">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold">
-                {t("about.sources_col_source")}
-              </th>
-              <th className="px-4 py-3 text-left font-semibold">
-                {t("about.sources_col_url")}
-              </th>
-              <th className="px-4 py-3 text-right font-semibold">
-                {t("about.sources_col_count")}
-              </th>
-              <th className="px-4 py-3 text-left font-semibold">
-                {t("about.sources_col_status")}
-              </th>
+    <div className="mt-6 overflow-x-auto rounded-card border border-border-soft bg-panel">
+      <table className="w-full text-[13px]">
+        <thead className="border-b border-border-soft text-[11px] uppercase tracking-wider text-ink-dim">
+          <tr>
+            <th className="px-4 py-3 text-left font-semibold">
+              {t("about.sources_col_source")}
+            </th>
+            <th className="px-4 py-3 text-left font-semibold">
+              {t("about.sources_col_url")}
+            </th>
+            <th className="px-4 py-3 text-right font-semibold">
+              {t("about.sources_col_count")}
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border-soft">
+          {DATA_SOURCES.map((s) => (
+            <tr key={s.url} className="hover:bg-bg-2">
+              <td className="px-4 py-3 font-medium text-ink">{s.name}</td>
+              <td className="px-4 py-3">
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1 truncate text-ink-muted hover:text-accent"
+                >
+                  <span className="truncate font-mono text-[12px]">
+                    {s.url.replace(/^https?:\/\//, "")}
+                  </span>
+                  <ExternalLink size={11} className="shrink-0" />
+                </a>
+              </td>
+              <td className="px-4 py-3 text-right font-mono text-[13px] text-ink">
+                {s.count.toLocaleString()}
+              </td>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-border-soft">
-            {DATA_SOURCES.map((s) => (
-              <tr key={s.url} className="hover:bg-bg-2">
-                <td className="px-4 py-3 font-medium text-ink">{s.name}</td>
-                <td className="px-4 py-3">
-                  <a
-                    href={s.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-flex items-center gap-1 truncate text-ink-muted hover:text-accent"
-                  >
-                    <span className="truncate font-mono text-[12px]">
-                      {s.url.replace(/^https?:\/\//, "")}
-                    </span>
-                    <ExternalLink size={11} className="shrink-0" />
-                  </a>
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-[13px] text-ink">
-                  {s.count.toLocaleString()}
-                </td>
-                <td className="px-4 py-3">
-                  <StatusPill status={s.status} t={t} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-ink-dim">{note}</p>
+          ))}
+        </tbody>
+      </table>
     </div>
-  );
-}
-
-function StatusPill({
-  status,
-  t,
-}: {
-  status: "live" | "partial" | "pending";
-  t: (k: string) => string;
-}) {
-  const cls =
-    status === "live"
-      ? "bg-emerald-500/15 text-emerald-300"
-      : status === "partial"
-        ? "bg-amber-500/15 text-amber-300"
-        : "bg-zinc-500/15 text-ink-muted";
-  const label =
-    status === "live"
-      ? t("about.sources_status_live")
-      : status === "partial"
-        ? t("about.sources_status_partial")
-        : t("about.sources_status_pending");
-  return (
-    <span className={`rounded-pill px-2 py-0.5 text-[11px] font-medium ${cls}`}>
-      {label}
-    </span>
   );
 }
 

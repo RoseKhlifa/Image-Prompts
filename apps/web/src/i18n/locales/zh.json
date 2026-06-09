@@ -180,14 +180,9 @@
 
     "section_sources_title": "数据来源",
     "section_sources_intro": "本站内容由三部分构成:用户投稿(UGC,版权归投稿者所有)、站长直投(归档自互联网公开档案)、以及下列已经过同意或属公开陈列范畴的爬取数据。我们对每一份外部档案均保留原始来源链接,并在详细页明示来源站点。",
-    "section_sources_note": "「条目」指源站当前公开档案中我们已抓取或计划迁移的条数,与本站实际入库数可能存在差异(见状态列)。",
     "sources_col_source": "来源站点",
     "sources_col_url": "网址",
     "sources_col_count": "条目",
-    "sources_col_status": "状态",
-    "sources_status_live": "已上架",
-    "sources_status_partial": "部分上架",
-    "sources_status_pending": "待迁移",
 
     "section_submit_title": "投稿与社区",
     "section_submit_p1": "登录用户可在「投稿」入口提交提示词。审核通过后入库公开,失败时会在站内通知中给出原因。投稿前请阅读社区准则。",
@@ -204,7 +199,7 @@
     "repo_image_studio_desc": "配套的可视化提示词编排与生图工作台,支持从本站一键导入提示词参数。",
 
     "section_maintainer_title": "站长说",
-    "section_maintainer_p1": "我是 RoseKhlifa(圆滑),一名独立开发者。这个站点诞生于我自己对「打开 AI 出图工具时缺一条得力提示词」这件事的长期不满,以及对许多优秀提示词社区在国内难以被快速检索这件事的偏执。",
+    "section_maintainer_p1": "我是 RoseKhlifa,一名独立开发者。这个站点诞生于我自己对「打开 AI 出图工具时缺一条得力提示词」这件事的长期不满,以及对许多优秀提示词社区在国内难以被快速检索这件事的偏执。",
     "section_maintainer_p2": "我希望它最终成为一个不需要翻墙、不需要付费、不需要算法操盘就能扎实使用的工具。如果你也是这条路上的同好,欢迎投稿、点 star、提 Issue,或在我邮箱里聊聊你正在做的事情。",
     "section_maintainer_signature": "—— RoseKhlifa",
 
