@@ -78,48 +78,59 @@ cp apps/api/.env.example apps/api/.env
 nano apps/api/.env
 ```
 
-需要填的关键字段(以 `prompts.sorry.ink` 为域名):
+**⚠️ 重要**:systemd 的 `EnvironmentFile=` 不认行尾 `#` 注释。任何说明必须**独占一行**(开头 `#`),`KEY=VALUE` 行后面不能跟注释,否则那一长串(连同注释)会被当成值,启动校验直接报 "Invalid enum value / Invalid url"。
+
+填字段(以 `prompts.sorry.ink` 为域名,变量名按实际代码读取的 `apps/api/src/env.ts`):
 
 ```ini
-# ── 应用基础 ────────────────────────────────────
+# Server
 NODE_ENV=production
-API_PORT=3001                              # 后端监听口,1Panel 反代 /api → 这里
-WEB_PORT=4173                              # 前端 vite preview 监听口(或交给 nginx 直接服务静态)
-PUBLIC_SITE_URL=https://prompts.sorry.ink  # ★ OAuth callback 拼接基地址
+PORT=8765
+HOST=127.0.0.1
+SITE_URL=https://prompts.sorry.ink
+API_URL=https://prompts.sorry.ink
 
-# ── 数据库 ───────────────────────────────────────
+# Logging
+LOG_LEVEL=info
+
+# Database
 DATABASE_URL=postgres://imageprompts:<password>@localhost:5432/imageprompts
 
-# ── Better Auth(会话签名密钥) ─────────────────
-BETTER_AUTH_SECRET=<openssl rand -hex 32 生成>
-BETTER_AUTH_URL=https://prompts.sorry.ink  # ★ 同 PUBLIC_SITE_URL
+# Auth.js
+AUTH_SECRET=<openssl rand -base64 48 生成>
+AUTH_URL=https://prompts.sorry.ink/api/auth
 
-# ── Google OAuth ────────────────────────────────
-GOOGLE_CLIENT_ID=<console 拿>
-GOOGLE_CLIENT_SECRET=<console 拿>
+# R2 凭据加密密钥(AES-256-GCM, 64 hex chars)
+R2_ENCRYPTION_KEY=<openssl rand -hex 32 生成>
 
-# ── GitHub OAuth ────────────────────────────────
-GITHUB_CLIENT_ID=<开发者设置 拿>
-GITHUB_CLIENT_SECRET=<开发者设置 拿>
+# R2 桶(沿用本地凭据即可,代码变量名带 DEV 只是历史命名)
+R2_DEV_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_DEV_ACCESS_KEY_ID=<key>
+R2_DEV_ACCESS_KEY_SECRET=<secret>
+R2_DEV_BUCKET=image-prompts-1
+R2_DEV_PUBLIC_URL=https://<your-public-url>
 
-# ── Cloudflare R2 ───────────────────────────────
-R2_ACCOUNT_ID=<your r2 account id>
-R2_ACCESS_KEY_ID=<key>
-R2_SECRET_ACCESS_KEY=<secret>
-R2_BUCKET=image-prompts-1
-R2_PUBLIC_URL=https://<your-public-url>     # bucket 的 public dev url 或 custom domain
-
-# ── 站长授权 ────────────────────────────────────
+# 站长授权(逗号分隔,Google/GitHub 登录时邮箱在表里 → 自动成 owner+admin)
 OWNER_EMAILS=rosekhlifa@gmail.com
 ADMIN_EMAILS=rosekhlifa@gmail.com
 
-# ── 站点资源根目录(import 用) ────────────────
-IMPORT_DATA_ROOT=/root/import-data   # 后面把要导入的 JSONL 放这里
+# Google OAuth(production 单独建一对 Client,redirect URI 填 https://prompts.sorry.ink/api/auth/callback/google)
+GOOGLE_CLIENT_ID=<console 拿>
+GOOGLE_CLIENT_SECRET=<console 拿>
+
+# GitHub OAuth(production 必须单独建 App,callback URL 填 https://prompts.sorry.ink/api/auth/callback/github)
+GITHUB_CLIENT_ID=<开发者设置 拿>
+GITHUB_CLIENT_SECRET=<开发者设置 拿>
 ```
 
-> 生成 secrets:`openssl rand -hex 32`
+> 生成 secrets:`AUTH_SECRET` 用 `openssl rand -base64 48`、`R2_ENCRYPTION_KEY` 用 `openssl rand -hex 32`。
 
-如果 web 有自己的 `.env`(检查 `apps/web/.env.example`),也要把 `VITE_PUBLIC_SITE_URL=https://prompts.sorry.ink` 这类配上。
+`apps/web/.env` 也建一份(Vite build 时会读):
+
+```ini
+VITE_API_URL=https://prompts.sorry.ink
+VITE_SITE_URL=https://prompts.sorry.ink
+```
 
 ---
 
