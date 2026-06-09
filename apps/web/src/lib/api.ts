@@ -43,7 +43,11 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
   const h = new Headers();
   h.set("Accept", "application/json");
   if (locale) h.set("X-Locale", locale);
-  if (rest.body) h.set("Content-Type", "application/json");
+  // Don't override Content-Type when sending FormData — the browser sets it
+  // automatically with the multipart boundary string.
+  if (rest.body && !(rest.body instanceof FormData)) {
+    h.set("Content-Type", "application/json");
+  }
   if (headers) {
     const incoming = headers instanceof Headers ? headers : new Headers(headers as HeadersInit);
     incoming.forEach((value, key) => h.set(key, value));

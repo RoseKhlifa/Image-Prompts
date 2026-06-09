@@ -60,6 +60,14 @@ export type StartImportInput = {
   limit?: number;
 };
 
+export type UploadImportInput = {
+  file: File;
+  /** Override the category slug derived from the filename stem. */
+  categorySlug?: string;
+  dryRun?: boolean;
+  limit?: number;
+};
+
 // ── Queries ─────────────────────────────────────────────────────────────
 
 /**
@@ -108,6 +116,40 @@ export function useStartImport(): UseMutationResult<
         method: "POST",
         body: JSON.stringify(input),
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["owner", "imports"] });
+      qc.invalidateQueries({ queryKey: ["prompts"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+}
+
+/**
+ * Upload a local JSONL file and run it through the import pipeline. The
+ * server stages the file in os.tmpdir(), invokes `importCategoryJsonl`,
+ * then deletes the temp file no matter what. Use this when the data root
+ * isn't on the same machine as the API (e.g. VPS deployment with files on
+ * the owner's laptop).
+ */
+export function useUploadImport(): UseMutationResult<
+  ImportRunResult,
+  ApiError,
+  UploadImportInput
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input) => {
+      const fd = new FormData();
+      fd.append("file", input.file);
+      if (input.categorySlug) fd.append("categorySlug", input.categorySlug);
+      if (input.dryRun) fd.append("dryRun", "true");
+      if (input.limit !== undefined) fd.append("limit", String(input.limit));
+      return apiFetch<ImportRunResult>("/api/owner/imports/upload", {
+        method: "POST",
+        body: fd,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["owner", "imports"] });
       qc.invalidateQueries({ queryKey: ["prompts"] });

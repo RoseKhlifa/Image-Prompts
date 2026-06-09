@@ -646,8 +646,20 @@
       "run": "Run import",
       "run_success": "Done: +{inserted} inserted, ~{skipped} skipped, !{failed} failed",
       "run_failed": "Import failed",
+      "manifest_title": "Server manifest",
       "history_title": "Recent imports",
-      "history_empty": "No imports yet"
+      "history_empty": "No imports yet",
+      "upload_title": "Upload local files",
+      "upload_subtitle": "Drag JSONL files from your machine straight in. The server stages each, runs the import, and deletes the temp file. Skips the need for ssh/scp on prod.",
+      "drop_hint": "Drop .jsonl files here or click to choose",
+      "drop_subhint": "Multi-select OK. Category slug is inferred from the filename (food.jsonl → food).",
+      "dry_run_checkbox": "Dry-run (parse only, no DB writes)",
+      "limit_placeholder": "limit (blank = no cap)",
+      "upload_total": "{n} files, {kb} KB total",
+      "upload_button": "Upload {n} file(s)",
+      "uploading": "Importing {i}/{n}: {file}",
+      "upload_complete_all": "All done ({n} files)",
+      "upload_complete_partial": "{ok} succeeded, {fail} failed"
     }
   },
   "announcements": {

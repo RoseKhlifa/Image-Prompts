@@ -646,8 +646,20 @@
       "run": "导入此分类",
       "run_success": "完成:新增 {inserted},跳过 {skipped},失败 {failed}",
       "run_failed": "导入失败",
+      "manifest_title": "服务器本地清单",
       "history_title": "最近导入",
-      "history_empty": "暂无记录"
+      "history_empty": "暂无记录",
+      "upload_title": "上传本地文件导入",
+      "upload_subtitle": "从你电脑直接拖入 JSONL 文件,服务器临时保存并导入(导入完自动删除)。VPS 部署后用这个最方便,不用 ssh/scp。",
+      "drop_hint": "拖动 .jsonl 文件到此 或 点击选择",
+      "drop_subhint": "可多选;分类 slug 从文件名(如 food.jsonl → food)自动推断",
+      "dry_run_checkbox": "试导入(只解析不写库)",
+      "limit_placeholder": "limit(留空 = 不限)",
+      "upload_total": "{n} 个文件,共 {kb} KB",
+      "upload_button": "上传并导入 {n} 个",
+      "uploading": "导入中 {i}/{n}:{file}",
+      "upload_complete_all": "全部完成({n} 个文件)",
+      "upload_complete_partial": "完成 {ok} 个,失败 {fail} 个"
     }
   },
   "announcements": {

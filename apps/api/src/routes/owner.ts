@@ -1,5 +1,6 @@
-import { resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { resolve, join } from "node:path";
+import { readFile, writeFile, unlink, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -72,7 +73,7 @@ import {
 import { copyObject, deleteObject } from "../lib/r2-ops.ts";
 import { buildPromptKey } from "../lib/r2-keys.ts";
 import { db } from "../db/client.ts";
-import { r2Accounts, promptImages } from "../db/schema/index.ts";
+import { r2Accounts, promptImages, importBatches } from "../db/schema/index.ts";
 import { and, eq } from "drizzle-orm";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 
@@ -1281,6 +1282,118 @@ app.get("/imports/manifest", async (c) => {
       jsonl: m.jsonl,
     })),
   });
+});
+
+// ── POST /imports/upload ─────────────────────────────────────────────────
+//
+// Accept a JSONL file via multipart and run it through importCategoryJsonl
+// against a temp file. Used in production when the owner doesn't want to
+// scp/rsync files onto the VPS — drag-drop in /rosekhlifa/import does the
+// rest. Single file per request; the frontend sequences multiple files
+// itself so each gets its own import_batches row in the audit feed.
+const UPLOAD_MAX_BYTES = 50 * 1024 * 1024; // 50 MB cap; biggest category in
+                                            // the manifest is ~11 MB.
+
+app.post("/imports/upload", async (c) => {
+  const ownerId = requireUserId(c);
+
+  let body: Awaited<ReturnType<typeof c.req.parseBody>>;
+  try {
+    body = await c.req.parseBody();
+  } catch (e) {
+    throw new HTTPException(400, {
+      message: `invalid_multipart:${(e as Error).message}`,
+    });
+  }
+
+  const file = body.file;
+  if (!(file instanceof File)) {
+    throw new HTTPException(400, { message: "file_required" });
+  }
+  if (file.size > UPLOAD_MAX_BYTES) {
+    throw new HTTPException(413, {
+      message: `file_too_large:${UPLOAD_MAX_BYTES}`,
+    });
+  }
+  if (!file.name.toLowerCase().endsWith(".jsonl")) {
+    throw new HTTPException(400, { message: "expected_jsonl" });
+  }
+
+  // categorySlug: prefer the explicit form field, fall back to the filename
+  // stem. Lowercase + slug-shape check rejects garbage / path traversal.
+  const formCategorySlug =
+    typeof body.categorySlug === "string" ? body.categorySlug.trim() : "";
+  const filenameCategorySlug = file.name.replace(/\.jsonl$/i, "").toLowerCase();
+  const categorySlug = formCategorySlug || filenameCategorySlug;
+  if (!/^[a-z0-9_-]{1,64}$/.test(categorySlug)) {
+    throw new HTTPException(400, {
+      message: `invalid_category_slug:${categorySlug}`,
+    });
+  }
+
+  const dryRun = body.dryRun === "true";
+  const limitRaw = body.limit;
+  let limit: number | undefined;
+  if (typeof limitRaw === "string" && limitRaw.length > 0) {
+    const n = Number(limitRaw);
+    if (Number.isNaN(n) || n < 1 || n > 100_000) {
+      throw new HTTPException(400, { message: "invalid_limit" });
+    }
+    limit = n;
+  }
+
+  // Stage the upload in os.tmpdir() and clean up no matter what.
+  const stagedDir = await mkdtemp(join(tmpdir(), "ip-import-"));
+  const stagedPath = join(stagedDir, file.name);
+  await writeFile(stagedPath, Buffer.from(await file.arrayBuffer()));
+
+  try {
+    const result = await importCategoryJsonl({
+      filePath: stagedPath,
+      categorySlug,
+      startedBy: ownerId,
+      ...(dryRun ? { dryRun: true } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+    });
+
+    // The batch row records sourceFile = the staged tmp path which is
+    // meaningless after we delete it. Patch it to a user-facing label so
+    // the import-history table reads cleanly.
+    await db
+      .update(importBatches)
+      .set({ sourceFile: `upload:${file.name}` })
+      .where(eq(importBatches.id, result.batchId));
+
+    await recordAudit({
+      actorId: ownerId,
+      action: dryRun ? "import.dry_run" : "import.run",
+      targetType: "import_batch",
+      targetId: result.batchId,
+      payload: {
+        source: "upload",
+        filename: file.name,
+        sizeBytes: file.size,
+        categorySlug,
+        total: result.total,
+        inserted: result.inserted,
+        skippedDuplicate: result.skippedDuplicate,
+        failed: result.failed,
+      },
+    });
+
+    return c.json(result);
+  } finally {
+    try {
+      await unlink(stagedPath);
+    } catch (e) {
+      console.warn("[imports.upload] unlink failed:", (e as Error).message);
+    }
+    try {
+      await rm(stagedDir, { recursive: true, force: true });
+    } catch (e) {
+      console.warn("[imports.upload] rmdir failed:", (e as Error).message);
+    }
+  }
 });
 
 export default app;
