@@ -62,6 +62,7 @@ export default function PromptDetailPage() {
 
   const d = detail.data;
   const title = pickBilingual(d.title, locale) ?? d.slug;
+  const visibleTags = (d.tags ?? []).filter((tag) => tag.slug !== "nsfw");
 
   return (
     <AppShell>
@@ -95,7 +96,12 @@ export default function PromptDetailPage() {
                 >
                   📁 {pickBilingual(d.category.name, locale) ?? d.category.slug}
                 </Link>
-                {d.tags.map((tg) => (
+                {d.category?.slug === "nsfw" && (
+                  <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-300">
+                    {t("nsfw.badge")}
+                  </span>
+                )}
+                {visibleTags.map((tg) => (
                   <Link
                     key={tg.slug}
                     to={withLocale(locale, `/prompts?tag=${tg.slug}`)}
