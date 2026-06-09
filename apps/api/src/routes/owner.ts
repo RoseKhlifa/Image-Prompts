@@ -96,6 +96,14 @@ app.get("/settings", async (c) => {
 });
 
 const SettingKeyParamSchema = z.object({ key: z.string().min(1).max(120) });
+// `value` is jsonb NOT NULL in site_settings, so reject null/undefined at the
+// route layer with a clear 400 instead of a downstream 23502 from Postgres.
+// Empty string, 0, false, [], {} are all allowed (they're valid JSON).
+const SettingPutBodySchema = z.object({
+  value: z.unknown().refine((v) => v !== null && v !== undefined, {
+    message: "value_required",
+  }),
+});
 
 /**
  * Allow-list of writable setting keys. Adding a key here is an explicit
@@ -140,33 +148,10 @@ const WRITABLE_SETTING_KEYS = new Set<string>([
 app.put(
   "/settings/:key",
   zv("param", SettingKeyParamSchema),
+  zv("json", SettingPutBodySchema),
   async (c) => {
     const { key } = c.req.valid("param");
-    // ★ Bypass @hono/zod-validator on the body for this endpoint.
-    //   `zv("json", z.object({ value: z.unknown() }))` returned `value:
-    //   undefined` even when the request body had `{"value":1}` (verified
-    //   2026-06-09 via a manual c.req.json() probe — it returned the body
-    //   correctly when called inside the handler). The other JSON endpoints
-    //   in this file use specific shapes (z.object(...) with concrete
-    //   fields) and don't hit the bug; only the z.unknown() shape does.
-    //   Manual parse here keeps the endpoint working without forcing a
-    //   shape on the value (which can legitimately be any JSON: string,
-    //   number, boolean, array, object).
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      throw new HTTPException(400, { message: "invalid_json" });
-    }
-    if (!body || typeof body !== "object") {
-      throw new HTTPException(400, { message: "body_not_object" });
-    }
-    const value = (body as { value?: unknown }).value;
-    // jsonb NOT NULL in site_settings — empty string / 0 / false / [] / {}
-    // are all valid; only null / undefined / missing field rejected.
-    if (value === null || value === undefined) {
-      throw new HTTPException(400, { message: "value_required" });
-    }
+    const { value } = c.req.valid("json");
     if (!WRITABLE_SETTING_KEYS.has(key)) {
       throw new HTTPException(400, { message: "key_not_writable" });
     }

@@ -33,15 +33,26 @@ function buildUrl(path: string, query?: FetchOptions["query"]): string {
 export async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { locale, query, headers, ...rest } = options;
   const url = buildUrl(path, query);
+
+  // Build headers via the Headers class so duplicate keys with different
+  // cases (e.g. "Content-Type" vs "content-type") merge into a single
+  // canonical entry. Passing a plain-object init to fetch with mixed-case
+  // duplicates resulted in some browsers sending malformed Content-Type
+  // values, which made @hono/zod-validator on the server see an empty body
+  // — verified 2026-06-09 on /api/translate and /api/owner/settings.
+  const h = new Headers();
+  h.set("Accept", "application/json");
+  if (locale) h.set("X-Locale", locale);
+  if (rest.body) h.set("Content-Type", "application/json");
+  if (headers) {
+    const incoming = headers instanceof Headers ? headers : new Headers(headers as HeadersInit);
+    incoming.forEach((value, key) => h.set(key, value));
+  }
+
   const res = await fetch(url, {
     credentials: "include",
     ...rest,
-    headers: {
-      Accept: "application/json",
-      ...(locale ? { "X-Locale": locale } : {}),
-      ...(rest.body ? { "Content-Type": "application/json" } : {}),
-      ...(headers ?? {}),
-    },
+    headers: h,
   });
 
   if (!res.ok) {

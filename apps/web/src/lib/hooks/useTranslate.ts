@@ -28,7 +28,6 @@ export function useTranslate() {
     mutationFn: (input) =>
       apiFetch<{ translated: string }>("/api/translate", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify(input),
       }),
   });
