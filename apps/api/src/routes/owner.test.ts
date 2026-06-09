@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
 import { eq, inArray, like, and, sql } from "drizzle-orm";
 import { mockClient } from "aws-sdk-client-mock";
-import { S3Client, HeadObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  CopyObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { createServer } from "../server.ts";
 import { db } from "../db/client.ts";
 import {
@@ -13,7 +19,9 @@ import {
   categories,
   tags,
   prompts,
+  promptImages,
   promptTags,
+  submissions,
 } from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret, decryptSecret } from "../lib/crypto.ts";
@@ -63,6 +71,39 @@ async function cleanup() {
     .update(siteSettings)
     .set({ value: 10 as unknown as never })
     .where(eq(siteSettings.key, "submit.daily_limit"));
+
+  // Task 4 (owner-prompts): test prompts created via POST /api/owner/prompts
+  // wear TEST_TAX_PREFIX-slugged titles → slugs begin with the same prefix.
+  // We must sweep their prompt_images + audit rows BEFORE r2_accounts so the
+  // r2_account_id FK doesn't block the r2 delete below.
+  const earlyPromptIds = (
+    await db
+      .select({ id: prompts.id })
+      .from(prompts)
+      .where(like(prompts.slug, `${TEST_TAX_PREFIX}%`))
+  ).map((r) => r.id);
+  if (earlyPromptIds.length > 0) {
+    await db
+      .delete(promptImages)
+      .where(inArray(promptImages.promptId, earlyPromptIds));
+    await db
+      .delete(promptTags)
+      .where(inArray(promptTags.promptId, earlyPromptIds));
+    await db
+      .update(submissions)
+      .set({ promotedTo: null })
+      .where(inArray(submissions.promotedTo, earlyPromptIds));
+    await db
+      .delete(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetType, "prompt"),
+          inArray(auditLog.targetId, earlyPromptIds),
+        ),
+      );
+    await db.delete(prompts).where(inArray(prompts.id, earlyPromptIds));
+  }
+
   await db.delete(r2Accounts).where(eq(r2Accounts.name, TEST_R2_NAME));
   // M10b W3.2 CRUD: sweep any rows the CRUD tests inserted (tw32r-* prefix on
   // `name`) AND their audit_log rows. The audit_log.target_id FK is NO ACTION,
@@ -2081,5 +2122,616 @@ describe("owner tags — DELETE", () => {
         and(eq(auditLog.action, "tag.delete"), eq(auditLog.targetId, tagId)),
       );
     expect(auditRows).toHaveLength(0);
+  });
+});
+
+// ── /api/owner/prompts ────────────────────────────────────────────────────
+//
+// Direct prompt management: list / detail / direct-create / patch / delete.
+// Tests reuse the TEST_TAX_PREFIX/TEST_R2_NAME isolation already wired into
+// cleanup() at the top of the file; the existing prompt sweep handles
+// TEST_TAX_PREFIX-slugged rows plus their FK descendants.
+//
+// All POST /prompts calls install CopyObjectCommand/DeleteObjectCommand
+// resolvers on s3Mock so the keyspace migration step doesn't reach the
+// network; reset() in beforeEach drops them between tests.
+//
+// We use the test-seeded r2_accounts row (TEST_R2_NAME) inserted by
+// setupSeedR2() as the image account.
+
+const PROMPT_TEST_SLUG = `${TEST_TAX_PREFIX}prompt`;
+
+function makePromptCreateBody(opts: {
+  categoryId: string;
+  r2AccountId: string;
+  titleEn?: string;
+  titleZh?: string;
+  promptEn?: string;
+  tagSlugs?: string[];
+  imageCount?: number;
+}) {
+  const imgs: Array<{ r2AccountId: string; r2Key: string }> = [];
+  const n = opts.imageCount ?? 1;
+  for (let i = 0; i < n; i++) {
+    imgs.push({
+      r2AccountId: opts.r2AccountId,
+      r2Key: `submissions/owner/${TEST_TAX_PREFIX}${Date.now()}-${i}.jpg`,
+    });
+  }
+  const body: Record<string, unknown> = {
+    categoryId: opts.categoryId,
+    tagSlugs: opts.tagSlugs ?? [],
+    images: imgs,
+  };
+  if (opts.titleZh !== undefined) body.titleZh = opts.titleZh;
+  if (opts.titleEn !== undefined) body.titleEn = opts.titleEn;
+  if (opts.promptEn !== undefined) body.promptEn = opts.promptEn;
+  return body;
+}
+
+async function getTestR2AccountId(): Promise<string> {
+  const [r] = await db
+    .select({ id: r2Accounts.id })
+    .from(r2Accounts)
+    .where(eq(r2Accounts.name, TEST_R2_NAME));
+  return r!.id;
+}
+
+describe("owner prompts — list", () => {
+  it("GET /prompts 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/prompts", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /prompts 200 returns { items, nextCursor } shape", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/prompts", {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: unknown[];
+      nextCursor: string | null;
+    };
+    expect(Array.isArray(j.items)).toBe(true);
+    expect(j.nextCursor === null || typeof j.nextCursor === "string").toBe(true);
+  });
+
+  it("GET /prompts?q= filters by query (returns a row we created)", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("listq")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const uniqueTitle = `${TEST_TAX_PREFIX}list-q-target-${Date.now()}`;
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: uniqueTitle, promptEn: "p",
+        }),
+      ),
+    });
+    expect(createRes.status).toBe(201);
+
+    const listRes = await app.request(
+      `/api/owner/prompts?q=${encodeURIComponent(uniqueTitle)}`,
+      { headers: { Cookie: owner.cookie } },
+    );
+    expect(listRes.status).toBe(200);
+    const j = (await listRes.json()) as {
+      items: Array<{ title: { en?: string } }>;
+    };
+    expect(j.items.length).toBeGreaterThanOrEqual(1);
+    expect(j.items.some((r) => r.title.en === uniqueTitle)).toBe(true);
+  });
+});
+
+describe("owner prompts — get detail", () => {
+  it("GET /prompts/:id 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/prompts/00000000-0000-0000-0000-000000000000",
+      { headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /prompts/:id 200 returns full detail", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("getdetail")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${PROMPT_TEST_SLUG}-detail`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    const detailRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(detailRes.status).toBe(200);
+    const d = (await detailRes.json()) as {
+      id: string;
+      slug: string;
+      title: { en?: string };
+      source: string;
+      images: Array<{ order: number }>;
+    };
+    expect(d.id).toBe(promptId);
+    expect(d.source).toBe("site");
+    expect(d.images).toHaveLength(1);
+  });
+});
+
+describe("owner prompts — direct create (POST)", () => {
+  it("POST /prompts 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /prompts 400 when title missing", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("bad-title")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+
+    const body = makePromptCreateBody({
+      categoryId: catId, r2AccountId: r2Id,
+      promptEn: "p",
+      // no titleZh or titleEn
+    });
+    const res = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /prompts 400 when no images", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("no-imgs")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    void r2Id;
+    const res = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        categoryId: catId,
+        titleEn: "t",
+        promptEn: "p",
+        tagSlugs: [],
+        images: [],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /prompts 201 creates prompt + images + writes audit + migrates keys", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("create-ok")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+
+    const res = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}create-ok-title`,
+          promptEn: "p",
+        }),
+      ),
+    });
+    expect(res.status).toBe(201);
+    const { id: promptId, slug } = (await res.json()) as {
+      id: string;
+      slug: string;
+    };
+    expect(slug.startsWith("tw41")).toBe(false); // sanity — slug derives from title
+
+    // prompt_images should have been migrated into prompts/<id>/0.<ext>.
+    const imgs = await db
+      .select({ r2Key: promptImages.r2Key })
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+
+    // Audit row exists.
+    const aud = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "prompt.create_direct"),
+          eq(auditLog.targetId, promptId),
+        ),
+      );
+    expect(aud).toHaveLength(1);
+    expect(aud[0]!.actorId).toBe(owner.userId);
+  });
+
+  it("POST /prompts attaches tagSlugs and bumps usage_count", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("create-tags")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    const tagRes = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeTagBody("create-tags-t")),
+    });
+    const { id: tagId, slug: tagSlug } = (await tagRes.json()) as {
+      id: string;
+      slug: string;
+    };
+
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+
+    const before = await db.select().from(tags).where(eq(tags.id, tagId));
+
+    const res = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}create-tags-title`,
+          promptEn: "p",
+          tagSlugs: [tagSlug],
+        }),
+      ),
+    });
+    expect(res.status).toBe(201);
+    const { id: promptId } = (await res.json()) as { id: string };
+
+    const pt = await db
+      .select()
+      .from(promptTags)
+      .where(eq(promptTags.promptId, promptId));
+    expect(pt).toHaveLength(1);
+
+    const [after] = await db.select().from(tags).where(eq(tags.id, tagId));
+    expect(after!.usageCount).toBe(before[0]!.usageCount + 1);
+  });
+});
+
+describe("owner prompts — patch", () => {
+  it("PATCH /prompts/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/prompts/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+        body: JSON.stringify({ aspectRatio: "1:1" }),
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /prompts/:id 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/prompts/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ aspectRatio: "1:1" }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("PATCH /prompts/:id 200 updates fields + writes audit", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("patch")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}patch-title`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    const patchRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ aspectRatio: "21:9" }),
+    });
+    expect(patchRes.status).toBe(200);
+    const j = (await patchRes.json()) as { aspectRatio: string };
+    expect(j.aspectRatio).toBe("21:9");
+
+    const aud = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "prompt.update"),
+          eq(auditLog.targetId, promptId),
+        ),
+      );
+    expect(aud).toHaveLength(1);
+  });
+
+  it("PATCH /prompts/:id 400 for invalid categoryId (FK fail)", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("patch-fk")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}patch-fk-title`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    const patchRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        categoryId: "00000000-0000-0000-0000-000000000000",
+      }),
+    });
+    expect(patchRes.status).toBe(400);
+  });
+
+  it("PATCH /prompts/:id replaces tagSlugs cleanly", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("patch-tags")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    const ta = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeTagBody("patch-ta")),
+    });
+    const { slug: slugA } = (await ta.json()) as { slug: string };
+    const tb = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeTagBody("patch-tb")),
+    });
+    const { slug: slugB } = (await tb.json()) as { slug: string };
+
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}patch-tags-title`, promptEn: "p",
+          tagSlugs: [slugA],
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    // Now replace [slugA] with [slugB] only.
+    const patchRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ tagSlugs: [slugB] }),
+    });
+    expect(patchRes.status).toBe(200);
+
+    const pt = await db
+      .select()
+      .from(promptTags)
+      .where(eq(promptTags.promptId, promptId));
+    expect(pt).toHaveLength(1);
+  });
+});
+
+describe("owner prompts — delete", () => {
+  it("DELETE /prompts/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/prompts/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: sess.cookie } },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /prompts/:id 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/prompts/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE /prompts/:id 200 hard-deletes + writes audit + best-effort R2 delete", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("delete")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}delete-title`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    // Sanity — the row really exists.
+    const before = await db.select().from(prompts).where(eq(prompts.id, promptId));
+    expect(before).toHaveLength(1);
+
+    const delRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(delRes.status).toBe(200);
+    const j = (await delRes.json()) as { id: string; deleted: boolean };
+    expect(j.deleted).toBe(true);
+
+    const after = await db.select().from(prompts).where(eq(prompts.id, promptId));
+    expect(after).toHaveLength(0);
+    const imgs = await db
+      .select()
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+    expect(imgs).toHaveLength(0);
+
+    const aud = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "prompt.delete"),
+          eq(auditLog.targetId, promptId),
+        ),
+      );
+    expect(aud).toHaveLength(1);
+    expect(aud[0]!.payload).toMatchObject({ deletedImageCount: 1 });
+  });
+
+  it("DELETE /prompts/:id NULLs a submissions.promoted_to that points at it", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("delete-sub")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}delete-sub-title`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    // Seed a submission promoted to this prompt.
+    const contrib = await makeNonOwner("user");
+    const [sub] = await db
+      .insert(submissions)
+      .values({
+        contributorId: contrib.userId,
+        title: { en: "submitted" }, prompt: { en: "p" },
+        categoryId: catId, tagSlugs: [],
+        imageKeys: [{ r2AccountId: r2Id, r2Key: "submissions/x/1.jpg" }],
+        agreedGuidelinesVersion: 1, status: "approved",
+        promotedTo: promptId,
+      })
+      .returning();
+
+    const delRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(delRes.status).toBe(200);
+
+    const [reread] = await db
+      .select({ promotedTo: submissions.promotedTo })
+      .from(submissions)
+      .where(eq(submissions.id, sub!.id));
+    expect(reread!.promotedTo).toBeNull();
+
+    // Clean up the test submission so the next test's cleanup doesn't block.
+    await db.delete(submissions).where(eq(submissions.id, sub!.id));
   });
 });

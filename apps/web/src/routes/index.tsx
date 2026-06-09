@@ -21,6 +21,7 @@ import AuditPage from "../pages/owner/AuditPage";
 import AnnouncementsPage from "../pages/owner/AnnouncementsPage";
 import CategoriesPage from "../pages/owner/CategoriesPage";
 import TagsPage from "../pages/owner/TagsPage";
+import PromptsPage from "../pages/owner/PromptsPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LocaleRedirect /> },
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
               { path: "announcements", element: <AnnouncementsPage /> },
               { path: "categories", element: <CategoriesPage /> },
               { path: "tags", element: <TagsPage /> },
+              { path: "prompts", element: <PromptsPage /> },
             ],
           },
         ],

@@ -10,6 +10,7 @@ import {
   Users,
   FolderTree,
   Tags,
+  Images,
   type LucideIcon,
 } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
@@ -31,6 +32,7 @@ export default function OwnerSidebar() {
     { to: withLocale(locale, "/rosekhlifa/announcements"), label: t("owner.nav.announcements"), icon: Megaphone },
     { to: withLocale(locale, "/rosekhlifa/categories"), label: t("owner.nav.categories"), icon: FolderTree },
     { to: withLocale(locale, "/rosekhlifa/tags"), label: t("owner.nav.tags"), icon: Tags },
+    { to: withLocale(locale, "/rosekhlifa/prompts"), label: t("owner.nav.prompts"), icon: Images },
     { to: withLocale(locale, "/rosekhlifa/submissions"), label: t("owner.nav.submissions"), icon: Inbox },
   ];
 

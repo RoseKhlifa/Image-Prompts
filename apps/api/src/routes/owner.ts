@@ -53,6 +53,20 @@ import {
   type TagCreateInput,
   type TagUpdateInput,
 } from "../repositories/owner-taxonomy.ts";
+import {
+  listAllPromptsForOwner,
+  getPromptForOwner,
+  createPromptDirect,
+  updatePromptForOwner,
+  deletePromptForOwner,
+  type OwnerPromptCreateInput,
+  type OwnerPromptUpdatePatch,
+} from "../repositories/owner-prompts.ts";
+import { copyObject, deleteObject } from "../lib/r2-ops.ts";
+import { buildPromptKey } from "../lib/r2-keys.ts";
+import { db } from "../db/client.ts";
+import { r2Accounts, promptImages } from "../db/schema/index.ts";
+import { and, eq } from "drizzle-orm";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 
 const app = new Hono();
@@ -814,6 +828,268 @@ app.delete(
       targetType: "tag",
       targetId: id,
       payload: {},
+    });
+    return c.json({ id, deleted: true });
+  },
+);
+
+// ── Owner-side prompt management ─────────────────────────────────────────
+//
+// list / detail / direct-create / patch / delete the prompt rows directly,
+// bypassing the submissions queue. The route layer:
+//  - validates bodies with zod (bilingual fields require at least one side)
+//  - migrates R2 keys out of submissions/ keyspace AFTER createPromptDirect
+//    succeeds, matching the admin.ts approve flow's keyspace migration
+//  - records audit rows for create/update/delete
+//  - best-effort deletes R2 objects after delete (warnings only)
+//
+// Auth: requireOwner() at the top of the file already gates these.
+
+const PromptListQuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  categorySlug: z.string().max(80).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+
+const OwnerPromptImageSchema = z.object({
+  r2AccountId: z.string().uuid(),
+  r2Key: z.string().min(1).max(400),
+  altText: z.string().max(500).optional(),
+  width: z.number().int().min(1).max(20000).optional(),
+  height: z.number().int().min(1).max(20000).optional(),
+  lqip: z.string().max(2000).optional(),
+});
+
+// Create requires bilingual title+prompt (at least one language each), 1-10
+// images, and 0-10 tags. The 10-tag cap is intentionally higher than the
+// public submit.max_tags ceiling — owners can exceed user limits per spec.
+const PromptCreateBodySchema = z.object({
+  titleZh: z.string().max(200).optional(),
+  titleEn: z.string().max(200).optional(),
+  promptZh: z.string().max(8000).optional(),
+  promptEn: z.string().max(8000).optional(),
+  negativePromptZh: z.string().max(4000).optional(),
+  negativePromptEn: z.string().max(4000).optional(),
+  notesZh: z.string().max(4000).optional(),
+  notesEn: z.string().max(4000).optional(),
+  aspectRatio: z.string().max(20).optional(),
+  categoryId: z.string().uuid(),
+  tagSlugs: z.array(z.string().min(1).max(40)).max(10).default([]),
+  images: z.array(OwnerPromptImageSchema).min(1).max(10),
+})
+  .refine((v) => Boolean(v.titleZh || v.titleEn), { message: "title_required" })
+  .refine((v) => Boolean(v.promptZh || v.promptEn), { message: "prompt_required" });
+
+// Update allows clearing optional fields via empty string + makes every key
+// optional. We intentionally don't use `.partial()` on the refined schema
+// because zod's refine() carries through; spell the partial out instead.
+const PromptUpdateBodySchema = z.object({
+  titleZh: z.string().max(200).optional(),
+  titleEn: z.string().max(200).optional(),
+  promptZh: z.string().max(8000).optional(),
+  promptEn: z.string().max(8000).optional(),
+  negativePromptZh: z.string().max(4000).optional(),
+  negativePromptEn: z.string().max(4000).optional(),
+  notesZh: z.string().max(4000).optional(),
+  notesEn: z.string().max(4000).optional(),
+  aspectRatio: z.string().max(20).optional(),
+  categoryId: z.string().uuid().optional(),
+  tagSlugs: z.array(z.string().min(1).max(40)).max(10).optional(),
+});
+
+app.get("/prompts", zv("query", PromptListQuerySchema), async (c) => {
+  const q = c.req.valid("query");
+  const filters: Parameters<typeof listAllPromptsForOwner>[0] = { limit: q.limit };
+  if (q.q !== undefined) filters.q = q.q;
+  if (q.categorySlug !== undefined) filters.categorySlug = q.categorySlug;
+  if (q.cursor !== undefined) filters.cursor = q.cursor;
+  const r = await listAllPromptsForOwner(filters);
+  return c.json(r);
+});
+
+app.get("/prompts/:id", zv("param", UuidParamSchema), async (c) => {
+  const r = await getPromptForOwner(c.req.valid("param").id);
+  if (!r) throw new HTTPException(404, { message: "not_found" });
+  return c.json(r);
+});
+
+app.post(
+  "/prompts",
+  zv("json", PromptCreateBodySchema),
+  async (c) => {
+    const ownerId = requireUserId(c);
+    const input = c.req.valid("json");
+
+    const createInput: OwnerPromptCreateInput = {
+      titleZh: input.titleZh ?? null,
+      titleEn: input.titleEn ?? null,
+      promptZh: input.promptZh ?? null,
+      promptEn: input.promptEn ?? null,
+      negativePromptZh: input.negativePromptZh ?? null,
+      negativePromptEn: input.negativePromptEn ?? null,
+      notesZh: input.notesZh ?? null,
+      notesEn: input.notesEn ?? null,
+      aspectRatio: input.aspectRatio ?? null,
+      categoryId: input.categoryId,
+      tagSlugs: input.tagSlugs,
+      images: input.images.map((img) => {
+        const o: OwnerPromptCreateInput["images"][number] = {
+          r2AccountId: img.r2AccountId,
+          r2Key: img.r2Key,
+        };
+        if (img.altText !== undefined) o.altText = img.altText;
+        if (img.width !== undefined) o.width = img.width;
+        if (img.height !== undefined) o.height = img.height;
+        if (img.lqip !== undefined) o.lqip = img.lqip;
+        return o;
+      }),
+    };
+
+    const { id: promptId, slug } = await createPromptDirect(createInput, ownerId);
+
+    // Migrate any submissions/ keys into prompts/<promptId>/<idx>.<ext>.
+    // Same shape as admin.ts approve: copyObject → UPDATE prompt_images →
+    // best-effort deleteObject. If any image lives outside submissions/
+    // (e.g., a key already in prompts/), we still recopy under the canonical
+    // name to keep the prompt's keyspace clean.
+    try {
+      const accRows = await db.select().from(r2Accounts);
+      const accMap = new Map(accRows.map((a) => [a.id, a]));
+      for (const [idx, img] of input.images.entries()) {
+        const account = accMap.get(img.r2AccountId);
+        if (!account) throw new Error(`unknown account ${img.r2AccountId}`);
+        const ext = img.r2Key.split(".").pop() ?? "jpg";
+        const newKey = buildPromptKey(promptId, idx, ext);
+        if (newKey === img.r2Key) continue;
+        await copyObject(account, img.r2Key, newKey);
+        // Update the prompt_images row to the new key (matched by promptId+order).
+        await db
+          .update(promptImages)
+          .set({ r2Key: newKey })
+          .where(
+            and(eq(promptImages.promptId, promptId), eq(promptImages.order, idx)),
+          );
+        try {
+          await deleteObject(account, img.r2Key);
+        } catch (e) {
+          console.warn("[owner.create_direct] delete original failed", img.r2Key, e);
+        }
+      }
+    } catch (e) {
+      console.error("[owner.create_direct] image migration failed", { promptId, e });
+      throw new HTTPException(500, { message: "image_migration_failed" });
+    }
+
+    await recordAudit({
+      actorId: ownerId,
+      action: "prompt.create_direct",
+      targetType: "prompt",
+      targetId: promptId,
+      payload: { slug },
+    });
+    return c.json({ id: promptId, slug }, 201);
+  },
+);
+
+app.patch(
+  "/prompts/:id",
+  zv("param", UuidParamSchema),
+  zv("json", PromptUpdateBodySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const input = c.req.valid("json");
+
+    // Strip undefined-valued keys before forwarding — same discipline as the
+    // R2 / announcements PATCH endpoints above.
+    const patch: OwnerPromptUpdatePatch = {};
+    if (input.titleZh !== undefined) patch.titleZh = input.titleZh;
+    if (input.titleEn !== undefined) patch.titleEn = input.titleEn;
+    if (input.promptZh !== undefined) patch.promptZh = input.promptZh;
+    if (input.promptEn !== undefined) patch.promptEn = input.promptEn;
+    if (input.negativePromptZh !== undefined)
+      patch.negativePromptZh = input.negativePromptZh;
+    if (input.negativePromptEn !== undefined)
+      patch.negativePromptEn = input.negativePromptEn;
+    if (input.notesZh !== undefined) patch.notesZh = input.notesZh;
+    if (input.notesEn !== undefined) patch.notesEn = input.notesEn;
+    if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
+    if (input.categoryId !== undefined) patch.categoryId = input.categoryId;
+    if (input.tagSlugs !== undefined) patch.tagSlugs = input.tagSlugs;
+
+    let updated: Awaited<ReturnType<typeof updatePromptForOwner>>;
+    try {
+      updated = await updatePromptForOwner(id, patch);
+    } catch (e: unknown) {
+      // categoryId FK violation (unknown category) surfaces as a postgres
+      // error with code 23503 (foreign_key_violation). Pg's node driver
+      // attaches `.code` on the error instance; drizzle preserves it.
+      // We also walk `.cause` in case the error was wrapped, and match
+      // English + Chinese FK-violation message variants for safety.
+      const root = (e as { cause?: unknown })?.cause ?? e;
+      const err = root as { code?: string; message?: string };
+      const msg = err?.message ?? String(e);
+      const looksLikeFkViolation =
+        err?.code === "23503" ||
+        msg.includes("23503") ||
+        msg.toLowerCase().includes("foreign key") ||
+        msg.includes("外键");
+      if (looksLikeFkViolation) {
+        throw new HTTPException(400, { message: "invalid_category" });
+      }
+      throw e;
+    }
+    if (!updated) throw new HTTPException(404, { message: "not_found" });
+
+    const hadEdits = Object.keys(patch).length > 0;
+    await recordAudit({
+      actorId: ownerId,
+      action: "prompt.update",
+      targetType: "prompt",
+      targetId: id,
+      payload: { slug: updated.slug, hadEdits },
+    });
+    return c.json(updated);
+  },
+);
+
+app.delete(
+  "/prompts/:id",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+
+    const result = await deletePromptForOwner(id);
+    if (!result) throw new HTTPException(404, { message: "not_found" });
+
+    // Best-effort R2 cleanup. A failed delete logs but does not fail the
+    // request — bucket lifecycle eventually evicts orphans. Same posture as
+    // admin.ts reject.
+    try {
+      const accRows = await db.select().from(r2Accounts);
+      const accMap = new Map(accRows.map((a) => [a.id, a]));
+      for (const img of result.imageKeys) {
+        const account = accMap.get(img.r2AccountId);
+        if (account) {
+          try {
+            await deleteObject(account, img.r2Key);
+          } catch (e) {
+            console.warn("[owner.delete] R2 delete failed", img.r2Key, e);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[owner.delete] R2 cleanup error", e);
+    }
+
+    await recordAudit({
+      actorId: ownerId,
+      action: "prompt.delete",
+      targetType: "prompt",
+      targetId: id,
+      payload: { deletedImageCount: result.imageKeys.length },
     });
     return c.json({ id, deleted: true });
   },

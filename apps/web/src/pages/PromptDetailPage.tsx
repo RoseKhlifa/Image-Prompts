@@ -152,7 +152,12 @@ export default function PromptDetailPage() {
             </div>
 
             <div className="flex justify-end">
-              <MoreMenu promptId={d.id} />
+              <MoreMenu
+                promptId={d.id}
+                slug={d.slug}
+                {...(d.title.zh !== undefined ? { titleZh: d.title.zh } : {})}
+                {...(d.title.en !== undefined ? { titleEn: d.title.en } : {})}
+              />
             </div>
 
             <SuggestedParams aspect={d.aspectRatio} />
