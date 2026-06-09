@@ -663,41 +663,16 @@ describe("listForUser primaryImage source (#5 fix)", () => {
   });
 });
 
-// ── Task 5: NSFW tag invariant ──────────────────────────────────────────
+// ── NSFW marker (relaxed from strict-invariant) ─────────────────────────
 //
-// The repo wires assertNsfwTagInvariant into:
-//   - createSubmission (the INSERT path)
-//   - approveSubmission (the moderator-promote path, using the post-edits
-//     categoryId + tagSlugs)
-//
-// We assume the `nsfw` category has been seeded (Task 1). Tests look it up
-// rather than re-creating, so a missing seed surfaces clearly.
-describe("NSFW tag invariant on submission (Task 5)", () => {
-  it("rejects NSFW submission with extra tags", async () => {
-    const u = await makeUser();
-    const [nsfwCat] = await db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.slug, "nsfw"))
-      .limit(1);
-    expect(nsfwCat).toBeDefined();
-    await expect(
-      createSubmission({
-        contributorId: u.id,
-        titleZh: "nsfw-bad", titleEn: null,
-        promptZh: "p", promptEn: null,
-        negativePromptZh: null, negativePromptEn: null,
-        notesZh: null, notesEn: null,
-        aspectRatio: null,
-        categoryId: nsfwCat!.id,
-        tagSlugs: ["nsfw", "extra"],
-        images: [img1],
-        agreedGuidelinesVersion: 1,
-      }),
-    ).rejects.toThrow("nsfw_category_tags_locked");
-  });
-
-  it("accepts NSFW submission with exactly ['nsfw']", async () => {
+// createSubmission pipes the input tagSlugs through ensureNsfwTag — for
+// nsfw-category prompts the `nsfw` marker is auto-appended if missing;
+// additional content-descriptive tags (二次元 / 真人 / 猎奇 / etc.) are
+// preserved. We don't assert the marker landed in prompt_tags here because
+// submissions store tagSlugs as a jsonb array — approveSubmission is where
+// the join-table rows are created.
+describe("NSFW marker on submission", () => {
+  it("preserves additional tags alongside `nsfw`", async () => {
     const u = await makeUser();
     const [nsfwCat] = await db
       .select({ id: categories.id })
@@ -707,19 +682,51 @@ describe("NSFW tag invariant on submission (Task 5)", () => {
     expect(nsfwCat).toBeDefined();
     const id = await createSubmission({
       contributorId: u.id,
-      titleZh: "nsfw-ok", titleEn: null,
+      titleZh: "nsfw-multi-tag", titleEn: null,
       promptZh: "p", promptEn: null,
       negativePromptZh: null, negativePromptEn: null,
       notesZh: null, notesEn: null,
       aspectRatio: null,
       categoryId: nsfwCat!.id,
-      tagSlugs: ["nsfw"],
+      tagSlugs: ["nsfw", "二次元"],
       images: [img1],
       agreedGuidelinesVersion: 1,
     });
-    expect(id).toBeDefined();
-    // Idempotent cleanup — the user-scoped cleanup() handles this too, but
-    // dropping it now lets us re-run the spec in isolation.
+    const [row] = await db
+      .select({ tagSlugs: submissions.tagSlugs })
+      .from(submissions)
+      .where(eq(submissions.id, id))
+      .limit(1);
+    expect(row?.tagSlugs).toEqual(["nsfw", "二次元"]);
+    await db.delete(submissions).where(eq(submissions.id, id));
+  });
+
+  it("auto-appends `nsfw` when missing", async () => {
+    const u = await makeUser();
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    const id = await createSubmission({
+      contributorId: u.id,
+      titleZh: "nsfw-no-marker", titleEn: null,
+      promptZh: "p", promptEn: null,
+      negativePromptZh: null, negativePromptEn: null,
+      notesZh: null, notesEn: null,
+      aspectRatio: null,
+      categoryId: nsfwCat!.id,
+      tagSlugs: ["二次元"],
+      images: [img1],
+      agreedGuidelinesVersion: 1,
+    });
+    const [row] = await db
+      .select({ tagSlugs: submissions.tagSlugs })
+      .from(submissions)
+      .where(eq(submissions.id, id))
+      .limit(1);
+    expect(row?.tagSlugs).toEqual(["二次元", "nsfw"]);
     await db.delete(submissions).where(eq(submissions.id, id));
   });
 });

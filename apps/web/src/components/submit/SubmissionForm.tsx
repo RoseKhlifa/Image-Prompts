@@ -105,24 +105,13 @@ export default function SubmissionForm() {
     saveDraft(values);
   }, [values]);
 
-  // Lock tags to ["nsfw"] when the visitor selects the nsfw category, and
-  // clear the lock + ack input when they switch away. Persists the
-  // updated tagSlugs through the draft via the existing saveDraft effect.
+  // When the visitor switches AWAY from the nsfw category, clear the
+  // acknowledgment so they have to re-affirm if they swing back. The tag
+  // list is left alone — the server appends the `nsfw` marker on insert
+  // when needed (lib/nsfw.ts → ensureNsfwTag), and other tags are valid
+  // descriptive labels.
   useEffect(() => {
-    if (selectedCategorySlug === "nsfw") {
-      setValues((prev) =>
-        prev.tagSlugs?.length === 1 && prev.tagSlugs[0] === "nsfw"
-          ? prev
-          : { ...prev, tagSlugs: ["nsfw"] },
-      );
-    } else {
-      setNsfwAck("");
-      setValues((prev) =>
-        prev.tagSlugs?.length === 1 && prev.tagSlugs[0] === "nsfw"
-          ? { ...prev, tagSlugs: [] }
-          : prev,
-      );
-    }
+    if (selectedCategorySlug !== "nsfw") setNsfwAck("");
   }, [selectedCategorySlug]);
 
   const create = useCreateSubmission({
@@ -288,21 +277,15 @@ export default function SubmissionForm() {
           ))}
         </select>
         <FieldError keyName="categoryId" errors={errors} />
-        <div className="mt-2">
-          {selectedCategorySlug === "nsfw" ? (
-            <div className="space-y-3">
-              <p className="text-xs text-zinc-400">
-                {t("nsfw.submit.tag_locked_note")}
-              </p>
-              <NsfwSubmitAck value={nsfwAck} onChange={setNsfwAck} />
-            </div>
-          ) : (
-            <TagPicker
-              value={values.tagSlugs ?? []}
-              onChange={(slugs) => setField("tagSlugs", slugs)}
-            />
-          )}
+        <div className="mt-2 space-y-3">
+          <TagPicker
+            value={values.tagSlugs ?? []}
+            onChange={(slugs) => setField("tagSlugs", slugs)}
+          />
           <FieldError keyName="tagSlugs" errors={errors} />
+          {selectedCategorySlug === "nsfw" && (
+            <NsfwSubmitAck value={nsfwAck} onChange={setNsfwAck} />
+          )}
         </div>
       </section>
 

@@ -4,32 +4,35 @@ import { categories } from "../db/schema/taxonomy.ts";
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export class NsfwTagInvariantError extends Error {
-  constructor() {
-    super("nsfw_category_tags_locked");
-    this.name = "NsfwTagInvariantError";
-  }
-}
+const NSFW_TAG_SLUG = "nsfw";
 
 /**
- * Enforce: prompts in the `nsfw` category may carry ONLY the `nsfw` tag.
- * No-op for any other category. Compares tag names case-insensitively after trim.
+ * For prompts whose category is `nsfw`, return the tag-slug list with the
+ * `nsfw` marker guaranteed present (case-insensitive). Non-NSFW categories
+ * pass through unchanged.
  *
- * Throws NsfwTagInvariantError (.message === "nsfw_category_tags_locked").
+ * The `nsfw` tag is an internal marker every NSFW prompt must carry — the
+ * sidebar / autocomplete suppressor keys off it, and the detail-page chip
+ * filter assumes it's there. Callers pipe their input through this helper
+ * before INSERTing prompt_tags rows.
+ *
+ * (Pre-rename: `assertNsfwTagInvariant` enforced "exactly ['nsfw']" — that
+ * was too strict for crawled NSFW data which carries content-descriptive
+ * tags like `二次元` / `真人` / `猎奇` alongside the marker.)
  */
-export async function assertNsfwTagInvariant(
+export async function ensureNsfwTag(
   tx: DbOrTx,
   categoryId: string,
-  tagNames: string[],
-): Promise<void> {
-  const [category] = await tx
+  tagSlugs: string[],
+): Promise<string[]> {
+  const [cat] = await tx
     .select({ slug: categories.slug })
     .from(categories)
     .where(eq(categories.id, categoryId))
     .limit(1);
-  if (category?.slug !== "nsfw") return;
-  const normalized = tagNames.map((t) => t.trim().toLowerCase());
-  if (normalized.length !== 1 || normalized[0] !== "nsfw") {
-    throw new NsfwTagInvariantError();
-  }
+  if (cat?.slug !== "nsfw") return tagSlugs;
+  const hasNsfw = tagSlugs.some(
+    (t) => t.trim().toLowerCase() === NSFW_TAG_SLUG,
+  );
+  return hasNsfw ? tagSlugs : [...tagSlugs, NSFW_TAG_SLUG];
 }

@@ -11,7 +11,7 @@ import {
   auditLog,
 } from "../db/schema/index.ts";
 import { bi } from "../lib/bilingual.ts";
-import { assertNsfwTagInvariant } from "../lib/nsfw.ts";
+import { ensureNsfwTag } from "../lib/nsfw.ts";
 
 type ImageInput = { r2AccountId: string; r2Key: string; altText?: string };
 
@@ -44,11 +44,9 @@ export async function createSubmission(input: CreateInput): Promise<string> {
   if (!title || !prompt) {
     throw new Error("createSubmission: title/prompt cannot both be empty");
   }
-  // NSFW invariant: prompts in the `nsfw` category may carry ONLY the
-  // `nsfw` tag. No-op for any other category. Helper throws
-  // NsfwTagInvariantError (.message === "nsfw_category_tags_locked") which
-  // the error middleware (Task 7) maps to a 400 response.
-  await assertNsfwTagInvariant(db, input.categoryId, input.tagSlugs);
+  // NSFW marker: prompts in the `nsfw` category must include the `nsfw`
+  // tag (auto-appended if missing). Other categories pass through unchanged.
+  const tagSlugs = await ensureNsfwTag(db, input.categoryId, input.tagSlugs);
   const [row] = await db
     .insert(submissions)
     .values({
@@ -59,7 +57,7 @@ export async function createSubmission(input: CreateInput): Promise<string> {
       notes: bi(input.notesZh, input.notesEn),
       aspectRatio: input.aspectRatio,
       categoryId: input.categoryId,
-      tagSlugs: input.tagSlugs,
+      tagSlugs,
       imageKeys: input.images.map((i) => ({
         r2AccountId: i.r2AccountId,
         r2Key: i.r2Key,
@@ -413,10 +411,10 @@ export async function approveSubmission(input: ApproveInput): Promise<ApproveRes
   }
 
   const result = await db.transaction(async (tx) => {
-    // NSFW invariant: re-check on approve using the post-edits values so a
-    // moderator can't bypass by editing the category to `nsfw` while leaving
-    // non-`nsfw` tags in place. Helper throws NsfwTagInvariantError.
-    await assertNsfwTagInvariant(tx, final.categoryId, final.tagSlugs);
+    // NSFW marker: ensure `nsfw` tag is present when the post-edits category
+    // is `nsfw` — a moderator could swap into the nsfw category at approve
+    // time and we want the marker added even if their edits didn't carry it.
+    const finalTagSlugs = await ensureNsfwTag(tx, final.categoryId, final.tagSlugs);
     const slug = await generateUniqueSlug(
       tx,
       final.titleZh ?? final.titleEn ?? "prompt",
@@ -467,11 +465,11 @@ export async function approveSubmission(input: ApproveInput): Promise<ApproveRes
     }
 
     // 3. We own this submission now — apply the rest of the side effects.
-    if (final.tagSlugs.length > 0) {
+    if (finalTagSlugs.length > 0) {
       const tagRows = await tx
         .select({ id: tagsTable.id, slug: tagsTable.slug })
         .from(tagsTable)
-        .where(inArray(tagsTable.slug, final.tagSlugs));
+        .where(inArray(tagsTable.slug, finalTagSlugs));
       if (tagRows.length > 0) {
         await tx
           .insert(promptTags)
@@ -479,7 +477,7 @@ export async function approveSubmission(input: ApproveInput): Promise<ApproveRes
         await tx
           .update(tagsTable)
           .set({ usageCount: sql`${tagsTable.usageCount} + 1` })
-          .where(inArray(tagsTable.slug, final.tagSlugs));
+          .where(inArray(tagsTable.slug, finalTagSlugs));
       }
     }
 
@@ -554,9 +552,9 @@ async function approveEditSubmission(
   const promptId = sub.originalPromptId;
 
   const result = await db.transaction(async (tx) => {
-    // NSFW invariant: same re-check as the insert path. Edits may have
+    // NSFW marker: same re-check as the insert path. Edits may have
     // moved the submission into / out of the nsfw category.
-    await assertNsfwTagInvariant(tx, final.categoryId, final.tagSlugs);
+    const finalTagSlugs = await ensureNsfwTag(tx, final.categoryId, final.tagSlugs);
     // 1. Read the existing prompt to make sure it still exists (a self-edit
     //    submission could outlive its target if the user later deletes the
     //    original via the self-delete endpoint).
@@ -616,16 +614,16 @@ async function approveEditSubmission(
       .innerJoin(tagsTable, eq(tagsTable.id, promptTags.tagId))
       .where(eq(promptTags.promptId, promptId));
     const before = new Set(existingTags.map((r) => r.slug));
-    const after = new Set(final.tagSlugs);
+    const after = new Set(finalTagSlugs);
     const added = [...after].filter((s) => !before.has(s));
     const removedTags = [...before].filter((s) => !after.has(s));
 
     await tx.delete(promptTags).where(eq(promptTags.promptId, promptId));
-    if (final.tagSlugs.length > 0) {
+    if (finalTagSlugs.length > 0) {
       const tagRows = await tx
         .select({ id: tagsTable.id, slug: tagsTable.slug })
         .from(tagsTable)
-        .where(inArray(tagsTable.slug, final.tagSlugs));
+        .where(inArray(tagsTable.slug, finalTagSlugs));
       if (tagRows.length > 0) {
         await tx
           .insert(promptTags)

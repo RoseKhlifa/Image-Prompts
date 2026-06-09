@@ -11,7 +11,7 @@ import {
 } from "../db/schema/index.ts";
 import { users } from "../db/schema/auth.ts";
 import { bi } from "../lib/bilingual.ts";
-import { assertNsfwTagInvariant } from "../lib/nsfw.ts";
+import { ensureNsfwTag } from "../lib/nsfw.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────
 //
@@ -491,9 +491,9 @@ export async function createPromptDirect(
   }
 
   return await db.transaction(async (tx) => {
-    // NSFW invariant: prompts in the `nsfw` category may carry ONLY the
-    // `nsfw` tag. Helper throws NsfwTagInvariantError on violation.
-    await assertNsfwTagInvariant(tx, input.categoryId, input.tagSlugs);
+    // NSFW marker: ensure the `nsfw` tag is in the tag list when category
+    // is nsfw (auto-appended if absent). Other categories unaffected.
+    const tagSlugs = await ensureNsfwTag(tx, input.categoryId, input.tagSlugs);
     const slug = await generateUniqueSlug(
       tx,
       input.titleZh ?? input.titleEn ?? "prompt",
@@ -517,11 +517,11 @@ export async function createPromptDirect(
 
     const promptId = p!.id;
 
-    if (input.tagSlugs.length > 0) {
+    if (tagSlugs.length > 0) {
       const tagRows = await tx
         .select({ id: tagsTable.id, slug: tagsTable.slug })
         .from(tagsTable)
-        .where(inArray(tagsTable.slug, input.tagSlugs));
+        .where(inArray(tagsTable.slug, tagSlugs));
       if (tagRows.length > 0) {
         await tx
           .insert(promptTags)
@@ -529,7 +529,7 @@ export async function createPromptDirect(
         await tx
           .update(tagsTable)
           .set({ usageCount: sql`${tagsTable.usageCount} + 1` })
-          .where(inArray(tagsTable.slug, input.tagSlugs));
+          .where(inArray(tagsTable.slug, tagSlugs));
       }
     }
 
@@ -619,23 +619,31 @@ export async function updatePromptForOwner(
   const migrateKeys: OwnerPromptUpdateResult["migrateKeys"] = [];
 
   await db.transaction(async (tx) => {
-    // NSFW invariant: enforce on the POST-PATCH state. categoryId falls back
-    // to the existing row's category; tagSlugs fall back to the existing
-    // attached slugs. So patching only-tags or only-category still checks
-    // the combined invariant correctly.
+    // NSFW marker: ensure the `nsfw` tag is present on the POST-PATCH state
+    // when category is nsfw. categoryId falls back to the existing row's
+    // category; tagSlugs fall back to the existing attached slugs. So
+    // moving an existing prompt INTO nsfw (without a tag patch) still
+    // gets the marker added.
     const effectiveCategoryId = patch.categoryId ?? cur.categoryId;
-    let effectiveTagSlugs: string[];
-    if (patch.tagSlugs !== undefined) {
-      effectiveTagSlugs = patch.tagSlugs;
+    const hasExplicitTagPatch = patch.tagSlugs !== undefined;
+    let targetTagSlugs: string[];
+    if (hasExplicitTagPatch) {
+      targetTagSlugs = patch.tagSlugs!;
     } else {
       const existingTags = await tx
         .select({ slug: tagsTable.slug })
         .from(promptTags)
         .innerJoin(tagsTable, eq(tagsTable.id, promptTags.tagId))
         .where(eq(promptTags.promptId, id));
-      effectiveTagSlugs = existingTags.map((r) => r.slug);
+      targetTagSlugs = existingTags.map((r) => r.slug);
     }
-    await assertNsfwTagInvariant(tx, effectiveCategoryId, effectiveTagSlugs);
+    const effectiveTagSlugs = await ensureNsfwTag(
+      tx,
+      effectiveCategoryId,
+      targetTagSlugs,
+    );
+    const tagListChanged =
+      hasExplicitTagPatch || effectiveTagSlugs.length !== targetTagSlugs.length;
 
     const setClause: Record<string, unknown> = { updatedAt: sql`now()` };
 
@@ -675,26 +683,27 @@ export async function updatePromptForOwner(
       .set(setClause as Partial<typeof promptsTable.$inferInsert>)
       .where(eq(promptsTable.id, id));
 
-    if (patch.tagSlugs !== undefined) {
-      // Read current tag slugs inside the tx.
+    if (tagListChanged) {
+      // Read current tag slugs inside the tx so the diff includes any rows
+      // attached by an earlier-committed patch.
       const existingTags = await tx
         .select({ slug: tagsTable.slug })
         .from(promptTags)
         .innerJoin(tagsTable, eq(tagsTable.id, promptTags.tagId))
         .where(eq(promptTags.promptId, id));
       const before = new Set(existingTags.map((r) => r.slug));
-      const after = new Set(patch.tagSlugs);
+      const after = new Set(effectiveTagSlugs);
       const added = [...after].filter((s) => !before.has(s));
       const removed = [...before].filter((s) => !after.has(s));
 
       // Wipe & re-insert is simpler than diffing on the join table; the
       // delete+insert is cheap because prompt_tags is keyed on promptId.
       await tx.delete(promptTags).where(eq(promptTags.promptId, id));
-      if (patch.tagSlugs.length > 0) {
+      if (effectiveTagSlugs.length > 0) {
         const tagRows = await tx
           .select({ id: tagsTable.id, slug: tagsTable.slug })
           .from(tagsTable)
-          .where(inArray(tagsTable.slug, patch.tagSlugs));
+          .where(inArray(tagsTable.slug, effectiveTagSlugs));
         if (tagRows.length > 0) {
           await tx
             .insert(promptTags)

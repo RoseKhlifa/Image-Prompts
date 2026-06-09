@@ -802,16 +802,14 @@ describe("updatePromptForOwner", () => {
   });
 });
 
-// ── Task 5: NSFW tag invariant ──────────────────────────────────────────
+// ── NSFW marker on owner prompts (relaxed from strict-invariant) ────────
 //
-// createPromptDirect and updatePromptForOwner both wire
-// assertNsfwTagInvariant. The update path computes the EFFECTIVE post-patch
-// values: categoryId falls back to existing, tagSlugs fall back to existing.
-//
-// We assume the `nsfw` category is seeded (Task 1). Tests look it up.
+// createPromptDirect + updatePromptForOwner both pipe their tag list
+// through ensureNsfwTag — the marker is auto-appended when missing on
+// nsfw-category prompts, additional descriptive tags pass through unchanged.
 
-describe("NSFW tag invariant on owner prompts (Task 5)", () => {
-  it("rejects create with NSFW category + extra tags", async () => {
+describe("NSFW marker on owner prompts", () => {
+  it("preserves create with NSFW + multiple descriptive tags", async () => {
     const owner = await makeOwner();
     const r2 = await makeR2();
     const [nsfwCat] = await db
@@ -820,95 +818,108 @@ describe("NSFW tag invariant on owner prompts (Task 5)", () => {
       .where(eq(categories.slug, "nsfw"))
       .limit(1);
     expect(nsfwCat).toBeDefined();
-    await expect(
-      createPromptDirect(
-        {
-          titleZh: null, titleEn: "tw41r-nsfw-create-bad",
-          promptZh: null, promptEn: "p",
-          negativePromptZh: null, negativePromptEn: null,
-          notesZh: null, notesEn: null,
-          aspectRatio: null,
-          categoryId: nsfwCat!.id,
-          tagSlugs: ["nsfw", "extra"],
-          images: [{ r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}.jpg` }],
-        },
-        owner.id,
-      ),
-    ).rejects.toThrow("nsfw_category_tags_locked");
-  });
-
-  it("rejects update moving SFW prompt to NSFW category with extra tags", async () => {
-    const { id } = await makePromptDirect({ tagSlugs: [] });
-    const [nsfwCat] = await db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.slug, "nsfw"))
-      .limit(1);
-    expect(nsfwCat).toBeDefined();
-    await expect(
-      updatePromptForOwner(id, {
-        categoryId: nsfwCat!.id,
-        tagSlugs: ["nsfw", "extra"],
-      }),
-    ).rejects.toThrow("nsfw_category_tags_locked");
-  });
-
-  it("accepts update moving SFW prompt to NSFW with tagSlugs=['nsfw']", async () => {
-    const { id } = await makePromptDirect({ tagSlugs: [] });
-    const [nsfwCat] = await db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.slug, "nsfw"))
-      .limit(1);
-    expect(nsfwCat).toBeDefined();
-    const result = await updatePromptForOwner(id, {
-      categoryId: nsfwCat!.id,
-      tagSlugs: ["nsfw"],
-    });
-    expect(result).not.toBeNull();
-    expect(result!.detail.category.id).toBe(nsfwCat!.id);
-    expect(result!.detail.tagSlugs).toEqual(["nsfw"]);
-  });
-
-  it("accepts update moving NSFW prompt back to SFW with new tags", async () => {
-    // Need to first build an NSFW prompt with the locked single tag.
-    const owner = await makeOwner();
-    const cat = await makeCategory();
-    const r2 = await makeR2();
-    const [nsfwCat] = await db
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.slug, "nsfw"))
-      .limit(1);
-    expect(nsfwCat).toBeDefined();
-    // Ensure the global `nsfw` tag exists so the create can insert
-    // prompt_tags row (createPromptDirect skips unknown slugs silently).
-    // We also seed our own SFW tag to use after the category swap.
     await db.execute(
       sql`INSERT INTO tags (slug, name) VALUES ('nsfw', '{"zh":"NSFW","en":"NSFW"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
     );
-    const sfwTag = await makeTag("-after");
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('二次元', '{"zh":"二次元","en":"anime"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
     const { id } = await createPromptDirect(
       {
-        titleZh: null, titleEn: "tw41r-nsfw-swapback",
+        titleZh: null, titleEn: "tw41r-nsfw-multi",
         promptZh: null, promptEn: "p",
         negativePromptZh: null, negativePromptEn: null,
         notesZh: null, notesEn: null,
         aspectRatio: null,
         categoryId: nsfwCat!.id,
-        tagSlugs: ["nsfw"],
+        tagSlugs: ["nsfw", "二次元"],
         images: [{ r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}.jpg` }],
       },
       owner.id,
     );
-    // Now move back to a fresh SFW category with an unrelated tag set.
+    expect(id).toBeDefined();
+  });
+
+  it("auto-appends `nsfw` when create lacks the marker", async () => {
+    const owner = await makeOwner();
+    const r2 = await makeR2();
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('nsfw', '{"zh":"NSFW","en":"NSFW"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('二次元', '{"zh":"二次元","en":"anime"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
+    const { id } = await createPromptDirect(
+      {
+        titleZh: null, titleEn: "tw41r-nsfw-auto-marker",
+        promptZh: null, promptEn: "p",
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: nsfwCat!.id,
+        tagSlugs: ["二次元"],
+        images: [{ r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}.jpg` }],
+      },
+      owner.id,
+    );
+    // Verify the prompt_tags row for nsfw was inserted alongside the
+    // user-supplied one.
+    const tagRows = await db
+      .select({ slug: tags.slug })
+      .from(promptTags)
+      .innerJoin(tags, eq(tags.id, promptTags.tagId))
+      .where(eq(promptTags.promptId, id));
+    const slugs = tagRows.map((r) => r.slug).sort();
+    expect(slugs).toEqual(["nsfw", "二次元"]);
+  });
+
+  it("update accepts SFW→NSFW with descriptive tags", async () => {
+    const { id } = await makePromptDirect({ tagSlugs: [] });
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('nsfw', '{"zh":"NSFW","en":"NSFW"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('二次元', '{"zh":"二次元","en":"anime"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
     const result = await updatePromptForOwner(id, {
-      categoryId: cat.id,
-      tagSlugs: [sfwTag.slug],
+      categoryId: nsfwCat!.id,
+      tagSlugs: ["nsfw", "二次元"],
     });
     expect(result).not.toBeNull();
-    expect(result!.detail.category.id).toBe(cat.id);
-    expect(result!.detail.tagSlugs).toEqual([sfwTag.slug]);
+    expect(result!.detail.category.id).toBe(nsfwCat!.id);
+    expect(result!.detail.tagSlugs.sort()).toEqual(["nsfw", "二次元"]);
+  });
+
+  it("update SFW→NSFW with no tag patch auto-adds marker", async () => {
+    const { id } = await makePromptDirect({ tagSlugs: [] });
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('nsfw', '{"zh":"NSFW","en":"NSFW"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
+    // No tagSlugs in patch — invariant must still attach `nsfw`.
+    const result = await updatePromptForOwner(id, {
+      categoryId: nsfwCat!.id,
+    });
+    expect(result).not.toBeNull();
+    expect(result!.detail.category.id).toBe(nsfwCat!.id);
+    expect(result!.detail.tagSlugs).toEqual(["nsfw"]);
   });
 });
 
