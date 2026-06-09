@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, timestamp, integer, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, uuid, text, timestamp, integer, jsonb, primaryKey } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "moderator", "admin"]);
 
@@ -22,6 +22,17 @@ export const users = pgTable("users", {
   rejectedCount: integer("rejected_count").notNull().default(0),
   bannedAt: timestamp("banned_at", { withTimezone: true }),
   bannedReason: text("banned_reason"),
+  // ★ M11 profile enrich: bilingual short self-intro (max 500 chars/side,
+  //   enforced at the route layer). Null when the user hasn't written one.
+  bio: jsonb().$type<{ zh?: string; en?: string }>(),
+  // ★ M11 profile enrich: fixed-slot URL set. Each slot is optional and
+  //   validated as a URL at the route layer. Null when none are set.
+  socialLinks: jsonb("social_links").$type<{
+    github?: string;
+    twitter?: string;
+    bilibili?: string;
+    website?: string;
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

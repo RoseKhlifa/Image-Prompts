@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { isLocale, type Locale } from "@ip/shared";
+import { Github, Twitter, Globe } from "lucide-react";
+import { isLocale, pickBilingual, type Locale } from "@ip/shared";
 import AppShell from "../components/layout/AppShell";
 import Avatar from "../components/Avatar";
 import StatsCard from "../components/profile/StatsCard";
@@ -50,6 +51,10 @@ export default function UserPage() {
     );
   }
 
+  const bio = user.data.bio ? pickBilingual(user.data.bio, locale) : null;
+  const socialLinks = user.data.socialLinks ?? null;
+  const pinned = user.data.pinnedPrompts ?? [];
+
   return (
     <AppShell>
       <article className="mx-auto max-w-5xl px-6 py-8">
@@ -75,9 +80,24 @@ export default function UserPage() {
           </div>
         </header>
 
+        {/* Bio + social — only render the surface for set fields. For an
+            owner's empty bio we still surface the placeholder; on someone
+            else's page we hide the bio block entirely if both sides empty. */}
+        {bio ? (
+          <p className="mb-4 whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
+            {bio}
+          </p>
+        ) : isOwner ? (
+          <p className="mb-4 text-[12px] text-ink-dim">{t("profile.bio_empty")}</p>
+        ) : (
+          <p className="mb-4 text-[12px] text-ink-dim">{t("user.bio_empty")}</p>
+        )}
+
+        <SocialRow links={socialLinks} />
+
         {/* Stats */}
         {stats.data && (
-          <div className="mb-6">
+          <div className="mb-6 mt-4">
             <StatsCard stats={stats.data} />
           </div>
         )}
@@ -116,22 +136,46 @@ export default function UserPage() {
         {tab === "works" ? (
           works.isLoading ? (
             <CardGridSkeleton count={6} />
-          ) : (works.data?.items.length ?? 0) === 0 ? (
-            <EmptyState />
           ) : (
-            <Masonry
-              items={(works.data?.items ?? []).map<MasonryItem>((p) => ({
-                key: p.id,
-                aspectRatio:
-                  p.primaryImage?.width && p.primaryImage?.height
-                    ? p.primaryImage.width / p.primaryImage.height
-                    : 1,
-                node: <PromptCard prompt={p} />,
-              }))}
-              breakpoints={BREAKPOINTS}
-              gap={4}
-              className="p-2"
-            />
+            <>
+              {pinned.length > 0 && (
+                <section className="mb-6">
+                  <h2 className="mb-2 text-[13px] font-semibold text-ink">
+                    {`📌 ${t("user.pinned_section")}`}
+                  </h2>
+                  <Masonry
+                    items={pinned.map<MasonryItem>((p) => ({
+                      key: `pinned-${p.id}`,
+                      aspectRatio:
+                        p.primaryImage?.width && p.primaryImage?.height
+                          ? p.primaryImage.width / p.primaryImage.height
+                          : 1,
+                      node: <PromptCard prompt={p} />,
+                    }))}
+                    breakpoints={BREAKPOINTS}
+                    gap={4}
+                    className="p-2"
+                  />
+                </section>
+              )}
+              {(works.data?.items.length ?? 0) === 0 ? (
+                <EmptyState />
+              ) : (
+                <Masonry
+                  items={(works.data?.items ?? []).map<MasonryItem>((p) => ({
+                    key: p.id,
+                    aspectRatio:
+                      p.primaryImage?.width && p.primaryImage?.height
+                        ? p.primaryImage.width / p.primaryImage.height
+                        : 1,
+                    node: <PromptCard prompt={p} />,
+                  }))}
+                  breakpoints={BREAKPOINTS}
+                  gap={4}
+                  className="p-2"
+                />
+              )}
+            </>
           )
         ) : favorites.isLoading ? (
           <CardGridSkeleton count={6} />
@@ -154,5 +198,49 @@ export default function UserPage() {
         )}
       </article>
     </AppShell>
+  );
+}
+
+function SocialRow({
+  links,
+}: {
+  links: {
+    github?: string;
+    twitter?: string;
+    bilibili?: string;
+    website?: string;
+  } | null;
+}) {
+  if (!links) return null;
+  const entries: Array<{ key: string; href: string; node: React.ReactNode }> = [];
+  if (links.github)
+    entries.push({ key: "github", href: links.github, node: <Github size={16} /> });
+  if (links.twitter)
+    entries.push({ key: "twitter", href: links.twitter, node: <Twitter size={16} /> });
+  if (links.bilibili)
+    entries.push({
+      key: "bilibili",
+      href: links.bilibili,
+      node: <span className="px-1 text-[10px] font-bold leading-none">B站</span>,
+    });
+  if (links.website)
+    entries.push({ key: "website", href: links.website, node: <Globe size={16} /> });
+  if (entries.length === 0) return null;
+  return (
+    <ul className="mb-2 flex flex-wrap gap-1.5">
+      {entries.map((e) => (
+        <li key={e.key}>
+          <a
+            href={e.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={e.key}
+            className="inline-flex h-7 min-w-7 items-center justify-center rounded-pill border border-border-soft bg-surface px-2 text-ink hover:bg-panel-2"
+          >
+            {e.node}
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }

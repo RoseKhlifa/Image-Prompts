@@ -23,7 +23,9 @@
     "all": "All",
     "anonymous": "Anonymous",
     "close": "Close",
-    "load_more": "Load more"
+    "load_more": "Load more",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "auth": {
     "sign_in": "Sign In",
@@ -58,7 +60,9 @@
   "user": {
     "joined_at": "Joined {date}",
     "tab_works": "Works",
-    "tab_favorites": "Favorites"
+    "tab_favorites": "Favorites",
+    "pinned_section": "Pinned",
+    "bio_empty": "No bio yet"
   },
   "list": {
     "sort_latest": "Latest",
@@ -114,7 +118,28 @@
     "tab_profile": "Profile",
     "tab_favorites": "My Favorites",
     "no_favorites": "No favorites yet",
-    "no_favorites_hint": "Click ⭐ on any prompt card or detail page to save it here"
+    "no_favorites_hint": "Click ⭐ on any prompt card or detail page to save it here",
+    "bio_label": "About",
+    "bio_zh_label": "Bio (Chinese)",
+    "bio_en_label": "Bio (English)",
+    "bio_placeholder": "Tell us about yourself (optional)…",
+    "bio_empty": "No bio yet",
+    "social_label": "Social links",
+    "social_github": "GitHub",
+    "social_twitter": "Twitter / X",
+    "social_bilibili": "B站",
+    "social_website": "Website",
+    "social_url_invalid": "Please enter a valid URL",
+    "pinned_label": "Pinned",
+    "pinned_hint": "Up to 3",
+    "pinned_empty": "No pinned works yet",
+    "edit_button": "Edit profile",
+    "edit_pins_button": "Edit pins",
+    "edit_modal_title": "Edit profile",
+    "edit_tab_basic": "Bio & social",
+    "edit_tab_pins": "Pinned",
+    "save_success": "Saved",
+    "save_failed": "Save failed"
   },
   "interactions": {
     "liked": "Liked",

@@ -15,6 +15,7 @@ import importTokensRoute from "./routes/import-tokens.ts";
 import interactionsRoute from "./routes/interactions.ts";
 import meRoute from "./routes/me.ts";
 import mePromptsRoute from "./routes/me-prompts.ts";
+import meProfileRoute from "./routes/me-profile.ts";
 import submissionsRoute from "./routes/submissions.ts";
 import adminRoute from "./routes/admin.ts";
 import ownerRoute from "./routes/owner.ts";
@@ -61,6 +62,10 @@ export function createServer() {
   // /api/me so it can be gated by verifyAuth + banCheck independently of the
   // legacy /api/me routes (favorites, submissions, notifications, etc.).
   app.route("/api/me/prompts", mePromptsRoute);
+  // M11 profile enrichment: PATCH /api/me/profile (bio + social) and
+  // PUT /api/me/profile/pins. Mounted as a sibling so the route module can
+  // own its own validation + audit boilerplate independently of /api/me.
+  app.route("/api/me/profile", meProfileRoute);
   app.route("/api/submissions", submissionsRoute);
   app.route("/api/admin", adminRoute);
   app.route("/api/owner", ownerRoute);

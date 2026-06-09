@@ -6,3 +6,4 @@ export * from "./interactions.ts";
 export * from "./system.ts";
 export * from "./notifications.ts";
 export * from "./audit.ts";
+export * from "./profile.ts";

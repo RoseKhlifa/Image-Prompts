@@ -23,7 +23,9 @@
     "all": "全部",
     "anonymous": "匿名",
     "close": "关闭",
-    "load_more": "加载更多"
+    "load_more": "加载更多",
+    "save": "保存",
+    "cancel": "取消"
   },
   "auth": {
     "sign_in": "登录",
@@ -58,7 +60,9 @@
   "user": {
     "joined_at": "加入于 {date}",
     "tab_works": "作品",
-    "tab_favorites": "收藏"
+    "tab_favorites": "收藏",
+    "pinned_section": "置顶",
+    "bio_empty": "Ta 还没写自我介绍"
   },
   "list": {
     "sort_latest": "最新",
@@ -114,7 +118,28 @@
     "tab_profile": "资料",
     "tab_favorites": "我的收藏",
     "no_favorites": "暂无收藏",
-    "no_favorites_hint": "在任意提示词卡片或详情页点 ⭐ 收藏起来"
+    "no_favorites_hint": "在任意提示词卡片或详情页点 ⭐ 收藏起来",
+    "bio_label": "自我介绍",
+    "bio_zh_label": "中文自我介绍",
+    "bio_en_label": "英文自我介绍",
+    "bio_placeholder": "写点关于你自己的事情(可选)…",
+    "bio_empty": "还没写自我介绍",
+    "social_label": "社交链接",
+    "social_github": "GitHub",
+    "social_twitter": "Twitter / X",
+    "social_bilibili": "B 站",
+    "social_website": "个人网站",
+    "social_url_invalid": "请输入合法的 URL",
+    "pinned_label": "置顶作品",
+    "pinned_hint": "最多选 3 条",
+    "pinned_empty": "暂未置顶任何作品",
+    "edit_button": "编辑资料",
+    "edit_pins_button": "管理置顶",
+    "edit_modal_title": "编辑资料",
+    "edit_tab_basic": "资料 & 社交",
+    "edit_tab_pins": "置顶作品",
+    "save_success": "已保存",
+    "save_failed": "保存失败"
   },
   "interactions": {
     "liked": "已点赞",

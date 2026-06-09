@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { eq, like } from "drizzle-orm";
 import { db, pool } from "../db/client.ts";
 import { users, sessions } from "../db/schema/auth.ts";
+import { userPinnedPrompts } from "../db/schema/index.ts";
 import { createServer } from "../server.ts";
 import { createTestSession } from "../auth/test-session.ts";
 
@@ -15,6 +16,7 @@ afterAll(async () => {
   ).map((r) => r.id);
   if (ids.length > 0) {
     for (const id of ids) {
+      await db.delete(userPinnedPrompts).where(eq(userPinnedPrompts.userId, id));
       await db.delete(sessions).where(eq(sessions.userId, id));
     }
   }
@@ -59,6 +61,33 @@ describe("GET /api/users/:id", () => {
   it("returns 404 for unknown id", async () => {
     const res = await app.request(`/api/users/00000000-0000-0000-0000-000000000000`);
     expect(res.status).toBe(404);
+  });
+  // M11 profile-enrich: getUserPublic now surfaces bio + socialLinks +
+  // pinnedPrompts in the response shape. These two tests assert the keys
+  // are present (frontend-facing contract) and default to null/empty.
+  it("includes bio + socialLinks + pinnedPrompts keys with defaults", async () => {
+    const u = await makeUser("get-enrich");
+    const res = await app.request(`/api/users/${u.id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.bio).toBeNull();
+    expect(body.socialLinks).toBeNull();
+    expect(body.pinnedPrompts).toEqual([]);
+  });
+  it("surfaces bio + socialLinks when set on the user row", async () => {
+    const u = await makeUser("get-enrich-set");
+    await db
+      .update(users)
+      .set({
+        bio: { en: "hi en" },
+        socialLinks: { github: "https://github.com/y" },
+      })
+      .where(eq(users.id, u.id));
+    const res = await app.request(`/api/users/${u.id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.bio).toEqual({ en: "hi en" });
+    expect(body.socialLinks).toEqual({ github: "https://github.com/y" });
   });
 });
 
