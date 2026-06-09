@@ -62,6 +62,9 @@
     "tab_works": "Works",
     "tab_favorites": "Favorites",
     "pinned_section": "Pinned",
+    "pinned_count": "{n} item(s)",
+    "all_works_section": "All works",
+    "works_count": "{n} item(s)",
     "bio_empty": "No bio yet"
   },
   "list": {

@@ -139,10 +139,17 @@ export default function UserPage() {
           ) : (
             <>
               {pinned.length > 0 && (
-                <section className="mb-6">
-                  <h2 className="mb-2 text-[13px] font-semibold text-ink">
-                    {`📌 ${t("user.pinned_section")}`}
-                  </h2>
+                // Tinted tray so pinned reads as a distinct showcase, not a
+                // continuation of the works grid below it.
+                <section className="mb-6 rounded-card border border-accent/30 bg-accent-soft/40 p-3">
+                  <header className="mb-2 flex items-center justify-between px-1">
+                    <h2 className="text-[13px] font-semibold text-ink">
+                      {`📌 ${t("user.pinned_section")}`}
+                    </h2>
+                    <span className="text-[11px] text-ink-dim">
+                      {t("user.pinned_count", { n: pinned.length })}
+                    </span>
+                  </header>
                   <Masonry
                     items={pinned.map<MasonryItem>((p) => ({
                       key: `pinned-${p.id}`,
@@ -161,19 +168,36 @@ export default function UserPage() {
               {(works.data?.items.length ?? 0) === 0 ? (
                 <EmptyState />
               ) : (
-                <Masonry
-                  items={(works.data?.items ?? []).map<MasonryItem>((p) => ({
-                    key: p.id,
-                    aspectRatio:
-                      p.primaryImage?.width && p.primaryImage?.height
-                        ? p.primaryImage.width / p.primaryImage.height
-                        : 1,
-                    node: <PromptCard prompt={p} />,
-                  }))}
-                  breakpoints={BREAKPOINTS}
-                  gap={4}
-                  className="p-2"
-                />
+                <section>
+                  {/* Explicit "all works" header so the boundary is clear once
+                      pinned is showing. When pinned is empty we still render
+                      the header (cheap UX cue + total count). */}
+                  <header
+                    className={`mb-3 flex items-center justify-between px-1 ${
+                      pinned.length > 0 ? "border-t border-border-soft pt-4" : ""
+                    }`}
+                  >
+                    <h2 className="text-[13px] font-semibold text-ink">
+                      {`🖼 ${t("user.all_works_section")}`}
+                    </h2>
+                    <span className="text-[11px] text-ink-dim">
+                      {t("user.works_count", { n: works.data?.items.length ?? 0 })}
+                    </span>
+                  </header>
+                  <Masonry
+                    items={(works.data?.items ?? []).map<MasonryItem>((p) => ({
+                      key: p.id,
+                      aspectRatio:
+                        p.primaryImage?.width && p.primaryImage?.height
+                          ? p.primaryImage.width / p.primaryImage.height
+                          : 1,
+                      node: <PromptCard prompt={p} />,
+                    }))}
+                    breakpoints={BREAKPOINTS}
+                    gap={4}
+                    className="p-2"
+                  />
+                </section>
               )}
             </>
           )

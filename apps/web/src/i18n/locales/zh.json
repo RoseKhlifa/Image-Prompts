@@ -62,6 +62,9 @@
     "tab_works": "作品",
     "tab_favorites": "收藏",
     "pinned_section": "置顶",
+    "pinned_count": "共 {n} 条",
+    "all_works_section": "全部作品",
+    "works_count": "共 {n} 条",
     "bio_empty": "Ta 还没写自我介绍"
   },
   "list": {
