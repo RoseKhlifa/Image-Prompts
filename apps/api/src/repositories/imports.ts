@@ -12,7 +12,7 @@ import {
   importBatches,
   type ImportBatchStatus,
 } from "../db/schema/index.ts";
-import { tagSlugFromName } from "../lib/tag-slug.ts";
+import { resolveTagForImport } from "../lib/tag-normalize.ts";
 
 // ── Wire-format validation ───────────────────────────────────────────────
 //
@@ -228,20 +228,19 @@ async function insertOne(
     categoryIdBySlug.set(catSlug, catId);
   }
 
-  // 2. Resolve tag ids (UPSERT each).
-  const tagSlugs = rec.normalized_tags.map(tagSlugFromName);
-  const tagPairs: Array<{ slug: string; name: string }> = [];
-  for (let i = 0; i < tagSlugs.length; i++) {
-    const slug = tagSlugs[i]!;
-    const name = rec.normalized_tags[i]!;
-    tagPairs.push({ slug, name });
-  }
+  // 2. Resolve tag ids (UPSERT each). Each incoming normalized_tag is run
+  //    through the canonical map (apps/api/src/lib/tag-normalize.ts) so
+  //    aliases like "美食 / 美食餐饮 / Food / food" all resolve to a single
+  //    canonical row with a proper bilingual name. Names outside the map
+  //    fall back to the prior behavior: slug = tagSlugFromName, name =
+  //    { zh: raw, en: raw }.
+  const resolved = rec.normalized_tags.map((n) => resolveTagForImport(n));
   const tagIds: string[] = [];
-  for (const pair of tagPairs) {
-    let id = tagIdBySlug.get(pair.slug);
+  for (const r of resolved) {
+    let id = tagIdBySlug.get(r.slug);
     if (!id) {
-      id = await upsertTag(pair.slug, pair.name);
-      tagIdBySlug.set(pair.slug, id);
+      id = await upsertTag(r.slug, r.zh, r.en);
+      tagIdBySlug.set(r.slug, id);
     }
     if (!tagIds.includes(id)) tagIds.push(id);
   }
@@ -334,12 +333,12 @@ async function upsertCategory(slug: string, displayName: string): Promise<string
   return row!.id;
 }
 
-async function upsertTag(slug: string, displayName: string): Promise<string> {
+async function upsertTag(slug: string, zh: string, en: string): Promise<string> {
   await db
     .insert(tags)
     .values({
       slug,
-      name: { zh: displayName, en: displayName },
+      name: { zh, en },
     })
     .onConflictDoNothing({ target: tags.slug });
   const [row] = await db

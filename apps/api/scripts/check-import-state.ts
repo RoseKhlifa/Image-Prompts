@@ -1,13 +1,10 @@
 /**
- * One-shot verification of import state after the import sprint.
- * Reports total imported prompts, source-site breakdown, contributor presence,
- * and confirms the user's `冒险角色设计稿` prompt is still attributed correctly.
- *
- * Safe to run anytime — read-only.
+ * One-shot verification of import state. Reports total imported prompts,
+ * source-site breakdown, and recent import_batches activity. Read-only.
  */
 import { db } from "../src/db/client.ts";
-import { prompts, importBatches } from "../src/db/schema/index.ts";
-import { sql, eq, desc } from "drizzle-orm";
+import { importBatches } from "../src/db/schema/index.ts";
+import { sql, desc } from "drizzle-orm";
 
 async function main() {
   const total = await db.execute(sql`SELECT COUNT(*)::int AS n FROM prompts WHERE source='imported'`);
@@ -30,12 +27,8 @@ async function main() {
   `);
   console.log("imported with attributed contributor:", attributed.rows);
 
-  const userPrompt = await db
-    .select({ slug: prompts.slug, contributorId: prompts.contributorId, source: prompts.source })
-    .from(prompts)
-    .where(eq(prompts.slug, "冒险角色设计稿"))
-    .limit(1);
-  console.log("user prompt:", userPrompt);
+  // The 冒险角色设计稿 prompt was deliberately deleted by the user on
+  // 2026-06-09 (audit log `prompt.delete`). Don't probe for it anymore.
 
   const recentBatches = await db
     .select()
