@@ -289,11 +289,32 @@
     "rejected_toast": "Rejected — contributor will be notified",
     "moderator_no_edit": "Moderator cannot edit before approving",
     "submissions": {
-      "edit_badge": "Edit request"
+      "edit_badge": "Edit request",
+      "reveal_nsfw": "Click to reveal"
     },
     "error": {
       "not_pending": "This submission was already handled by someone else",
       "migration": "Image migration failed, manual cleanup required"
+    }
+  },
+  "nsfw": {
+    "badge": "NSFW",
+    "gate": {
+      "title": "Content Warning",
+      "body": "Content in this category may be distressing or physically revolting — including but not limited to violence, gore, horror, and other visuals that may cause psychological or physical adverse reactions in some viewers.\n\nBy continuing you confirm that:\n• You are of legal age and viewing voluntarily;\n• You understand the potential discomfort and accept the risk;\n• You will not hold the site or other users liable.\n\nTo proceed, type \"I understand\" below.",
+      "confirm_phrase": "I understand",
+      "confirm_placeholder": "Type \"I understand\"",
+      "enter": "Enter",
+      "cancel": "Cancel"
+    },
+    "submit": {
+      "tag_locked_note": "All works in this category share the single \"nsfw\" tag",
+      "ack_body": "You are submitting to the NSFW category. This category is reserved for potentially distressing imagery — you confirm that you understand the nature of what you are submitting, do so voluntarily, and accept full responsibility. To proceed, type \"I understand\" below.",
+      "ack_placeholder": "Type \"I understand\""
+    },
+    "errors": {
+      "tags_locked": "NSFW category prompts may only carry the \"nsfw\" tag",
+      "import_forbidden": "NSFW category does not support bulk import"
     }
   },
   "notifications": {

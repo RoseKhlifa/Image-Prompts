@@ -289,11 +289,32 @@
     "rejected_toast": "已拒绝,投稿人将收到通知",
     "moderator_no_edit": "moderator 不能编辑后批准",
     "submissions": {
-      "edit_badge": "编辑请求"
+      "edit_badge": "编辑请求",
+      "reveal_nsfw": "点击查看"
     },
     "error": {
       "not_pending": "该投稿已被其他人处理",
       "migration": "图片迁移失败,需要人工处理"
+    }
+  },
+  "nsfw": {
+    "badge": "NSFW",
+    "gate": {
+      "title": "内容警告",
+      "body": "此分类下的内容可能令人不适或引起生理厌恶 —— 包括但不限于暴力、血腥、惊悚画面,以及其他可能对部分观看者造成心理或生理负面反应的视觉元素。\n\n继续访问意味着:\n• 您已成年并自愿浏览;\n• 您理解可能引发的不适并自行承担风险;\n• 您不会因此向本站或其他用户追究任何责任。\n\n如确认继续,请在下方输入「我已了解」。",
+      "confirm_phrase": "我已了解",
+      "confirm_placeholder": "请输入「我已了解」",
+      "enter": "进入",
+      "cancel": "取消"
+    },
+    "submit": {
+      "tag_locked_note": "此分类下所有作品仅共享 \"nsfw\" 标签",
+      "ack_body": "您正在向「敏感内容」分类投稿。此分类专门收纳可能引起不适的图像 —— 您声明对所投稿内容的性质知情、自愿且对其承担全部责任。如确认提交,请在下方输入「我已了解」。",
+      "ack_placeholder": "请输入「我已了解」"
+    },
+    "errors": {
+      "tags_locked": "NSFW 分类下作品只能使用 \"nsfw\" 标签",
+      "import_forbidden": "NSFW 分类不支持批量导入"
     }
   },
   "notifications": {

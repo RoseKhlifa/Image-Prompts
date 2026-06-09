@@ -17,6 +17,14 @@ export const errorHandler: ErrorHandler = (err, c) => {
     const firstMessage = err.errors[0]?.message ?? "validation failed";
     return c.json({ error: "validation_error", message: firstMessage, fields }, 400);
   }
+  // NSFW domain errors thrown as plain Error (see lib/nsfw.ts, repositories/imports.ts).
+  // Map to 400 so the UI can show a localized message instead of "internal error".
+  if (
+    err instanceof Error &&
+    (err.message === "nsfw_category_tags_locked" || err.message === "nsfw_import_forbidden")
+  ) {
+    return c.json({ error: err.message, message: err.message }, 400);
+  }
   console.error("[server] unhandled error", err);
   return c.json({ error: "internal_error" }, 500);
 };
