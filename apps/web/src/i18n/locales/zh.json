@@ -163,9 +163,120 @@
   },
   "about": {
     "title": "关于 Image-Prompts",
-    "body": "Image-Prompts 是 Image-Studio 配套的生图提示词聚合站。任何人都能浏览、收藏、点赞、分享;已登录用户可以投稿,管理员审核后公开。",
-    "credits_title": "数据来源致谢",
-    "credits_body": "本站初始内容(2380 条提示词种子数据)迁移自 unknowlei 的开源项目 nanobanana-website (github.com/unknowlei/nanobanana-website),经 AI 辅助翻译为中英双语后由本站维护与扩展。原内容版权归 nanobanana 社区贡献者所有,本站按 CC-BY-4.0 精神标注来源。"
+    "tagline": "一个为 AI 图像创作者打造的提示词聚合站",
+    "hero_body": "Image-Prompts 把社区投稿与公开档案融为一体,做成一份可检索、可一键复用、可双向流通的中英文提示词参考库。任何人都可以浏览、收藏、点赞、分享;登录用户可以投稿,审核通过后入库公开;管理员负责内容质量与边界。",
+    "stats_title": "实时数据",
+    "stats_subtitle": "下列数字均不含 NSFW 分类,与匿名访客所见保持一致。",
+    "stat_prompts": "条提示词",
+    "stat_contributors": "位投稿者",
+    "stat_categories": "个分类",
+    "stat_tags": "个标签",
+
+    "toc_title": "目录",
+
+    "section_intro_title": "站点定位",
+    "section_intro_p1": "本站的目标是构建一个低门槛、高密度、可被生产环境直接消费的中英文提示词索引。我们关注三件事:每一条提示词的可复用性(可一键导入 Image-Studio)、每一份外部档案的归属与可追溯(逐源列明)、以及每一位投稿者的署名与版权。",
+    "section_intro_p2": "我们不做付费墙、不做内容农场、不为搜索引擎堆砌关键词;我们也不在首页或混合列表里展示需要明示警告的内容。",
+
+    "section_sources_title": "数据来源",
+    "section_sources_intro": "本站内容由三部分构成:用户投稿(UGC,版权归投稿者所有)、站长直投(归档自互联网公开档案)、以及下列已经过同意或属公开陈列范畴的爬取数据。我们对每一份外部档案均保留原始来源链接,并在详细页明示来源站点。",
+    "section_sources_note": "「条目」指源站当前公开档案中我们已抓取或计划迁移的条数,与本站实际入库数可能存在差异(见状态列)。",
+    "sources_col_source": "来源站点",
+    "sources_col_url": "网址",
+    "sources_col_count": "条目",
+    "sources_col_status": "状态",
+    "sources_status_live": "已上架",
+    "sources_status_partial": "部分上架",
+    "sources_status_pending": "待迁移",
+
+    "section_submit_title": "投稿与社区",
+    "section_submit_p1": "登录用户可在「投稿」入口提交提示词。审核通过后入库公开,失败时会在站内通知中给出原因。投稿前请阅读社区准则。",
+    "section_submit_p2": "我们鼓励中英文双语提交:中英文皆有的条目在搜索与排序上享有更高的权重。投稿者可在个人主页钉选最得意的作品。",
+    "section_submit_cta_submit": "前往投稿",
+    "section_submit_cta_guidelines": "社区准则",
+
+    "section_tech_title": "技术与开源",
+    "section_tech_p1": "本站基于 React 18 + Vite + TypeScript(strict / exactOptionalPropertyTypes),后端 Hono + Drizzle + Postgres,图像存储 Cloudflare R2,鉴权 Better Auth(Google / GitHub OAuth)。所有业务模块全部开源,可自托管;欢迎 Issue 与 PR。",
+    "section_tech_repos_title": "代码仓库",
+    "repo_image_prompts_title": "Image-Prompts",
+    "repo_image_prompts_desc": "本站前后端与导入管线,RoseKhlifa 主导维护。Issue 与 PR 均欢迎。",
+    "repo_image_studio_title": "Image-Studio",
+    "repo_image_studio_desc": "配套的可视化提示词编排与生图工作台,支持从本站一键导入提示词参数。",
+
+    "section_maintainer_title": "站长说",
+    "section_maintainer_p1": "我是 RoseKhlifa(圆滑),一名独立开发者。这个站点诞生于我自己对「打开 AI 出图工具时缺一条得力提示词」这件事的长期不满,以及对许多优秀提示词社区在国内难以被快速检索这件事的偏执。",
+    "section_maintainer_p2": "我希望它最终成为一个不需要翻墙、不需要付费、不需要算法操盘就能扎实使用的工具。如果你也是这条路上的同好,欢迎投稿、点 star、提 Issue,或在我邮箱里聊聊你正在做的事情。",
+    "section_maintainer_signature": "—— RoseKhlifa",
+
+    "section_acknowledgments_title": "致谢",
+    "section_acknowledgments_intro": "本站的每一行代码、每一张图片、每一个组件都站在他人的肩膀上。以下是核心依赖与服务,排名不分先后。",
+    "ack_group_runtime": "运行时与框架",
+    "ack_group_data": "数据与存储",
+    "ack_group_ui": "界面与字体",
+    "ack_group_infra": "基础设施",
+    "ack_group_data_sources": "数据来源(详见第 2 节)",
+
+    "section_timeline_title": "时间线",
+    "section_timeline_intro": "从立项到第一次公开上线之间发生的事。",
+    "timeline_event_spec": "项目立项与总体设计稿落地",
+    "timeline_event_auth": "鉴权、投稿与 Image-Studio 一键导入打通",
+    "timeline_event_polish": "投稿审核、互动、用户侧个人主页与管理后台完成",
+    "timeline_event_deploy": "部署架构与生产环境就绪",
+    "timeline_event_import": "33K 量级公开档案导入框架 + 标签归一化方案落地",
+    "timeline_event_nsfw": "NSFW 分类与默认隐藏 + 进入确认机制",
+    "timeline_event_launch": "公测上线,即本页所属版本",
+
+    "section_contact_title": "联系",
+    "section_contact_p1": "无论是版权下架、内容投诉、技术问题、合作邀约还是只是想聊聊,都可以通过下面任一渠道联系到我。我承诺在 5 个工作日内给出书面回复,实际通常更快。",
+    "contact_email_label": "邮件",
+    "contact_email_value": "rosekhlifa@gmail.com",
+    "contact_github_label": "GitHub Issues",
+    "contact_github_value": "RoseKhlifa/Image-Prompts",
+    "contact_takedown_hint": "下架请求请附:提示词 slug、原始作品出处、你对该作品的权利说明、以及处理意愿(删除 / 替换 / 仅标注来源)。完整流程见政策页。",
+    "policy_link": "查看完整政策"
+  },
+
+  "policy": {
+    "title": "政策与条款",
+    "intro": "下列规则适用于所有访问者与投稿者。条款偶有更新,以本页为准;重大变更我们会在首页公告。",
+
+    "toc_title": "目录",
+
+    "section_nsfw_title": "敏感内容(NSFW)政策",
+    "section_nsfw_p1": "我们设立独立的 NSFW 分类,专门收纳可能引起心理不适或生理厌恶的图像内容(包括但不限于暴力、血腥、惊悚画面以及其他可能对部分观看者造成负面反应的视觉元素)。",
+    "section_nsfw_p2": "默认行为:NSFW 分类下的内容不会出现在首页、搜索结果、用户主页、标签页或相关推荐中。访客必须主动选择进入 NSFW 分类,并在进入前输入「我已了解」以确认免责声明。该确认在浏览器会话期间有效,关闭浏览器或新开标签后需重新确认。",
+    "section_nsfw_p3": "本站不允许涉及未成年人、真实人物深度伪造、非自愿场景、极端暴力或其他违反所在国法律的内容,即使在 NSFW 分类内亦然。一经发现立即下架并保留追究权利。",
+
+    "section_copyright_title": "版权与下架流程",
+    "section_copyright_p1": "本站尊重原作者的版权与署名权。用户投稿的版权归投稿者所有,本站仅获得在站内展示与索引的非排他性许可。爬取自第三方公开档案的内容,我们逐源标注来源链接与原作者(若可识别)。",
+    "section_copyright_p2": "如果你认为本站某条内容侵犯了你的合法权益,请按下列格式联系我们,5 个工作日内我们将给出书面回复。",
+    "copyright_template_title": "下架请求模板",
+    "copyright_template_body": "主题:[下架请求] <提示词标题>\n\n收件人:rosekhlifa@gmail.com\n\n正文:\n1. 涉及的提示词页面 URL 或 slug:\n2. 原始作品出处(链接、平台、发表日期):\n3. 你对该作品的权利说明(原作者 / 持有者 / 授权代理):\n4. 你希望的处理方式(删除 / 替换为占位 / 保留并补齐归属信息):\n5. 联系方式(邮箱、备用联系方式):\n6. 真实声明(以下内容必须包含):「上述信息真实、准确,本人愿对所述内容承担相应法律责任。」",
+    "section_copyright_p3": "我们不会因为下架请求向你索取额外信息或费用。如果请求被拒,我们会在回复中给出书面理由及可申诉的渠道。",
+
+    "section_submission_title": "投稿准则",
+    "section_submission_intro": "投稿前请阅读以下要点。详细的写作建议、字段说明与示例见社区准则。",
+    "section_submission_l1": "标题与提示词正文中,鼓励同时提供中英文版本;只有单语的条目也接受,审核时会酌情建议补充。",
+    "section_submission_l2": "图片必须由你本人生成或拥有合法使用权;请勿上传未授权的他人作品。",
+    "section_submission_l3": "投稿数量不限,但同一条提示词请勿重复提交;若需更新已发布的提示词,请使用「编辑」入口提交修订。",
+    "section_submission_l4": "审核通常在 24 小时内给出结果,通过或被拒原因都会通过站内通知告知。",
+
+    "section_forbidden_title": "禁投内容",
+    "section_forbidden_intro": "下列内容无论是否进入 NSFW 分类,均不在本站接受范围之内。一经发现立即下架,严重者将冻结账号并配合所在国主管部门调查。",
+    "forbidden_l1": "涉及未成年人的任何性化、暗示性或剥削性内容。",
+    "forbidden_l2": "真实人物的深度伪造(deepfake)及任何未经本人同意的肖像滥用。",
+    "forbidden_l3": "极端血腥、虐待动物、自残自杀引导等可能造成现实伤害的图像。",
+    "forbidden_l4": "针对特定族群、宗教、性取向、残疾等的仇恨煽动或人格贬损。",
+    "forbidden_l5": "虚假医疗、虚假金融、传销、邪教等违反所在国法律法规的内容。",
+    "forbidden_l6": "侵犯他人知识产权且无合理理由的内容(包括但不限于盗图、未授权商用素材)。",
+
+    "section_tos_title": "服务条款简述",
+    "section_tos_p1": "本站以「现状」提供服务,不对内容的可用性、准确性、完整性或适用性作出任何明示或默示担保。",
+    "section_tos_p2": "你对本站内容的使用方式由你自行负责;由此引发的任何争议、损失或责任与本站无关。",
+    "section_tos_p3": "我们保留在不预先通知的情况下变更、暂停或终止本站任何部分服务的权利;如可能,重大变更会在首页提前公告。",
+    "section_tos_p4": "本服务受中华人民共和国法律管辖;如有争议,以站长所在地法院为第一管辖。",
+
+    "back_to_about": "返回关于页"
   },
   "sidebar": {
     "repositories": "仓库"

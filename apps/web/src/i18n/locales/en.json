@@ -163,9 +163,120 @@
   },
   "about": {
     "title": "About Image-Prompts",
-    "body": "Image-Prompts is the prompt library for Image-Studio. Anyone can browse, favorite, like, and share. Signed-in users can submit new prompts for moderator review.",
-    "credits_title": "Data Source Credits",
-    "credits_body": "The seed dataset (~2380 prompts) was migrated from unknowlei's open-source nanobanana-website (github.com/unknowlei/nanobanana-website), translated bilingually via AI assistance, and maintained / extended by this site. Original content belongs to the nanobanana community contributors; we attribute per CC-BY-4.0."
+    "tagline": "A prompt library built for AI image creators",
+    "hero_body": "Image-Prompts unifies community submissions and a curated public archive into a single bilingual, searchable, one-click-reusable prompt reference. Anyone can browse, favorite, like, and share. Signed-in users can submit, with moderation; the maintainer curates quality and edges.",
+    "stats_title": "Live numbers",
+    "stats_subtitle": "Counts exclude the NSFW category, matching what an anonymous visitor sees.",
+    "stat_prompts": "prompts",
+    "stat_contributors": "contributors",
+    "stat_categories": "categories",
+    "stat_tags": "tags",
+
+    "toc_title": "Contents",
+
+    "section_intro_title": "What this site is",
+    "section_intro_p1": "Image-Prompts is a low-friction, high-density, production-consumable bilingual prompt index. We care about three things: reusability of every prompt (one-click into Image-Studio), traceability of every external archive (every source listed), and attribution / copyright for every contributor.",
+    "section_intro_p2": "We do not run paywalls, do not farm content, and do not stuff keywords for search engines. We do not surface content that needs an explicit warning on the homepage or mixed listings.",
+
+    "section_sources_title": "Data sources",
+    "section_sources_intro": "Content here comes from three streams: user submissions (UGC, copyright retained by submitter), maintainer-direct uploads (archives from public sources), and the crawled archives below — each either with consent or under public-display norms. We preserve the originating link on every imported prompt and surface it on the detail page.",
+    "section_sources_note": "\"Items\" reflects what the upstream site has publicly available and that we either crawled or plan to migrate; the on-site count may differ (see status column).",
+    "sources_col_source": "Source",
+    "sources_col_url": "URL",
+    "sources_col_count": "Items",
+    "sources_col_status": "Status",
+    "sources_status_live": "Live",
+    "sources_status_partial": "Partial",
+    "sources_status_pending": "Pending",
+
+    "section_submit_title": "Submitting & community",
+    "section_submit_p1": "Signed-in users can submit prompts via the \"Submit\" entry. Accepted entries go live; rejected ones include a reason via in-site notification. Please read the community guidelines before submitting.",
+    "section_submit_p2": "We encourage bilingual (zh + en) submissions: entries with both languages enjoy higher weight in search and ranking. Contributors can pin their best works on their profile.",
+    "section_submit_cta_submit": "Submit a prompt",
+    "section_submit_cta_guidelines": "Community guidelines",
+
+    "section_tech_title": "Tech & open source",
+    "section_tech_p1": "The site runs on React 18 + Vite + TypeScript (strict / exactOptionalPropertyTypes), with Hono + Drizzle + Postgres on the backend, Cloudflare R2 for image storage, and Better Auth (Google / GitHub OAuth) for sessions. Every module is open source and self-hostable; Issues and PRs welcome.",
+    "section_tech_repos_title": "Repositories",
+    "repo_image_prompts_title": "Image-Prompts",
+    "repo_image_prompts_desc": "This site — front-end, API, and import pipeline. Maintained by RoseKhlifa. Issues and PRs welcome.",
+    "repo_image_studio_title": "Image-Studio",
+    "repo_image_studio_desc": "Companion visual prompt-composer and generation studio. Accepts one-click prompt imports from this site.",
+
+    "section_maintainer_title": "A note from the maintainer",
+    "section_maintainer_p1": "I'm RoseKhlifa, an indie developer. This site exists because I was tired of opening an AI image tool without a single solid prompt at hand, and because a lot of great prompt communities live behind region-locks for the audience I care about.",
+    "section_maintainer_p2": "I hope this becomes a tool you can use seriously without VPNs, paywalls, or algorithmic dark patterns. If you're working on something nearby, please submit, star the repo, file an Issue, or just write me — I'd love to hear about it.",
+    "section_maintainer_signature": "— RoseKhlifa",
+
+    "section_acknowledgments_title": "Acknowledgments",
+    "section_acknowledgments_intro": "Every line, image, and component here stands on someone else's shoulders. The core deps and services we lean on, in no particular order:",
+    "ack_group_runtime": "Runtime & framework",
+    "ack_group_data": "Data & storage",
+    "ack_group_ui": "UI & typography",
+    "ack_group_infra": "Infrastructure",
+    "ack_group_data_sources": "Data sources (see section 2)",
+
+    "section_timeline_title": "Timeline",
+    "section_timeline_intro": "What happened between kickoff and the first public release.",
+    "timeline_event_spec": "Project kickoff, top-level design doc",
+    "timeline_event_auth": "Auth + submission + Image-Studio one-click handoff",
+    "timeline_event_polish": "Moderation, interactions, user profiles, owner console",
+    "timeline_event_deploy": "Deployment architecture + production readiness",
+    "timeline_event_import": "33K-scale archive import pipeline + tag normalization",
+    "timeline_event_nsfw": "NSFW category with default hide + acknowledgment gate",
+    "timeline_event_launch": "Public beta — the version this page is on",
+
+    "section_contact_title": "Contact",
+    "section_contact_p1": "Takedown, complaint, technical question, partnership, or just want to chat — pick a channel below. I commit to a written reply within 5 business days; usually faster.",
+    "contact_email_label": "Email",
+    "contact_email_value": "rosekhlifa@gmail.com",
+    "contact_github_label": "GitHub Issues",
+    "contact_github_value": "RoseKhlifa/Image-Prompts",
+    "contact_takedown_hint": "Takedown requests should include: the prompt slug, the original work's source, your claim to the work, and your preferred resolution (remove / replace / add attribution). Full procedure on the policy page.",
+    "policy_link": "Read the full policy"
+  },
+
+  "policy": {
+    "title": "Policy & Terms",
+    "intro": "These rules apply to every visitor and contributor. Terms may be updated; the page is authoritative. Material changes are announced on the homepage.",
+
+    "toc_title": "Contents",
+
+    "section_nsfw_title": "NSFW content policy",
+    "section_nsfw_p1": "We maintain a single dedicated NSFW category for imagery that may cause psychological discomfort or physical revulsion — including but not limited to violence, gore, horror, and other visuals that may cause adverse reactions for some viewers.",
+    "section_nsfw_p2": "Default behavior: NSFW content does not appear on the homepage, search results, user profiles, tag pages, or related-prompt suggestions. Visitors must actively enter the NSFW category and type \"I understand\" before access is granted. The acknowledgment lasts for the current browser session; closing the browser or opening a new tab re-prompts.",
+    "section_nsfw_p3": "Content involving minors, real-person deepfakes, non-consensual scenarios, extreme violence, or anything otherwise illegal under applicable law is NOT permitted — even inside the NSFW category. Such content is removed on sight and reported to authorities where applicable.",
+
+    "section_copyright_title": "Copyright & takedown",
+    "section_copyright_p1": "We respect the original author's copyright and attribution rights. UGC copyright is retained by the submitter; we receive only a non-exclusive license to display and index. Crawled content carries source attribution per entry.",
+    "section_copyright_p2": "If you believe content here infringes your rights, please contact us using the template below. We commit to a written reply within 5 business days.",
+    "copyright_template_title": "Takedown request template",
+    "copyright_template_body": "Subject: [Takedown] <prompt title>\n\nTo: rosekhlifa@gmail.com\n\nBody:\n1. Affected prompt URL or slug:\n2. Original work source (link, platform, publication date):\n3. Your claim to the work (author / rights holder / authorized agent):\n4. Preferred resolution (remove / replace with placeholder / retain with attribution):\n5. Contact details (email + backup):\n6. Verification statement (required verbatim): \"The information above is true and accurate, and I am willing to be held legally responsible for its content.\"",
+    "section_copyright_p3": "We will not ask for additional information or fees in connection with a takedown request. If a request is rejected, the reply will include a written rationale and any avenue for appeal.",
+
+    "section_submission_title": "Submission guidelines",
+    "section_submission_intro": "Please read the highlights below. Detailed writing tips, field reference, and examples live in the community guidelines.",
+    "section_submission_l1": "We encourage both zh and en titles + bodies; single-language entries are accepted, with reviewer-suggested bilingual completion when appropriate.",
+    "section_submission_l2": "Images must be generated by you or otherwise legally usable. Do not upload third-party work without authorization.",
+    "section_submission_l3": "Submit as many entries as you like, but do not duplicate a published prompt — use the \"edit\" flow to propose a revision.",
+    "section_submission_l4": "Moderation typically completes within 24 hours; both approval and rejection (with reason) are delivered via in-site notification.",
+
+    "section_forbidden_title": "Forbidden content",
+    "section_forbidden_intro": "Regardless of NSFW classification, the following are not allowed. Violations are removed on sight; severe cases trigger account freeze and cooperation with applicable authorities.",
+    "forbidden_l1": "Any sexualized, suggestive, or exploitative content involving minors.",
+    "forbidden_l2": "Deepfakes of real people, or any unconsented use of an identifiable person's likeness.",
+    "forbidden_l3": "Extreme gore, animal cruelty, or content that may incite real-world self-harm or suicide.",
+    "forbidden_l4": "Hate speech or degradation targeting an ethnic group, religion, sexual orientation, disability, or similar protected category.",
+    "forbidden_l5": "Fraudulent medical, financial, MLM, or cult-related content; anything illegal under applicable law.",
+    "forbidden_l6": "IP infringement without a reasonable basis — including but not limited to image theft and unlicensed commercial assets.",
+
+    "section_tos_title": "Terms of service (summary)",
+    "section_tos_p1": "The site is provided \"as is\" without warranty — express or implied — of availability, accuracy, completeness, or fitness for purpose.",
+    "section_tos_p2": "How you use site content is your responsibility; any resulting dispute, loss, or liability falls outside our scope.",
+    "section_tos_p3": "We reserve the right to change, suspend, or terminate any part of the service without prior notice; material changes will be announced on the homepage when possible.",
+    "section_tos_p4": "These terms are governed by the laws of the People's Republic of China; the maintainer's local jurisdiction is the first court of recourse.",
+
+    "back_to_about": "Back to About"
   },
   "sidebar": {
     "repositories": "Repositories"
