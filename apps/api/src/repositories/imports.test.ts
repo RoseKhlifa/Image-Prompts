@@ -205,6 +205,16 @@ describe("importCategoryJsonl", () => {
     expect(result.failedRecords[0]!.line).toBe(2);
   });
 
+  it("rejects nsfw categorySlug outright (Task 6)", async () => {
+    await expect(
+      importCategoryJsonl({
+        filePath: "/dev/null",
+        categorySlug: "nsfw",
+        startedBy: ownerId,
+      }),
+    ).rejects.toThrow("nsfw_import_forbidden");
+  });
+
   it("listRecentImports returns rows newest-first", async () => {
     const file = await writeJsonl("recent.jsonl", [makeRecord()]);
     await importCategoryJsonl({

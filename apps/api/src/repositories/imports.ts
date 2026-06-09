@@ -76,6 +76,9 @@ const MAX_FAILED_RECORDS = 50;
 export async function importCategoryJsonl(
   args: ImportCategoryArgs,
 ): Promise<ImportCategoryResult> {
+  if (args.categorySlug === "nsfw") {
+    throw new Error("nsfw_import_forbidden");
+  }
   const dryRun = args.dryRun ?? false;
   const limit = args.limit ?? Infinity;
 
