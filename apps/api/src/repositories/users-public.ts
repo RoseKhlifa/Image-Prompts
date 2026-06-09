@@ -8,6 +8,7 @@ import {
   userPinnedPrompts,
 } from "../db/schema/index.ts";
 import { favorites } from "../db/schema/interactions.ts";
+import { excludeNsfw } from "./_filters.ts";
 
 type Bilingual = { zh?: string; en?: string };
 
@@ -130,7 +131,7 @@ export async function getPinnedPromptsForUser(
     .innerJoin(prompts, eq(prompts.id, userPinnedPrompts.promptId))
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
     .leftJoin(users, eq(users.id, prompts.contributorId))
-    .where(eq(userPinnedPrompts.userId, userId))
+    .where(and(eq(userPinnedPrompts.userId, userId), excludeNsfw()))
     .orderBy(asc(userPinnedPrompts.order), asc(userPinnedPrompts.createdAt));
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
@@ -188,7 +189,7 @@ export async function getUserStats(id: string) {
       totalFavorites: sql<number>`COALESCE(SUM(${prompts.favoriteCount})::int, 0)`,
     })
     .from(prompts)
-    .where(eq(prompts.contributorId, id));
+    .where(and(eq(prompts.contributorId, id), excludeNsfw()));
   return {
     publishedCount: r?.publishedCount ?? 0,
     totalViews: r?.totalViews ?? 0,
@@ -201,7 +202,9 @@ type ListOpts = { cursor: string | null; limit: number };
 
 /** This user's published prompts (PromptSummary-ish shape). Newest first. */
 export async function listUserPrompts(userId: string, opts: ListOpts) {
-  const conds = [eq(prompts.contributorId, userId)];
+  // Public profile view — NSFW prompts never surface on other people's pages.
+  // (Owner editing tools live in owner-prompts.ts and don't pass through here.)
+  const conds = [eq(prompts.contributorId, userId), excludeNsfw()];
   if (opts.cursor) conds.push(lt(prompts.approvedAt, new Date(opts.cursor)));
   const rows = await db
     .select({
@@ -289,7 +292,10 @@ export async function listUserPrompts(userId: string, opts: ListOpts) {
 
 /** This user's favorited prompts. ONLY the user themselves should call this. */
 export async function listUserFavorites(userId: string, opts: ListOpts) {
-  const conds = [eq(favorites.userId, userId)];
+  // Even on the owner-self favorites view we honor the global NSFW exclusion —
+  // the user's NSFW intent is expressed via category-bypass in listPrompts, not
+  // by surfacing NSFW in unrelated lists. (See Task 4 of the nsfw plan.)
+  const conds = [eq(favorites.userId, userId), excludeNsfw()];
   if (opts.cursor) conds.push(lt(favorites.createdAt, new Date(opts.cursor)));
   const rows = await db
     .select({

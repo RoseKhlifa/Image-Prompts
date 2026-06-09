@@ -1,8 +1,8 @@
-import { describe, it, expect, afterAll } from "vitest";
-import { desc, eq, isNull, like } from "drizzle-orm";
+import { describe, it, expect, afterAll, beforeAll } from "vitest";
+import { desc, eq, inArray, isNull, like, ne } from "drizzle-orm";
 import { db, pool } from "../db/client.ts";
 import { users } from "../db/schema/auth.ts";
-import { prompts } from "../db/schema/index.ts";
+import { categories, prompts } from "../db/schema/index.ts";
 import { likes, favorites } from "../db/schema/interactions.ts";
 import { listPrompts, getPromptBySlug } from "./prompts.ts";
 
@@ -180,5 +180,77 @@ describe("listPrompts search (q parameter)", () => {
     // We'll just smoke-test: empty result OK, non-empty must contain the tag
     const r = await listPrompts({ sort: "latest", page: 1, pageSize: 24, q: "测试搜索不存在的词xyz12345" });
     expect(r.items).toEqual([]);
+  });
+});
+
+describe("NSFW exclusion (Task 4)", () => {
+  let nsfwId: string;
+  let nsfwPromptId: string;
+  let sfwPromptId: string;
+
+  beforeAll(async () => {
+    // nsfw category already seeded (Task 1); fetch its id
+    const [cat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    nsfwId = cat!.id;
+
+    // Pick any non-NSFW category
+    const [sfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(ne(categories.slug, "nsfw"))
+      .limit(1);
+
+    const [nsfw] = await db
+      .insert(prompts)
+      .values({
+        slug: "tw48r-nsfw-test",
+        title: { zh: "tw48r nsfw", en: "tw48r nsfw" },
+        prompt: { zh: "x", en: "x" },
+        categoryId: nsfwId,
+        approvedAt: new Date(),
+        source: "site",
+      })
+      .returning({ id: prompts.id });
+    nsfwPromptId = nsfw!.id;
+
+    const [sfw] = await db
+      .insert(prompts)
+      .values({
+        slug: "tw48r-sfw-test",
+        title: { zh: "tw48r sfw", en: "tw48r sfw" },
+        prompt: { zh: "x", en: "x" },
+        categoryId: sfwCat!.id,
+        approvedAt: new Date(),
+        source: "site",
+      })
+      .returning({ id: prompts.id });
+    sfwPromptId = sfw!.id;
+  });
+
+  afterAll(async () => {
+    await db.delete(prompts).where(inArray(prompts.id, [nsfwPromptId, sfwPromptId]));
+  });
+
+  it("listPrompts default excludes NSFW prompts", async () => {
+    const result = await listPrompts({ sort: "latest", page: 1, pageSize: 60 });
+    const ids = result.items.map((p) => p.id);
+    expect(ids).toContain(sfwPromptId);
+    expect(ids).not.toContain(nsfwPromptId);
+  });
+
+  it("listPrompts with category='nsfw' returns NSFW prompts", async () => {
+    const result = await listPrompts({
+      sort: "latest",
+      page: 1,
+      pageSize: 60,
+      category: "nsfw",
+    });
+    const ids = result.items.map((p) => p.id);
+    expect(ids).toContain(nsfwPromptId);
+    expect(ids).not.toContain(sfwPromptId);
   });
 });

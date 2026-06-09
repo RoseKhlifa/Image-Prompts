@@ -4,6 +4,7 @@ import { db } from "../db/client.ts";
 import { categories, prompts, promptImages, promptTags, tags } from "../db/schema/index.ts";
 import { users } from "../db/schema/auth.ts";
 import type { PromptListQuerySchema } from "@ip/shared";
+import { excludeNsfw } from "./_filters.ts";
 
 type PromptListQuery = z.infer<typeof PromptListQuerySchema>;
 
@@ -66,6 +67,10 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
                   OR t.name->>'en' ILIKE ${"%" + q.q + "%"}))
             )`
       : undefined,
+    // Exclude NSFW prompts from the default list. Bypass only when the caller
+    // explicitly asked for ?category=nsfw — that's the opt-in entry point per
+    // the spec. (See docs/superpowers/plans/2026-06-09-nsfw-category.md.)
+    q.category === "nsfw" ? undefined : excludeNsfw(),
   ].filter((c): c is NonNullable<typeof c> => c !== undefined);
 
   const where = conditions.length ? and(...conditions) : undefined;
@@ -324,7 +329,13 @@ export async function listRelatedPrompts(promptId: string, categoryId: string, l
       categoryId: prompts.categoryId,
     })
     .from(prompts)
-    .where(and(eq(prompts.categoryId, categoryId), sql`${prompts.id} <> ${promptId}`))
+    .where(
+      and(
+        eq(prompts.categoryId, categoryId),
+        sql`${prompts.id} <> ${promptId}`,
+        excludeNsfw(),
+      ),
+    )
     .orderBy(desc(prompts.likeCount), desc(prompts.approvedAt))
     .limit(limit);
 
