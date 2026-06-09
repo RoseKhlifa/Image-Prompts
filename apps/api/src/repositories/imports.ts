@@ -204,8 +204,14 @@ export async function importCategoryJsonl(
 }
 
 function isDuplicateExternalId(e: unknown): boolean {
-  const code = (e as { code?: string }).code;
-  return code === "23505";
+  const err = e as { code?: string; constraint?: string; message?: string };
+  if (err.code !== "23505") return false;
+  // Only treat as duplicate-external-id if the conflict is on the partial unique
+  // index from migration 0013. Any other 23505 (e.g. prompts.slug collision from
+  // ensureUniqueSlug deterministic hash) is a REAL failure and must surface.
+  if (err.constraint === "prompts_external_id_uq") return true;
+  if (typeof err.message === "string" && err.message.includes("prompts_external_id_uq")) return true;
+  return false;
 }
 
 async function insertOne(
@@ -241,6 +247,9 @@ async function insertOne(
 
   // 3. Insert the prompt row. ON CONFLICT (external_id) DO NOTHING returns 0
   //    rows when this id was already imported.
+  // Crawled records carry no per-language metadata; fill both sides with the
+  // same title so prompts_title_bilingual_chk passes and pickBilingual works
+  // regardless of viewer locale.
   const titleBilingual: { zh?: string; en?: string } = {};
   titleBilingual.zh = rec.title;
   titleBilingual.en = rec.title;
@@ -272,9 +281,13 @@ async function insertOne(
     .returning({ id: prompts.id });
 
   if (inserted.length === 0) {
-    // Already imported — surface as a duplicate.
+    // Synthesize the same shape Postgres would have raised, so isDuplicateExternalId
+    // routes us through the skippedDuplicate counter. Note we set `constraint` to
+    // the partial-unique index name from migration 0013 — without it, the constraint
+    // narrowing in isDuplicateExternalId would reject this as a real failure.
     const err = new Error("duplicate external_id");
-    (err as { code?: string }).code = "23505";
+    (err as { code?: string; constraint?: string }).code = "23505";
+    (err as { code?: string; constraint?: string }).constraint = "prompts_external_id_uq";
     throw err;
   }
 

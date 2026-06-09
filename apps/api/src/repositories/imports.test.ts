@@ -173,13 +173,18 @@ describe("importCategoryJsonl", () => {
   });
 
   it("coerces numeric source_id to string", async () => {
+    const externalId = `${PREFIX}numeric-${Date.now()}`;
     const file = await writeJsonl("numeric.jsonl", [
-      makeRecord({ sourceId: 12345 as unknown as string }),
+      makeRecord({ id: externalId, sourceId: 12345 as unknown as string }),
     ]);
     const result = await importCategoryJsonl({
       filePath: file, categorySlug: `${PREFIX}cat-food`, startedBy: ownerId,
     });
     expect(result.inserted).toBe(1);
+    // Read the prompt back so a future Zod-transform regression surfaces here.
+    const [p] = await db.select().from(prompts).where(eq(prompts.externalId, externalId));
+    expect(p).toBeDefined();
+    expect(p!.externalId).toBe(externalId);
   });
 
   it("records failed_records when a line is unparseable, continues with the rest", async () => {
