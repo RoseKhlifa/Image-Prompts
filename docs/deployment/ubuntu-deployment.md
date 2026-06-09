@@ -187,11 +187,13 @@ pnpm -F api exec tsx scripts/seed-nsfw-category.ts
 
 ```bash
 cd /root/Image-Prompts
-pnpm -F api build       # tsc → apps/api/dist/(后面 systemd 跑 dist/index.js)
 pnpm -F web build       # tsc + vite → apps/web/dist/(后面 OpenResty serve 静态)
 ```
 
-> `@ip/shared` 不用单独 build —— 它的 `package.json` 直接把 `main` 指到 `./src/index.ts`,api / web 编译时透过去。如果你跑 `pnpm -F shared build` 会得到 `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`,跳过就行。
+> **API 端不需要 build**:`apps/api/tsconfig.json` 配的是 `noEmit: true`,源码里 import 还带 `.ts` 后缀(`allowImportingTsExtensions`),都是设计成 production 也走 tsx runtime 的。所以:
+> - `pnpm -F api build` 只是 typecheck,**不产出 .js**,无需跑
+> - `@ip/shared` 同样没有 build script,`pnpm -F shared build` 会报 `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`,跳过即可
+> - systemd 直接用 tsx 跑源码,见第 7 节
 
 `apps/web/dist/` 就是静态文件,后面交给 1Panel OpenResty 直接 serve。
 
@@ -202,6 +204,15 @@ pnpm -F web build       # tsc + vite → apps/web/dist/(后面 OpenResty serve �
 ```bash
 nano /etc/systemd/system/image-prompts-api.service
 ```
+
+先看你机器上实际的 tsx 版本路径(pnpm 装的目录名带 hash):
+
+```bash
+ls /root/Image-Prompts/node_modules/.pnpm/ | grep '^tsx@'
+# 输出类似:tsx@4.20.7_typescript@5.9.3
+```
+
+把那个目录名填进下面 `<tsx-version>` 的位置:
 
 ```ini
 [Unit]
@@ -215,7 +226,7 @@ User=root
 WorkingDirectory=/root/Image-Prompts/apps/api
 Environment=NODE_ENV=production
 EnvironmentFile=/root/Image-Prompts/apps/api/.env
-ExecStart=/usr/bin/node /root/Image-Prompts/apps/api/dist/index.js
+ExecStart=/usr/bin/node /root/Image-Prompts/node_modules/.pnpm/<tsx-version>/node_modules/tsx/dist/cli.mjs src/index.ts
 Restart=always
 RestartSec=5
 StandardOutput=append:/var/log/image-prompts-api.log
@@ -225,9 +236,9 @@ StandardError=append:/var/log/image-prompts-api.log
 WantedBy=multi-user.target
 ```
 
-> `WorkingDirectory` 指到 `apps/api`,这样代码里相对路径(比如读 `package.json` / `drizzle/`)能正确解析。
+> 为什么不用 `node dist/index.js`?因为这个项目的 api 端 `tsconfig` 是 `noEmit: true`,源码 import 还带 `.ts` 后缀 —— production 也是 tsx runtime,不需要编译。
 >
-> 如果以后改代码改完只想热重启:`cd /root/Image-Prompts && git pull && pnpm -F api build && systemctl restart image-prompts-api`。
+> 改完代码热重启:`cd /root/Image-Prompts && git pull && systemctl restart image-prompts-api`。如果改了 web 还要补一刀 `pnpm -F web build`。
 
 启动:
 
