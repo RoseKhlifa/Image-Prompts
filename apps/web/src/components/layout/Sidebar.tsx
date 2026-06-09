@@ -37,7 +37,13 @@ export default function Sidebar() {
         : undefined;
 
   const categories = useCategories(scope);
-  const tags = useTags(scope as TagScope | undefined);
+  // Tag counts narrow to the active category so users see "how many of these
+  // tags exist within the category I'm currently browsing". Falls back to
+  // global counts when no category is selected.
+  const tags = useTags(
+    scope as TagScope | undefined,
+    activeCategory ?? undefined,
+  );
 
   const totalCount = categories.data?.reduce((n, c) => n + c.promptCount, 0);
 

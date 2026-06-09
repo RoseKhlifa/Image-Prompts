@@ -1,6 +1,6 @@
 import { sql, asc, desc, inArray, eq, and, ne } from "drizzle-orm";
 import { db } from "../db/client.ts";
-import { tags, promptTags, favorites, prompts } from "../db/schema/index.ts";
+import { tags, promptTags, favorites, prompts, categories } from "../db/schema/index.ts";
 
 // The `nsfw` tag is an internal marker (every NSFW-category prompt carries it,
 // and only it). It must never appear in the sidebar tag list or the submission
@@ -22,8 +22,19 @@ export type TagScope =
  * with ≥1 match (no "0-everywhere" rows — keeps the sidebar focused on
  * tags the user actually has data for).
  */
-export async function listTags(limit = 100, scope?: TagScope) {
-  if (!scope) {
+/**
+ * `categorySlug` (optional) further narrows the count to prompts in that
+ * category. Combines with `scope` — e.g. `mine` + `categorySlug="food"`
+ * returns tags from the user's own food prompts. With neither set, the
+ * fast-path query reads precomputed `usage_count`.
+ */
+export async function listTags(
+  limit = 100,
+  scope?: TagScope,
+  categorySlug?: string,
+) {
+  // Fast path: no scope, no category — use precomputed usage_count.
+  if (!scope && !categorySlug) {
     const rows = await db
       .select()
       .from(tags)
@@ -38,9 +49,31 @@ export async function listTags(limit = 100, scope?: TagScope) {
     }));
   }
 
+  // Otherwise count occurrences via JOIN, with optional category + scope filters.
   const scopedCount = sql<number>`count(*)::int`;
 
-  if (scope.kind === "favorites") {
+  // Category-only (no user scope) — JOIN prompts + categories, count occurrences.
+  if (!scope && categorySlug) {
+    const rows = await db
+      .select({
+        id: tags.id,
+        slug: tags.slug,
+        name: tags.name,
+        usageCount: scopedCount,
+      })
+      .from(tags)
+      .innerJoin(promptTags, eq(promptTags.tagId, tags.id))
+      .innerJoin(prompts, eq(prompts.id, promptTags.promptId))
+      .innerJoin(categories, eq(categories.id, prompts.categoryId))
+      .where(and(ne(tags.slug, NSFW_TAG_SLUG), eq(categories.slug, categorySlug)))
+      .groupBy(tags.id, tags.slug, tags.name)
+      .orderBy(desc(scopedCount), asc(tags.slug))
+      .limit(limit);
+    return rows.map((r) => ({ ...r, usageCount: Number(r.usageCount ?? 0) }));
+  }
+
+  if (scope?.kind === "favorites") {
+    // favorites scope, optionally narrowed to a category.
     const rows = await db
       .select({
         id: tags.id,
@@ -57,14 +90,23 @@ export async function listTags(limit = 100, scope?: TagScope) {
           eq(favorites.userId, scope.userId),
         ),
       )
-      .where(ne(tags.slug, NSFW_TAG_SLUG))
+      // Join prompts + categories ONLY when categorySlug is requested — they
+      // don't influence the favorites filter otherwise.
+      .innerJoin(prompts, eq(prompts.id, promptTags.promptId))
+      .innerJoin(categories, eq(categories.id, prompts.categoryId))
+      .where(
+        and(
+          ne(tags.slug, NSFW_TAG_SLUG),
+          categorySlug ? eq(categories.slug, categorySlug) : undefined,
+        ),
+      )
       .groupBy(tags.id, tags.slug, tags.name)
       .orderBy(desc(scopedCount), asc(tags.slug))
       .limit(limit);
     return rows.map((r) => ({ ...r, usageCount: Number(r.usageCount ?? 0) }));
   }
 
-  // scope.kind === "mine"
+  // scope.kind === "mine" (with or without category)
   const rows = await db
     .select({
       id: tags.id,
@@ -78,10 +120,16 @@ export async function listTags(limit = 100, scope?: TagScope) {
       prompts,
       and(
         eq(prompts.id, promptTags.promptId),
-        eq(prompts.contributorId, scope.userId),
+        eq(prompts.contributorId, scope!.userId),
       ),
     )
-    .where(ne(tags.slug, NSFW_TAG_SLUG))
+    .innerJoin(categories, eq(categories.id, prompts.categoryId))
+    .where(
+      and(
+        ne(tags.slug, NSFW_TAG_SLUG),
+        categorySlug ? eq(categories.slug, categorySlug) : undefined,
+      ),
+    )
     .groupBy(tags.id, tags.slug, tags.name)
     .orderBy(desc(scopedCount), asc(tags.slug))
     .limit(limit);

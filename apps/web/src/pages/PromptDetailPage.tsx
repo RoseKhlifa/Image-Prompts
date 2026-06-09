@@ -106,13 +106,20 @@ export default function PromptDetailPage() {
   return (
     <AppShell>
       <article className="w-full px-4 py-6 lg:px-6">
-        {/* breadcrumb */}
+        {/* breadcrumb — the ← link points at the prompt's own category page
+            (the user's most likely back destination). A secondary `Browse`
+            link goes to the unfiltered listing for explicit fallback. */}
         <nav aria-label="breadcrumb" className="mb-4 text-[12.5px] text-ink-dim">
-          <Link to={withLocale(locale, "/prompts")} className="hover:text-ink">
-            ← {t("nav.browse")}
+          <Link
+            to={withLocale(locale, `/prompts?category=${d.category.slug}`)}
+            className="hover:text-ink"
+          >
+            ← {pickBilingual(d.category.name, locale) ?? d.category.slug}
           </Link>
           <span className="mx-2">·</span>
-          <span>{pickBilingual(d.category.name, locale) ?? d.category.slug}</span>
+          <Link to={withLocale(locale, "/prompts")} className="hover:text-ink">
+            {t("nav.browse")}
+          </Link>
         </nav>
 
         {/* main two-column grid; right column sticky */}

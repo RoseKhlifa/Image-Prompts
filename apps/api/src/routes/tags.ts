@@ -9,19 +9,24 @@ const QuerySchema = z.object({
   q: z.string().max(80).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(8),
   scope: z.enum(["favorites", "mine"]).optional(),
+  category: z.string().max(80).optional(),
 });
 
 const app = new Hono();
 
 // softAuth so requireUserId works when scope is set; public reads (no scope)
-// fall through. `scope` and `q` are mutually exclusive: scoped requests
-// return tags from the user's data (favorites/mine) ordered by occurrence;
-// non-scoped requests fall back to global searchTags (autocomplete + sidebar).
+// fall through. `scope`/`category` and `q` are mutually exclusive: a scoped
+// or category-filtered request goes through `listTags` so counts reflect the
+// active subset; the bare q-search path stays on `searchTags` (autocomplete).
 app.get("/", softAuth(), banCheck(), zv("query", QuerySchema), async (c) => {
   const q = c.req.valid("query");
   if (q.scope) {
     const userId = requireUserId(c);
-    const rows = await listTags(q.limit, { kind: q.scope, userId });
+    const rows = await listTags(q.limit, { kind: q.scope, userId }, q.category);
+    return c.json(rows);
+  }
+  if (q.category) {
+    const rows = await listTags(q.limit, undefined, q.category);
     return c.json(rows);
   }
   const rows = await searchTags(q.q ?? "", q.limit);
