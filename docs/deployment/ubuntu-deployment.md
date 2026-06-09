@@ -145,20 +145,41 @@ IMPORT_DATA_ROOT=/root/import-data   # 后面把要导入的 JSONL 放这里
 
 ## 5. 数据库迁移 + Seed
 
+> **空 DB 必须从 0000 开始跑完整 14 个 migration**,而不是只跑 0010-0013 的 apply 脚本(那些是 dev 增量上线助手,假设前 10 个已经在了)。
+
 ```bash
 cd /root/Image-Prompts
 
-# 跑 4 个 migration apply 脚本(顺序很重要)
-pnpm -F api exec tsx scripts/apply-0010-display-mode.ts
-pnpm -F api exec tsx scripts/apply-0011-original-prompt.ts
-pnpm -F api exec tsx scripts/apply-0012-profile-enrich.ts
-pnpm -F api exec tsx scripts/apply-0013-import.ts
+# 1. 把 0000-0013 全部 SQL migration 跑上(自动按文件名顺序)
+pnpm -F api exec drizzle-kit migrate
 
-# 种 NSFW 分类 + nsfw tag
+# 2. 0013 里的 ALTER TYPE ADD VALUE 在 PG 老版本里必须 tx 外执行,
+#    drizzle-kit 会丢这一句,需要单独补。幂等,跑几次无害。
+sudo -u postgres psql imageprompts -c "ALTER TYPE prompt_source ADD VALUE IF NOT EXISTS 'imported';"
+
+# 3. 种 NSFW 分类 + nsfw tag(代码里多处硬编码 slug='nsfw',必须存在)
 pnpm -F api exec tsx scripts/seed-nsfw-category.ts
 ```
 
-每个脚本都幂等,重复跑无害。
+预期输出:
+```
+[seed-nsfw] inserted category nsfw id=<uuid>
+[seed-nsfw] inserted tag nsfw id=<uuid>
+```
+
+> ⚠️ **绝对不要跑 `pnpm db:seed`**。它不是 migration,是 dev 用的 demo 数据 seed,会 TRUNCATE prompts / r2_accounts / site_settings。在 production 是灾难。
+
+### migrate 跑了啥
+
+14 个文件分别建出这些核心表 + 索引 + 枚举:
+
+| 范围 | 内容 |
+|---|---|
+| 0000-0003 | Auth.js 表(users/sessions/accounts) + 核心内容表(prompts/categories/tags/prompt_images) + 互动表(likes/favorites/views) + R2 池 + site_settings |
+| 0004-0005 | import_tokens(Image-Studio 一键导入)+ audit_log |
+| 0006-0007 | submissions(投稿审核队列)+ notifications + 计数聚合 |
+| 0008-0010 | user_bans + announcements(含 display_mode) |
+| 0011-0013 | 用户自助编辑投稿 + profile 扩展字段(bio / socials / pinned) + imported 来源(remote_url / external_id / import_batches) |
 
 ---
 
