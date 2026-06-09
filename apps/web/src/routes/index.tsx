@@ -24,6 +24,7 @@ import CategoriesPage from "../pages/owner/CategoriesPage";
 import TagsPage from "../pages/owner/TagsPage";
 import PromptsPage from "../pages/owner/PromptsPage";
 import ImportPage from "../pages/owner/ImportPage";
+import ReportsPage from "../pages/owner/ReportsPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LocaleRedirect /> },
@@ -61,6 +62,7 @@ export const router = createBrowserRouter([
               { path: "tags", element: <TagsPage /> },
               { path: "prompts", element: <PromptsPage /> },
               { path: "import", element: <ImportPage /> },
+              { path: "reports", element: <ReportsPage /> },
             ],
           },
         ],

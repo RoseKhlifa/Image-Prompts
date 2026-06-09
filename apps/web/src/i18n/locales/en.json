@@ -101,7 +101,6 @@
     "copied": "Copied",
     "copy_failed": "Copy failed — please select manually",
     "report": "Report",
-    "report_coming_soon": "Reporting is coming soon",
     "edit": "Edit",
     "delete": "Delete",
     "delete_confirm": "Delete \"{title}\"? This cannot be undone.",
@@ -273,6 +272,32 @@
     "section_tos_p4": "These terms are governed by the laws of the People's Republic of China; the maintainer's local jurisdiction is the first court of recourse.",
 
     "back_to_about": "Back to About"
+  },
+  "report": {
+    "title": "Report this prompt",
+    "intro": "Your report enters the maintainer's review queue; we commit to a written reply within 5 business days. Anonymous reports are not accepted, but your identity is visible only to the maintainer — never publicly.",
+    "reason_label": "Reason",
+    "reason": {
+      "copyright": "Copyright infringement",
+      "nsfw_misclass": "Should be in NSFW category",
+      "illegal": "Illegal content",
+      "spam": "Spam or low-quality content",
+      "inappropriate": "Inappropriate content",
+      "other": "Other"
+    },
+    "reason_desc": {
+      "copyright": "Uses someone else's copyrighted work or image without authorization",
+      "nsfw_misclass": "Content belongs in NSFW but appears in general listings",
+      "illegal": "Violates the law of the applicable jurisdiction",
+      "spam": "Duplicate posting, advertising, or otherwise valueless",
+      "inappropriate": "Hate against a group, animal cruelty, self-harm incitement, etc.",
+      "other": "Other concerns you think the site should address"
+    },
+    "detail_label": "Details (optional)",
+    "detail_placeholder": "Links, context, anything that helps us assess faster…",
+    "submit": "Submit report",
+    "submitted": "Report submitted — thank you for helping keep the site clean",
+    "already_filed": "You already filed a report for this; we're reviewing it"
   },
   "sidebar": {
     "repositories": "Repositories"
@@ -459,8 +484,30 @@
       "tags": "Tags",
       "prompts": "Prompts",
       "import": "Import",
+      "reports": "Reports",
       "root": "Owner Console",
       "back_to_site": "Back to site"
+    },
+    "reports": {
+      "title": "Report queue",
+      "subtitle": "User-filed reports. \"open\" is the work queue.",
+      "status": {
+        "open": "Open",
+        "reviewing": "Reviewing",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed"
+      },
+      "col_created": "Filed",
+      "col_reporter": "Reporter",
+      "col_target": "Target",
+      "col_reason": "Reason",
+      "col_detail": "Detail",
+      "col_actions": "Actions",
+      "target_missing": "Target no longer exists",
+      "action_prompt": "Record what action was taken (optional):",
+      "updated": "Updated",
+      "empty": "No reports in this status",
+      "total": "{{n}} total"
     },
     "dashboard": {
       "title": "Overview",

@@ -45,7 +45,12 @@ describe("MoreMenu", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
   });
 
-  it("clicking 'Report' pushes a toast", async () => {
+  it("clicking 'Report' while signed-out pushes a sign-in toast", async () => {
+    // Default `setup` mocks useSession to null, so the menu's report
+    // handler hits the early-return branch and toasts instead of opening
+    // the modal. When the contributor / owner branches mock a session,
+    // the report click opens the ReportModal — that flow has its own
+    // dedicated tests.
     setup();
     fireEvent.click(screen.getByRole("button"));
     fireEvent.click(screen.getByRole("menuitem", { name: /report/i }));

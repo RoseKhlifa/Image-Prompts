@@ -12,17 +12,23 @@ import {
   Tags,
   Images,
   Download,
+  Flag,
   type LucideIcon,
 } from "lucide-react";
+import { useOwnerReportCounts } from "../../lib/hooks/useReports";
 import { isLocale, type Locale } from "@ip/shared";
 import { withLocale } from "../../lib/locale";
 
-type Item = { to: string; label: string; icon: LucideIcon; end?: boolean };
+type Item = { to: string; label: string; icon: LucideIcon; end?: boolean; badge?: number };
 
 export default function OwnerSidebar() {
   const { t } = useTranslation();
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
+  // Open-report count drives a small badge on the Reports nav item so the
+  // owner sees moderation work the moment they enter the admin shell.
+  const reportCounts = useOwnerReportCounts();
+  const openReports = reportCounts.data?.open ?? 0;
 
   const items: Item[] = [
     { to: withLocale(locale, "/rosekhlifa"), label: t("owner.nav.dashboard"), icon: LayoutDashboard, end: true },
@@ -36,6 +42,7 @@ export default function OwnerSidebar() {
     { to: withLocale(locale, "/rosekhlifa/prompts"), label: t("owner.nav.prompts"), icon: Images },
     { to: withLocale(locale, "/rosekhlifa/import"), label: t("owner.nav.import"), icon: Download },
     { to: withLocale(locale, "/rosekhlifa/submissions"), label: t("owner.nav.submissions"), icon: Inbox },
+    { to: withLocale(locale, "/rosekhlifa/reports"), label: t("owner.nav.reports"), icon: Flag, badge: openReports },
   ];
 
   return (
@@ -63,6 +70,11 @@ export default function OwnerSidebar() {
               >
                 <Icon size={16} aria-hidden />
                 <span className="truncate">{it.label}</span>
+                {it.badge !== undefined && it.badge > 0 && (
+                  <span className="ml-auto rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-rose-300">
+                    {it.badge}
+                  </span>
+                )}
               </NavLink>
             );
           })}

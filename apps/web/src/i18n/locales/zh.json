@@ -101,7 +101,6 @@
     "copied": "已复制",
     "copy_failed": "复制失败,请手动选择",
     "report": "举报",
-    "report_coming_soon": "举报功能即将上线",
     "edit": "编辑",
     "delete": "删除",
     "delete_confirm": "确认删除「{title}」?此操作不可撤销。",
@@ -273,6 +272,32 @@
     "section_tos_p4": "本服务受中华人民共和国法律管辖;如有争议,以站长所在地法院为第一管辖。",
 
     "back_to_about": "返回关于页"
+  },
+  "report": {
+    "title": "举报这条提示词",
+    "intro": "你的举报会进入站长审核队列,我们承诺在 5 个工作日内回复。匿名举报不被接受,但你的个人信息只对站长可见,不会公开。",
+    "reason_label": "原因",
+    "reason": {
+      "copyright": "版权侵权",
+      "nsfw_misclass": "应归入 NSFW 分类",
+      "illegal": "违法内容",
+      "spam": "垃圾或低质内容",
+      "inappropriate": "不当内容",
+      "other": "其他"
+    },
+    "reason_desc": {
+      "copyright": "未经授权使用他人受版权保护的作品 / 图像",
+      "nsfw_misclass": "该内容应位于 NSFW 分类却出现在普通列表中",
+      "illegal": "涉及违反所在国法律法规的内容",
+      "spam": "重复发布、广告灌水、毫无内容价值",
+      "inappropriate": "对特定群体的仇恨、虐待动物、自残引导等",
+      "other": "其他你认为本站应当关注的问题"
+    },
+    "detail_label": "详细说明(可选)",
+    "detail_placeholder": "提供链接、上下文或其他能帮助我们快速判断的信息……",
+    "submit": "提交举报",
+    "submitted": "举报已提交,感谢你帮助维护内容质量",
+    "already_filed": "你已提交过对此内容的举报,我们正在处理中"
   },
   "sidebar": {
     "repositories": "仓库"
@@ -459,8 +484,30 @@
       "tags": "标签",
       "prompts": "提示词",
       "import": "导入",
+      "reports": "举报",
       "root": "站长后台",
       "back_to_site": "回主站"
+    },
+    "reports": {
+      "title": "举报队列",
+      "subtitle": "用户提交的内容举报。「open」是待处理。",
+      "status": {
+        "open": "待处理",
+        "reviewing": "处理中",
+        "resolved": "已处理",
+        "dismissed": "已驳回"
+      },
+      "col_created": "时间",
+      "col_reporter": "举报人",
+      "col_target": "对象",
+      "col_reason": "原因",
+      "col_detail": "详情",
+      "col_actions": "操作",
+      "target_missing": "目标已不存在",
+      "action_prompt": "请输入处理记录(可空):",
+      "updated": "已更新",
+      "empty": "暂无该状态的举报",
+      "total": "共 {{n}} 条"
     },
     "dashboard": {
       "title": "概览",

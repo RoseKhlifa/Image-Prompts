@@ -23,6 +23,7 @@ import usersRoute from "./routes/users.ts";
 import statsRoutes from "./routes/stats.ts";
 import announcementsRoute from "./routes/announcements.ts";
 import translateRoute from "./routes/translate.ts";
+import reportsRoute from "./routes/reports.ts";
 
 export function createServer() {
   const app = new Hono();
@@ -77,6 +78,7 @@ export function createServer() {
   // ★ M10b W4.2: prompt translator (zh↔en). verifyAuth + banCheck + per-user
   //   rate limit inside the route module.
   app.route("/api/translate", translateRoute);
+  app.route("/api/reports", reportsRoute);
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
   app.onError(errorHandler);

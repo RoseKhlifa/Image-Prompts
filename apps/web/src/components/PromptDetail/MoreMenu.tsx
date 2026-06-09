@@ -18,6 +18,9 @@ const OwnerPromptFormModal = lazy(
 // Same logic for the contributor self-edit modal — only loaded when the
 // signed-in viewer is the contributor and clicks "edit".
 const MyPromptEditModal = lazy(() => import("./MyPromptEditModal"));
+// Lazy too — the modal pulls i18n strings + the report mutation only when
+// the visitor actually clicks Report.
+const ReportModal = lazy(() => import("./ReportModal"));
 
 type Props = {
   promptId: string;
@@ -73,6 +76,7 @@ export default function MoreMenu({
   // branch can both compile in this file without colliding.
   const [editingOwner, setEditingOwner] = useState(false);
   const [editingMine, setEditingMine] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const ownerDeleteMut = useDeleteOwnerPrompt();
   const myDeleteMut = useDeleteMyPrompt();
@@ -91,8 +95,12 @@ export default function MoreMenu({
   }, [open]);
 
   function handleReport() {
-    // M5 placeholder — M7 will wire to ReportModal
-    toast.info(t("detail.report_coming_soon"));
+    if (!sessionUserId) {
+      toast.error(t("auth.signin_required"));
+      setOpen(false);
+      return;
+    }
+    setReporting(true);
     setOpen(false);
   }
 
@@ -221,6 +229,11 @@ export default function MoreMenu({
             slug={slug}
             onClose={() => setEditingMine(false)}
           />
+        </Suspense>
+      )}
+      {reporting && (
+        <Suspense fallback={null}>
+          <ReportModal promptId={promptId} onClose={() => setReporting(false)} />
         </Suspense>
       )}
     </div>

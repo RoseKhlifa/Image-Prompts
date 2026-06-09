@@ -41,6 +41,12 @@ import {
   type AuditListFilters,
 } from "../repositories/audit.ts";
 import {
+  listReports,
+  updateReportStatus,
+  getReportCountByStatus,
+  type ReportStatus,
+} from "../repositories/reports.ts";
+import {
   listAllForOwner as listAllAnnouncements,
   createAnnouncement,
   updateAnnouncement,
@@ -1395,5 +1401,66 @@ app.post("/imports/upload", async (c) => {
     }
   }
 });
+
+// ── /api/owner/reports ────────────────────────────────────────────────
+//
+// GET /reports?status=open&page=1&pageSize=20  — paginated queue
+// GET /reports/counts                          — totals by status (for the
+//                                                 sidebar badge)
+// PATCH /reports/:id                           — change status + record
+//                                                 action taken
+//
+// `requireOwner` already runs at the parent app level for this whole route
+// file; no extra auth wiring needed here.
+
+const ReportListQuery = z.object({
+  status: z.enum(["open", "reviewing", "resolved", "dismissed"]).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(60).default(20),
+});
+
+app.get("/reports", zv("query", ReportListQuery), async (c) => {
+  const q = c.req.valid("query");
+  const data = await listReports({
+    ...(q.status ? { status: q.status } : {}),
+    page: q.page,
+    pageSize: q.pageSize,
+  });
+  return c.json(data);
+});
+
+app.get("/reports/counts", async (c) => {
+  return c.json(await getReportCountByStatus());
+});
+
+const ReportUpdateBody = z.object({
+  status: z.enum(["open", "reviewing", "resolved", "dismissed"]),
+  actionTaken: z.string().max(500).optional(),
+});
+
+app.patch(
+  "/reports/:id",
+  zv("param", z.object({ id: z.string().uuid() })),
+  zv("json", ReportUpdateBody),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const reviewerId = requireUserId(c);
+    const row = await updateReportStatus(id, {
+      status: body.status as ReportStatus,
+      reviewerId,
+      ...(body.actionTaken ? { actionTaken: body.actionTaken } : {}),
+    });
+    if (!row) throw new HTTPException(404, { message: "report_not_found" });
+    await recordAudit({
+      actorId: reviewerId,
+      action: `report.status.${body.status}`,
+      targetType: "report",
+      targetId: id,
+      payload: body.actionTaken ? { actionTaken: body.actionTaken } : {},
+    });
+    return c.json(row);
+  },
+);
 
 export default app;
