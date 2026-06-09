@@ -39,6 +39,20 @@ import {
   softDeleteAnnouncement,
   type UpdateInput as AnnouncementUpdateInput,
 } from "../repositories/announcements.ts";
+import {
+  listCategoriesForOwner,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  listTagsForOwner,
+  createTag,
+  updateTag,
+  deleteTag,
+  type CategoryCreateInput,
+  type CategoryUpdateInput,
+  type TagCreateInput,
+  type TagUpdateInput,
+} from "../repositories/owner-taxonomy.ts";
 import { resetSubmitConfigCache } from "../lib/submit-config.ts";
 
 const app = new Hono();
@@ -593,6 +607,211 @@ app.delete(
       actorId: ownerId,
       action: "announcement.delete",
       targetType: "announcement",
+      targetId: id,
+      payload: {},
+    });
+    return c.json({ id, deleted: true });
+  },
+);
+
+// ── Categories (Task 3) ───────────────────────────────────────────────────
+//
+// Owner CRUD over the categories table. Public reads stay at /api/categories
+// (different repo, narrower projection). Slugs match the same a-z 0-9 + dash
+// shape we use for tags + prompts so the URL surface stays uniform.
+//
+// Bilingual name is the same shape as announcements.title — refine() requires
+// ≥1 language; we use compactBilingual() (already defined above) to strip
+// undefined keys when forwarding zod-parsed bodies under
+// exactOptionalPropertyTypes:true.
+//
+// Hard delete with usage protection — the repo returns a discriminated union
+// (`ok | {in_use, count} | not_found`) which we map onto 200 / 409 / 404 with
+// `in_use:N` as the error message so the UI can render the count.
+const SlugSchema = z
+  .string()
+  .regex(/^[a-z0-9-]{1,40}$/, { message: "slug_invalid" });
+
+const CategoryBodySchema = z.object({
+  slug: SlugSchema,
+  name: z
+    .object({
+      zh: z.string().max(60).optional(),
+      en: z.string().max(60).optional(),
+    })
+    .refine((v) => Boolean(v.zh || v.en), { message: "name_required" }),
+  description: z
+    .object({
+      zh: z.string().max(400).optional(),
+      en: z.string().max(400).optional(),
+    })
+    .optional(),
+  order: z.number().int().min(0).max(10_000).optional(),
+});
+
+const CategoryUpdateBodySchema = CategoryBodySchema.partial();
+
+app.get("/categories", async (c) => {
+  const items = await listCategoriesForOwner();
+  return c.json({ items });
+});
+
+app.post("/categories", zv("json", CategoryBodySchema), async (c) => {
+  const ownerId = requireUserId(c);
+  const input = c.req.valid("json");
+  const cleaned: CategoryCreateInput = {
+    slug: input.slug,
+    name: compactBilingual(input.name)!,
+  };
+  if (input.description !== undefined) {
+    const desc = compactBilingual(input.description);
+    if (desc !== undefined) cleaned.description = desc;
+  }
+  if (input.order !== undefined) cleaned.order = input.order;
+  const created = await createCategory(cleaned);
+  await recordAudit({
+    actorId: ownerId,
+    action: "category.create",
+    targetType: "category",
+    targetId: created.id,
+    payload: { slug: created.slug },
+  });
+  return c.json(created, 201);
+});
+
+app.patch(
+  "/categories/:id",
+  zv("param", UuidParamSchema),
+  zv("json", CategoryUpdateBodySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const input = c.req.valid("json");
+    const patch: CategoryUpdateInput = {};
+    if (input.slug !== undefined) patch.slug = input.slug;
+    if (input.name !== undefined) patch.name = compactBilingual(input.name)!;
+    if (input.description !== undefined) {
+      const desc = compactBilingual(input.description);
+      if (desc !== undefined) patch.description = desc;
+    }
+    if (input.order !== undefined) patch.order = input.order;
+    const updated = await updateCategory(id, patch);
+    if (!updated) throw new HTTPException(404, { message: "not_found" });
+    await recordAudit({
+      actorId: ownerId,
+      action: "category.update",
+      targetType: "category",
+      targetId: id,
+      payload: {},
+    });
+    return c.json(updated);
+  },
+);
+
+app.delete(
+  "/categories/:id",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const result = await deleteCategory(id);
+    if (result.ok === false && result.reason === "not_found") {
+      throw new HTTPException(404, { message: "not_found" });
+    }
+    if (result.ok === false && result.reason === "in_use") {
+      throw new HTTPException(409, { message: `in_use:${result.count}` });
+    }
+    await recordAudit({
+      actorId: ownerId,
+      action: "category.delete",
+      targetType: "category",
+      targetId: id,
+      payload: {},
+    });
+    return c.json({ id, deleted: true });
+  },
+);
+
+// ── Tags (Task 3) ─────────────────────────────────────────────────────────
+//
+// Same shape as the categories endpoints above. Tags have no description /
+// order fields; the editable surface is slug + bilingual name only.
+const TagBodySchema = z.object({
+  slug: SlugSchema,
+  name: z
+    .object({
+      zh: z.string().max(40).optional(),
+      en: z.string().max(40).optional(),
+    })
+    .refine((v) => Boolean(v.zh || v.en), { message: "name_required" }),
+});
+
+const TagUpdateBodySchema = TagBodySchema.partial();
+
+app.get("/tags", async (c) => {
+  const items = await listTagsForOwner();
+  return c.json({ items });
+});
+
+app.post("/tags", zv("json", TagBodySchema), async (c) => {
+  const ownerId = requireUserId(c);
+  const input = c.req.valid("json");
+  const cleaned: TagCreateInput = {
+    slug: input.slug,
+    name: compactBilingual(input.name)!,
+  };
+  const created = await createTag(cleaned);
+  await recordAudit({
+    actorId: ownerId,
+    action: "tag.create",
+    targetType: "tag",
+    targetId: created.id,
+    payload: { slug: created.slug },
+  });
+  return c.json(created, 201);
+});
+
+app.patch(
+  "/tags/:id",
+  zv("param", UuidParamSchema),
+  zv("json", TagUpdateBodySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const input = c.req.valid("json");
+    const patch: TagUpdateInput = {};
+    if (input.slug !== undefined) patch.slug = input.slug;
+    if (input.name !== undefined) patch.name = compactBilingual(input.name)!;
+    const updated = await updateTag(id, patch);
+    if (!updated) throw new HTTPException(404, { message: "not_found" });
+    await recordAudit({
+      actorId: ownerId,
+      action: "tag.update",
+      targetType: "tag",
+      targetId: id,
+      payload: {},
+    });
+    return c.json(updated);
+  },
+);
+
+app.delete(
+  "/tags/:id",
+  zv("param", UuidParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const ownerId = requireUserId(c);
+    const result = await deleteTag(id);
+    if (result.ok === false && result.reason === "not_found") {
+      throw new HTTPException(404, { message: "not_found" });
+    }
+    if (result.ok === false && result.reason === "in_use") {
+      throw new HTTPException(409, { message: `in_use:${result.count}` });
+    }
+    await recordAudit({
+      actorId: ownerId,
+      action: "tag.delete",
+      targetType: "tag",
       targetId: id,
       payload: {},
     });

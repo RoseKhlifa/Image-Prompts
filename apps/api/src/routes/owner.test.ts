@@ -10,6 +10,10 @@ import {
   r2Accounts,
   auditLog,
   announcements,
+  categories,
+  tags,
+  prompts,
+  promptTags,
 } from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret, decryptSecret } from "../lib/crypto.ts";
@@ -29,6 +33,9 @@ const TEST_R2_CRUD_PREFIX = "tw32r-";
 // Marker embedded in announcement title.en for test-row sweeping. Matches
 // the same pattern repo/announcements.test.ts uses.
 const TEST_ANN_MARKER = "[owner-route-ann-test]";
+// Task 3 owner-taxonomy CRUD: every test category/tag/prompt slug wears this
+// prefix so cleanup() can sweep without touching the dev seed.
+const TEST_TAX_PREFIX = "owner-route-tax-";
 
 let origOwnerEmails: string | undefined;
 let origR2Key: string | undefined;
@@ -92,6 +99,51 @@ async function cleanup() {
   if (annIds.length > 0) {
     await db.delete(auditLog).where(inArray(auditLog.targetId, annIds));
     await db.delete(announcements).where(inArray(announcements.id, annIds));
+  }
+  // Task 3: sweep test categories + tags + the prompts/promptTags they
+  // host. The FK chain (prompts → categories; promptTags → prompts/tags)
+  // means we must clear prompt_tags + prompts first; then audit_log rows
+  // pointing at our test category/tag ids; then the taxonomy rows themselves.
+  const testCatIds = (
+    await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(like(categories.slug, `${TEST_TAX_PREFIX}%`))
+  ).map((r) => r.id);
+  const testTagIds = (
+    await db
+      .select({ id: tags.id })
+      .from(tags)
+      .where(like(tags.slug, `${TEST_TAX_PREFIX}%`))
+  ).map((r) => r.id);
+  const testPromptIds = (
+    await db
+      .select({ id: prompts.id })
+      .from(prompts)
+      .where(like(prompts.slug, `${TEST_TAX_PREFIX}%`))
+  ).map((r) => r.id);
+  if (testPromptIds.length > 0) {
+    await db
+      .delete(promptTags)
+      .where(inArray(promptTags.promptId, testPromptIds));
+    await db.delete(prompts).where(inArray(prompts.id, testPromptIds));
+  }
+  const taxIds = [...testCatIds, ...testTagIds];
+  if (taxIds.length > 0) {
+    await db
+      .delete(auditLog)
+      .where(
+        and(
+          inArray(auditLog.targetType, ["category", "tag"]),
+          inArray(auditLog.targetId, taxIds),
+        ),
+      );
+  }
+  if (testCatIds.length > 0) {
+    await db.delete(categories).where(inArray(categories.id, testCatIds));
+  }
+  if (testTagIds.length > 0) {
+    await db.delete(tags).where(inArray(tags.id, testTagIds));
   }
   // Sweep any test-owned users (they're created with the prefixed email).
   const testUserIds = (
@@ -1475,5 +1527,559 @@ describe("owner r2-accounts — POST /:id/sync-usage", () => {
       usedBytes: 350,
       objectCount: 3,
     });
+  });
+});
+
+// ── /api/owner/categories + /tags (Task 3) ───────────────────────────────
+//
+// Owner CRUD over the categories + tags tables. Public reads stay at
+// /api/categories + /api/tags. We share helper bodies so the create/update
+// paths are symmetric across the two resources, and each block uses the
+// TEST_TAX_PREFIX slug pattern so cleanup() sweeps test rows + their audit
+// trail without touching seeded data (the user's own "冒险角色设计稿" prompt
+// references the seeded "character" category — we don't touch it).
+
+function makeCategoryBody(suffix: string) {
+  return {
+    slug: `${TEST_TAX_PREFIX}${suffix}`,
+    name: { zh: `测试${suffix}`, en: `Test ${suffix}` },
+    description: { en: `desc ${suffix}` },
+    order: 99,
+  };
+}
+
+function makeTagBody(suffix: string) {
+  return {
+    slug: `${TEST_TAX_PREFIX}${suffix}`,
+    name: { zh: `标签${suffix}`, en: `Tag ${suffix}` },
+  };
+}
+
+describe("owner categories — auth gate", () => {
+  it("GET /categories 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/categories", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /categories 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify(makeCategoryBody("auth")),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /categories/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/categories/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+        body: JSON.stringify({ order: 0 }),
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /categories/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/categories/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: sess.cookie } },
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("owner categories — POST", () => {
+  it("POST 201 creates row + audit + correct shape", async () => {
+    const owner = await makeOwner();
+    const body = makeCategoryBody("create");
+    const res = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(201);
+    const j = (await res.json()) as {
+      id: string;
+      slug: string;
+      name: { zh?: string; en?: string };
+      description: { zh?: string; en?: string } | null;
+      order: number;
+      promptCount: number;
+    };
+    expect(j.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(j.slug).toBe(body.slug);
+    expect(j.name).toEqual(body.name);
+    expect(j.description).toEqual(body.description);
+    expect(j.order).toBe(99);
+    expect(j.promptCount).toBe(0);
+
+    // Audit row recorded.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "category.create"),
+          eq(auditLog.targetId, j.id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("category");
+    expect(auditRows[0]!.payload).toMatchObject({ slug: body.slug });
+  });
+
+  it("POST 400 on invalid slug (uppercase)", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ ...makeCategoryBody("X"), slug: "TestCAPS" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST 400 on invalid slug (special char)", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        ...makeCategoryBody("y"),
+        slug: `${TEST_TAX_PREFIX}has space`,
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST 400 on empty name", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        slug: `${TEST_TAX_PREFIX}empty-name`,
+        name: {},
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("owner categories — GET list", () => {
+  it("GET 200 returns items including the row we just created", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("list")),
+    });
+    const { id, slug } = (await created.json()) as { id: string; slug: string };
+    const res = await app.request("/api/owner/categories", {
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      items: Array<{ id: string; slug: string; promptCount: number }>;
+    };
+    const ours = j.items.find((r) => r.id === id);
+    expect(ours).toBeDefined();
+    expect(ours!.slug).toBe(slug);
+    expect(typeof ours!.promptCount).toBe("number");
+  });
+});
+
+describe("owner categories — PATCH", () => {
+  it("PATCH 200 partial + writes audit", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("patch")),
+    });
+    const { id, slug } = (await created.json()) as { id: string; slug: string };
+    const res = await app.request(`/api/owner/categories/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ order: 1, name: { en: "Patched" } }),
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      id: string;
+      slug: string;
+      order: number;
+      name: { en?: string };
+    };
+    expect(j.id).toBe(id);
+    // Slug untouched.
+    expect(j.slug).toBe(slug);
+    expect(j.order).toBe(1);
+    expect(j.name).toEqual({ en: "Patched" });
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "category.update"),
+          eq(auditLog.targetId, id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("category");
+  });
+
+  it("PATCH 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/categories/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ order: 0 }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("owner categories — DELETE", () => {
+  it("DELETE 200 hard-deletes + writes audit when not in use", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("delete")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    const res = await app.request(`/api/owner/categories/${id}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; deleted: boolean };
+    expect(j.id).toBe(id);
+    expect(j.deleted).toBe(true);
+
+    // Row really gone.
+    const [row] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.id, id));
+    expect(row).toBeUndefined();
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "category.delete"),
+          eq(auditLog.targetId, id),
+        ),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("category");
+  });
+
+  it("DELETE 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/categories/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE 409 in_use:N when a prompt references it", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("blocked")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    // Plant 1 prompt that references this category. cleanup() sweeps it by
+    // slug prefix at end-of-test.
+    await db.insert(prompts).values({
+      slug: `${TEST_TAX_PREFIX}blocked-prompt`,
+      title: { en: "p" },
+      prompt: { en: "do" },
+      categoryId: id,
+      contributorId: owner.userId,
+    });
+    const res = await app.request(`/api/owner/categories/${id}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(409);
+    const j = (await res.json()) as { message?: string; error?: string };
+    const msg = j.message ?? j.error ?? "";
+    expect(msg).toContain("in_use:1");
+
+    // No category.delete audit row recorded for the refused delete.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "category.delete"),
+          eq(auditLog.targetId, id),
+        ),
+      );
+    expect(auditRows).toHaveLength(0);
+  });
+});
+
+describe("owner tags — auth gate", () => {
+  it("GET /tags 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/tags", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /tags 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify(makeTagBody("auth")),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /tags/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/tags/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+        body: JSON.stringify({ name: { en: "x" } }),
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /tags/:id 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request(
+      "/api/owner/tags/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: sess.cookie } },
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("owner tags — POST", () => {
+  it("POST 201 creates row + audit + correct shape", async () => {
+    const owner = await makeOwner();
+    const body = makeTagBody("create");
+    const res = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(201);
+    const j = (await res.json()) as {
+      id: string;
+      slug: string;
+      name: { zh?: string; en?: string };
+      usageCount: number;
+      promptCount: number;
+    };
+    expect(j.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(j.slug).toBe(body.slug);
+    expect(j.name).toEqual(body.name);
+    expect(j.usageCount).toBe(0);
+    expect(j.promptCount).toBe(0);
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "tag.create"), eq(auditLog.targetId, j.id)),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("tag");
+    expect(auditRows[0]!.payload).toMatchObject({ slug: body.slug });
+  });
+
+  it("POST 400 on invalid slug", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ ...makeTagBody("X"), slug: "NoCaps!" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST 400 on empty name", async () => {
+    const owner = await makeOwner();
+    const res = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        slug: `${TEST_TAX_PREFIX}empty-tag`,
+        name: {},
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("owner tags — PATCH", () => {
+  it("PATCH 200 partial + writes audit", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeTagBody("patch")),
+    });
+    const { id, slug } = (await created.json()) as { id: string; slug: string };
+    const res = await app.request(`/api/owner/tags/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ name: { en: "Patched" } }),
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as {
+      id: string;
+      slug: string;
+      name: { en?: string };
+    };
+    expect(j.id).toBe(id);
+    expect(j.slug).toBe(slug);
+    expect(j.name).toEqual({ en: "Patched" });
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "tag.update"), eq(auditLog.targetId, id)),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("tag");
+  });
+
+  it("PATCH 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/tags/00000000-0000-0000-0000-000000000000",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ name: { en: "x" } }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("owner tags — DELETE", () => {
+  it("DELETE 200 hard-deletes + writes audit when not in use", async () => {
+    const owner = await makeOwner();
+    const created = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeTagBody("delete")),
+    });
+    const { id } = (await created.json()) as { id: string };
+    const res = await app.request(`/api/owner/tags/${id}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { id: string; deleted: boolean };
+    expect(j.id).toBe(id);
+    expect(j.deleted).toBe(true);
+
+    const [row] = await db.select().from(tags).where(eq(tags.id, id));
+    expect(row).toBeUndefined();
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "tag.delete"), eq(auditLog.targetId, id)),
+      );
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]!.actorId).toBe(owner.userId);
+    expect(auditRows[0]!.targetType).toBe("tag");
+  });
+
+  it("DELETE 404 for unknown id", async () => {
+    const owner = await makeOwner();
+    const res = await app.request(
+      "/api/owner/tags/00000000-0000-0000-0000-000000000000",
+      { method: "DELETE", headers: { Cookie: owner.cookie } },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE 409 in_use:N when a prompt_tags row references it", async () => {
+    const owner = await makeOwner();
+    // Need a host category for the prompt that will reference the tag.
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("host-for-tag")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+
+    const tagRes = await app.request("/api/owner/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeTagBody("blocked")),
+    });
+    const { id: tagId } = (await tagRes.json()) as { id: string };
+
+    const [p] = await db
+      .insert(prompts)
+      .values({
+        slug: `${TEST_TAX_PREFIX}blocked-tag-prompt`,
+        title: { en: "p" },
+        prompt: { en: "do" },
+        categoryId: catId,
+        contributorId: owner.userId,
+      })
+      .returning({ id: prompts.id });
+    await db.insert(promptTags).values({ promptId: p!.id, tagId });
+
+    const res = await app.request(`/api/owner/tags/${tagId}`, {
+      method: "DELETE",
+      headers: { Cookie: owner.cookie },
+    });
+    expect(res.status).toBe(409);
+    const j = (await res.json()) as { message?: string; error?: string };
+    const msg = j.message ?? j.error ?? "";
+    expect(msg).toContain("in_use:1");
+
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(eq(auditLog.action, "tag.delete"), eq(auditLog.targetId, tagId)),
+      );
+    expect(auditRows).toHaveLength(0);
   });
 });

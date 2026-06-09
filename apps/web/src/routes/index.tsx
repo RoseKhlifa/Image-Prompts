@@ -19,6 +19,8 @@ import OwnerSubmissionsPage from "../pages/owner/SubmissionsPage";
 import UsersPage from "../pages/owner/UsersPage";
 import AuditPage from "../pages/owner/AuditPage";
 import AnnouncementsPage from "../pages/owner/AnnouncementsPage";
+import CategoriesPage from "../pages/owner/CategoriesPage";
+import TagsPage from "../pages/owner/TagsPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <LocaleRedirect /> },
@@ -51,6 +53,8 @@ export const router = createBrowserRouter([
               { path: "users", element: <UsersPage /> },
               { path: "audit", element: <AuditPage /> },
               { path: "announcements", element: <AnnouncementsPage /> },
+              { path: "categories", element: <CategoriesPage /> },
+              { path: "tags", element: <TagsPage /> },
             ],
           },
         ],
