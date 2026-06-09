@@ -96,8 +96,13 @@ app.get("/settings", async (c) => {
 });
 
 const SettingKeyParamSchema = z.object({ key: z.string().min(1).max(120) });
+// `value` is jsonb NOT NULL in site_settings, so reject null/undefined at the
+// route layer with a clear 400 instead of a downstream 23502 from Postgres.
+// Empty string, 0, false, [], {} are all allowed (they're valid JSON).
 const SettingPutBodySchema = z.object({
-  value: z.unknown(),
+  value: z.unknown().refine((v) => v !== null && v !== undefined, {
+    message: "value_required",
+  }),
 });
 
 /**

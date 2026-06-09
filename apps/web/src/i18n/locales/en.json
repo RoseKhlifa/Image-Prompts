@@ -350,6 +350,8 @@
       "col_description": "Description",
       "save": "Save",
       "parse_error": "JSON parse error",
+      "value_required": "Empty values aren't allowed. Use \"\" for an empty string.",
+      "save_failed": "Save failed",
       "desc": {
         "submit.daily_limit": "Per-user daily submission limit (good standing)",
         "submit.demoted_daily_limit": "Per-user daily limit after demotion",

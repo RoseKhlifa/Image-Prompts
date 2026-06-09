@@ -350,6 +350,8 @@
       "col_description": "中文说明",
       "save": "保存",
       "parse_error": "JSON 解析失败",
+      "value_required": "不能保存空值,请填入有效内容(留空请输入 \"\")",
+      "save_failed": "保存失败",
       "desc": {
         "submit.daily_limit": "每日投稿上限(良好用户)",
         "submit.demoted_daily_limit": "被降级用户的每日投稿上限",

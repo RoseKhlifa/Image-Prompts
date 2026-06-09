@@ -50,13 +50,27 @@ function SettingRow({ setting }: { setting: SiteSetting }) {
   const dirty = draft !== stringifyValue(setting.value);
 
   function onSave() {
+    let parsed: unknown;
     try {
-      const parsed = parseValue(draft);
-      setError(null);
-      mut.mutate({ key: setting.key, value: parsed });
+      parsed = parseValue(draft);
     } catch {
       setError(t("owner.config.parse_error"));
+      return;
     }
+    // jsonb NOT NULL — defend client-side too so the user sees a clear
+    // message instead of a 500/400 round-trip. Note: `""`, 0, false, [],
+    // {} are all valid non-null values and ARE allowed through.
+    if (parsed === null || parsed === undefined) {
+      setError(t("owner.config.value_required"));
+      return;
+    }
+    setError(null);
+    mut.mutate(
+      { key: setting.key, value: parsed },
+      {
+        onError: (e) => setError(e.message ?? t("owner.config.save_failed")),
+      },
+    );
   }
 
   return (
