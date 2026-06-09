@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useSearchParams } from "react-router";
+import { useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import AppShell from "../components/layout/AppShell";
 import Sidebar from "../components/layout/Sidebar";
 import Toolbar from "../components/Toolbar";
@@ -7,9 +7,21 @@ import PromptCard from "../components/PromptCard";
 import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
+import { NsfwGateModal } from "../components/NsfwGateModal";
 import { usePromptList } from "../lib/hooks/usePromptList";
+import { withLocale } from "../lib/locale";
 import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
-import type { SortOption, AspectRatio } from "@ip/shared";
+import { isLocale, type Locale, type SortOption, type AspectRatio } from "@ip/shared";
+
+const NSFW_ACK_KEY = "nsfw-ack";
+
+function readNsfwAck(): boolean {
+  try {
+    return sessionStorage.getItem(NSFW_ACK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 const SORT_VALUES: readonly SortOption[] = ["latest", "popular", "liked", "sent"];
 const ASPECT_VALUES: readonly AspectRatio[] = ["auto", "1:1", "3:2", "2:3", "16:9", "9:16"];
@@ -32,18 +44,55 @@ function asAspect(v: string | null): AspectRatio | undefined {
 
 export default function PromptListPage() {
   const [params, setParams] = useSearchParams();
-  const category = params.get("category") ?? undefined;
+  const { locale: localeParam, slug: routeSlug } = useParams<{
+    locale?: string;
+    slug?: string;
+  }>();
+  const navigate = useNavigate();
+  const locale: Locale = isLocale(localeParam) ? localeParam : "zh";
+  // Category can come from either the route param (/categories/:slug) or the
+  // query string (/prompts?category=...) — Sidebar uses the latter, but the
+  // route mounts both.
+  const category = routeSlug ?? params.get("category") ?? undefined;
   const tag = params.get("tag") ?? undefined;
   const aspect = asAspect(params.get("aspect"));
   const q = params.get("q") ?? undefined;
   const sort = asSort(params.get("sort"));
   const page = Number(params.get("page") ?? "1") || 1;
 
+  const isNsfwCategory = category === "nsfw";
+  const [nsfwAcked, setNsfwAcked] = useState<boolean>(() => readNsfwAck());
+  const gateBlocking = isNsfwCategory && !nsfwAcked;
+
   const query = useMemo(
     () => ({ category, tag, aspect, q, sort, page, pageSize: 24 }),
     [category, tag, aspect, q, sort, page],
   );
-  const list = usePromptList(query);
+  // Skip the fetch entirely while the gate is up — no point hitting the API
+  // before the visitor acknowledges.
+  const list = usePromptList(query, { enabled: !gateBlocking });
+
+  if (gateBlocking) {
+    return (
+      <NsfwGateModal
+        onConfirm={() => {
+          try {
+            sessionStorage.setItem(NSFW_ACK_KEY, "1");
+          } catch {
+            // ignore — gate still unlocks for this render, just won't persist
+          }
+          setNsfwAcked(true);
+        }}
+        onCancel={() => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(withLocale(locale, "/prompts"));
+          }
+        }}
+      />
+    );
+  }
 
   function setSort(next: SortOption) {
     const updated = new URLSearchParams(params);

@@ -5,7 +5,10 @@ import { apiFetch } from "../api";
 
 export type PromptListQuery = z.input<typeof PromptListQuerySchema>;
 
-export function usePromptList(query: PromptListQuery) {
+export function usePromptList(
+  query: PromptListQuery,
+  options?: { enabled?: boolean },
+) {
   return useQuery<Paginated<PromptSummary>>({
     queryKey: ["prompts", query],
     queryFn: ({ signal }) =>
@@ -14,5 +17,6 @@ export function usePromptList(query: PromptListQuery) {
         signal,
       }),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 }
