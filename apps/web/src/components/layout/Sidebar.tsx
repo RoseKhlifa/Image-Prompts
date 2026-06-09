@@ -72,16 +72,27 @@ export default function Sidebar() {
         </SidebarSection>
 
         <SidebarSection label={t("detail.tags")}>
-          {tags.data?.slice(0, 20).map((tg) => (
-            <SidebarLink
-              key={tg.id}
-              locale={locale}
-              pathOverride={`/prompts?tag=${tg.slug}`}
-              isActive={activeTag === tg.slug}
-              label={`# ${pickBilingual(tg.name, locale) ?? tg.slug}`}
-              count={tg.usageCount}
-            />
-          ))}
+          {tags.data?.slice(0, 20).map((tg) => {
+            // Preserve the active category in the tag link so clicking a
+            // tag from within a category narrows the listing (category AND
+            // tag) instead of resetting to "all categories". Critical for
+            // NSFW, where the listing excludes NSFW prompts UNLESS
+            // ?category=nsfw is present — without the carry-through, an
+            // NSFW-only tag like `二次元` would render an empty page.
+            const tagHref = activeCategory
+              ? `/prompts?category=${activeCategory}&tag=${tg.slug}`
+              : `/prompts?tag=${tg.slug}`;
+            return (
+              <SidebarLink
+                key={tg.id}
+                locale={locale}
+                pathOverride={tagHref}
+                isActive={activeTag === tg.slug}
+                label={`# ${pickBilingual(tg.name, locale) ?? tg.slug}`}
+                count={tg.usageCount}
+              />
+            );
+          })}
         </SidebarSection>
       </div>
 
