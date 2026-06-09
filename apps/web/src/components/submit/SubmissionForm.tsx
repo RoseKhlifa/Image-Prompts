@@ -19,6 +19,7 @@ import TagPicker from "./TagPicker.tsx";
 import ImageUploadGrid from "./ImageUploadGrid.tsx";
 import TranslateButton from "./TranslateButton.tsx";
 import type { SlotValue } from "./ImageSlot.tsx";
+import { NsfwSubmitAck } from "../NsfwSubmitAck.tsx";
 
 const ASPECTS: AspectRatio[] = [
   "1:1",
@@ -88,10 +89,41 @@ export default function SubmissionForm() {
     ...initial,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [nsfwAck, setNsfwAck] = useState("");
+
+  // Resolve the selected category's slug from its id so we can branch on
+  // "nsfw" without having the slug threaded through the form state.
+  const selectedCategorySlug =
+    (categories.data ?? []).find((c) => c.id === values.categoryId)?.slug ??
+    null;
+  const expectedAckPhrase = t("nsfw.gate.confirm_phrase");
+  const nsfwGateOK =
+    selectedCategorySlug !== "nsfw" ||
+    nsfwAck.trim() === expectedAckPhrase;
 
   useEffect(() => {
     saveDraft(values);
   }, [values]);
+
+  // Lock tags to ["nsfw"] when the visitor selects the nsfw category, and
+  // clear the lock + ack input when they switch away. Persists the
+  // updated tagSlugs through the draft via the existing saveDraft effect.
+  useEffect(() => {
+    if (selectedCategorySlug === "nsfw") {
+      setValues((prev) =>
+        prev.tagSlugs?.length === 1 && prev.tagSlugs[0] === "nsfw"
+          ? prev
+          : { ...prev, tagSlugs: ["nsfw"] },
+      );
+    } else {
+      setNsfwAck("");
+      setValues((prev) =>
+        prev.tagSlugs?.length === 1 && prev.tagSlugs[0] === "nsfw"
+          ? { ...prev, tagSlugs: [] }
+          : prev,
+      );
+    }
+  }, [selectedCategorySlug]);
 
   const create = useCreateSubmission({
     onAuthRequired: () => {
@@ -257,10 +289,19 @@ export default function SubmissionForm() {
         </select>
         <FieldError keyName="categoryId" errors={errors} />
         <div className="mt-2">
-          <TagPicker
-            value={values.tagSlugs ?? []}
-            onChange={(slugs) => setField("tagSlugs", slugs)}
-          />
+          {selectedCategorySlug === "nsfw" ? (
+            <div className="space-y-3">
+              <p className="text-xs text-zinc-400">
+                {t("nsfw.submit.tag_locked_note")}
+              </p>
+              <NsfwSubmitAck value={nsfwAck} onChange={setNsfwAck} />
+            </div>
+          ) : (
+            <TagPicker
+              value={values.tagSlugs ?? []}
+              onChange={(slugs) => setField("tagSlugs", slugs)}
+            />
+          )}
           <FieldError keyName="tagSlugs" errors={errors} />
         </div>
       </section>
@@ -307,7 +348,7 @@ export default function SubmissionForm() {
       )}
       <button
         type="button"
-        disabled={create.isPending}
+        disabled={create.isPending || !nsfwGateOK}
         onClick={submit}
         className="inline-flex w-full items-center justify-center rounded-card bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
