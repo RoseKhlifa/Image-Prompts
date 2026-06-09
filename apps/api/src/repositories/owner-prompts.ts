@@ -11,6 +11,7 @@ import {
 } from "../db/schema/index.ts";
 import { users } from "../db/schema/auth.ts";
 import { bi } from "../lib/bilingual.ts";
+import { assertNsfwTagInvariant } from "../lib/nsfw.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────
 //
@@ -490,6 +491,9 @@ export async function createPromptDirect(
   }
 
   return await db.transaction(async (tx) => {
+    // NSFW invariant: prompts in the `nsfw` category may carry ONLY the
+    // `nsfw` tag. Helper throws NsfwTagInvariantError on violation.
+    await assertNsfwTagInvariant(tx, input.categoryId, input.tagSlugs);
     const slug = await generateUniqueSlug(
       tx,
       input.titleZh ?? input.titleEn ?? "prompt",
@@ -572,9 +576,12 @@ export async function updatePromptForOwner(
   patch: OwnerPromptUpdatePatch,
 ): Promise<OwnerPromptUpdateResult | null> {
   // Existence check up front so we can return null without entering the tx.
+  // Also pull categoryId so the NSFW invariant has the existing category to
+  // fall back to when the patch omits it.
   const existing = await db
     .select({
       id: promptsTable.id,
+      categoryId: promptsTable.categoryId,
       titleZh: sql<string | null>`${promptsTable.title}->>'zh'`,
       titleEn: sql<string | null>`${promptsTable.title}->>'en'`,
       promptZh: sql<string | null>`${promptsTable.prompt}->>'zh'`,
@@ -612,6 +619,24 @@ export async function updatePromptForOwner(
   const migrateKeys: OwnerPromptUpdateResult["migrateKeys"] = [];
 
   await db.transaction(async (tx) => {
+    // NSFW invariant: enforce on the POST-PATCH state. categoryId falls back
+    // to the existing row's category; tagSlugs fall back to the existing
+    // attached slugs. So patching only-tags or only-category still checks
+    // the combined invariant correctly.
+    const effectiveCategoryId = patch.categoryId ?? cur.categoryId;
+    let effectiveTagSlugs: string[];
+    if (patch.tagSlugs !== undefined) {
+      effectiveTagSlugs = patch.tagSlugs;
+    } else {
+      const existingTags = await tx
+        .select({ slug: tagsTable.slug })
+        .from(promptTags)
+        .innerJoin(tagsTable, eq(tagsTable.id, promptTags.tagId))
+        .where(eq(promptTags.promptId, id));
+      effectiveTagSlugs = existingTags.map((r) => r.slug);
+    }
+    await assertNsfwTagInvariant(tx, effectiveCategoryId, effectiveTagSlugs);
+
     const setClause: Record<string, unknown> = { updatedAt: sql`now()` };
 
     if (patch.titleZh !== undefined || patch.titleEn !== undefined) {

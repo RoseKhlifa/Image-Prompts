@@ -663,6 +663,67 @@ describe("listForUser primaryImage source (#5 fix)", () => {
   });
 });
 
+// ── Task 5: NSFW tag invariant ──────────────────────────────────────────
+//
+// The repo wires assertNsfwTagInvariant into:
+//   - createSubmission (the INSERT path)
+//   - approveSubmission (the moderator-promote path, using the post-edits
+//     categoryId + tagSlugs)
+//
+// We assume the `nsfw` category has been seeded (Task 1). Tests look it up
+// rather than re-creating, so a missing seed surfaces clearly.
+describe("NSFW tag invariant on submission (Task 5)", () => {
+  it("rejects NSFW submission with extra tags", async () => {
+    const u = await makeUser();
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    await expect(
+      createSubmission({
+        contributorId: u.id,
+        titleZh: "nsfw-bad", titleEn: null,
+        promptZh: "p", promptEn: null,
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: nsfwCat!.id,
+        tagSlugs: ["nsfw", "extra"],
+        images: [img1],
+        agreedGuidelinesVersion: 1,
+      }),
+    ).rejects.toThrow("nsfw_category_tags_locked");
+  });
+
+  it("accepts NSFW submission with exactly ['nsfw']", async () => {
+    const u = await makeUser();
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    const id = await createSubmission({
+      contributorId: u.id,
+      titleZh: "nsfw-ok", titleEn: null,
+      promptZh: "p", promptEn: null,
+      negativePromptZh: null, negativePromptEn: null,
+      notesZh: null, notesEn: null,
+      aspectRatio: null,
+      categoryId: nsfwCat!.id,
+      tagSlugs: ["nsfw"],
+      images: [img1],
+      agreedGuidelinesVersion: 1,
+    });
+    expect(id).toBeDefined();
+    // Idempotent cleanup — the user-scoped cleanup() handles this too, but
+    // dropping it now lets us re-run the spec in isolation.
+    await db.delete(submissions).where(eq(submissions.id, id));
+  });
+});
+
 describe("listForAdmin primaryImage source (#5 fix)", () => {
   it("uses prompt_images key when submission is approved + promoted", async () => {
     const u = await makeUser();

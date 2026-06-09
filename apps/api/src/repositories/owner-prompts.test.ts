@@ -802,6 +802,116 @@ describe("updatePromptForOwner", () => {
   });
 });
 
+// ── Task 5: NSFW tag invariant ──────────────────────────────────────────
+//
+// createPromptDirect and updatePromptForOwner both wire
+// assertNsfwTagInvariant. The update path computes the EFFECTIVE post-patch
+// values: categoryId falls back to existing, tagSlugs fall back to existing.
+//
+// We assume the `nsfw` category is seeded (Task 1). Tests look it up.
+
+describe("NSFW tag invariant on owner prompts (Task 5)", () => {
+  it("rejects create with NSFW category + extra tags", async () => {
+    const owner = await makeOwner();
+    const r2 = await makeR2();
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    await expect(
+      createPromptDirect(
+        {
+          titleZh: null, titleEn: "tw41r-nsfw-create-bad",
+          promptZh: null, promptEn: "p",
+          negativePromptZh: null, negativePromptEn: null,
+          notesZh: null, notesEn: null,
+          aspectRatio: null,
+          categoryId: nsfwCat!.id,
+          tagSlugs: ["nsfw", "extra"],
+          images: [{ r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}.jpg` }],
+        },
+        owner.id,
+      ),
+    ).rejects.toThrow("nsfw_category_tags_locked");
+  });
+
+  it("rejects update moving SFW prompt to NSFW category with extra tags", async () => {
+    const { id } = await makePromptDirect({ tagSlugs: [] });
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    await expect(
+      updatePromptForOwner(id, {
+        categoryId: nsfwCat!.id,
+        tagSlugs: ["nsfw", "extra"],
+      }),
+    ).rejects.toThrow("nsfw_category_tags_locked");
+  });
+
+  it("accepts update moving SFW prompt to NSFW with tagSlugs=['nsfw']", async () => {
+    const { id } = await makePromptDirect({ tagSlugs: [] });
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    const result = await updatePromptForOwner(id, {
+      categoryId: nsfwCat!.id,
+      tagSlugs: ["nsfw"],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.detail.category.id).toBe(nsfwCat!.id);
+    expect(result!.detail.tagSlugs).toEqual(["nsfw"]);
+  });
+
+  it("accepts update moving NSFW prompt back to SFW with new tags", async () => {
+    // Need to first build an NSFW prompt with the locked single tag.
+    const owner = await makeOwner();
+    const cat = await makeCategory();
+    const r2 = await makeR2();
+    const [nsfwCat] = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.slug, "nsfw"))
+      .limit(1);
+    expect(nsfwCat).toBeDefined();
+    // Ensure the global `nsfw` tag exists so the create can insert
+    // prompt_tags row (createPromptDirect skips unknown slugs silently).
+    // We also seed our own SFW tag to use after the category swap.
+    await db.execute(
+      sql`INSERT INTO tags (slug, name) VALUES ('nsfw', '{"zh":"NSFW","en":"NSFW"}'::jsonb) ON CONFLICT (slug) DO NOTHING`,
+    );
+    const sfwTag = await makeTag("-after");
+    const { id } = await createPromptDirect(
+      {
+        titleZh: null, titleEn: "tw41r-nsfw-swapback",
+        promptZh: null, promptEn: "p",
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: nsfwCat!.id,
+        tagSlugs: ["nsfw"],
+        images: [{ r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}.jpg` }],
+      },
+      owner.id,
+    );
+    // Now move back to a fresh SFW category with an unrelated tag set.
+    const result = await updatePromptForOwner(id, {
+      categoryId: cat.id,
+      tagSlugs: [sfwTag.slug],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.detail.category.id).toBe(cat.id);
+    expect(result!.detail.tagSlugs).toEqual([sfwTag.slug]);
+  });
+});
+
 // ── deletePromptForOwner ───────────────────────────────────────────────
 
 describe("deletePromptForOwner", () => {

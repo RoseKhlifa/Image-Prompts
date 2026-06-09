@@ -11,6 +11,7 @@ import {
   auditLog,
 } from "../db/schema/index.ts";
 import { bi } from "../lib/bilingual.ts";
+import { assertNsfwTagInvariant } from "../lib/nsfw.ts";
 
 type ImageInput = { r2AccountId: string; r2Key: string; altText?: string };
 
@@ -43,6 +44,11 @@ export async function createSubmission(input: CreateInput): Promise<string> {
   if (!title || !prompt) {
     throw new Error("createSubmission: title/prompt cannot both be empty");
   }
+  // NSFW invariant: prompts in the `nsfw` category may carry ONLY the
+  // `nsfw` tag. No-op for any other category. Helper throws
+  // NsfwTagInvariantError (.message === "nsfw_category_tags_locked") which
+  // the error middleware (Task 7) maps to a 400 response.
+  await assertNsfwTagInvariant(db, input.categoryId, input.tagSlugs);
   const [row] = await db
     .insert(submissions)
     .values({
@@ -401,6 +407,10 @@ export async function approveSubmission(input: ApproveInput): Promise<ApproveRes
   }
 
   const result = await db.transaction(async (tx) => {
+    // NSFW invariant: re-check on approve using the post-edits values so a
+    // moderator can't bypass by editing the category to `nsfw` while leaving
+    // non-`nsfw` tags in place. Helper throws NsfwTagInvariantError.
+    await assertNsfwTagInvariant(tx, final.categoryId, final.tagSlugs);
     const slug = await generateUniqueSlug(
       tx,
       final.titleZh ?? final.titleEn ?? "prompt",
@@ -538,6 +548,9 @@ async function approveEditSubmission(
   const promptId = sub.originalPromptId;
 
   const result = await db.transaction(async (tx) => {
+    // NSFW invariant: same re-check as the insert path. Edits may have
+    // moved the submission into / out of the nsfw category.
+    await assertNsfwTagInvariant(tx, final.categoryId, final.tagSlugs);
     // 1. Read the existing prompt to make sure it still exists (a self-edit
     //    submission could outlive its target if the user later deletes the
     //    original via the self-delete endpoint).
