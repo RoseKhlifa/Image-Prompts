@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Modal from "../modals/Modal";
 import BrandLogo from "../BrandLogo";
+import { GoogleIcon, GitHubIcon } from "./OAuthIcons";
+
+const QQ_GROUP_NUMBER = "443136349";
+const QQ_GROUP_URL = "https://qm.qq.com/q/hR1qHAHSOA";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -52,8 +56,9 @@ export default function SignInModal({ open, onClose }: { open: boolean; onClose:
           <button
             type="submit"
             disabled={disabled}
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-border-soft bg-surface px-4 py-2.5 text-[13px] font-medium text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2.5 rounded-md border border-border-soft bg-surface px-4 py-2.5 text-[13px] font-medium text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <GoogleIcon size={18} />
             {t("auth.sign_in_with", { provider: "Google" })}
           </button>
         </form>
@@ -63,11 +68,23 @@ export default function SignInModal({ open, onClose }: { open: boolean; onClose:
           <button
             type="submit"
             disabled={disabled}
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-border-soft bg-surface px-4 py-2.5 text-[13px] font-medium text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2.5 rounded-md border border-border-soft bg-surface px-4 py-2.5 text-[13px] font-medium text-ink hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <GitHubIcon size={18} />
             {t("auth.sign_in_with", { provider: "GitHub" })}
           </button>
         </form>
+      </div>
+      <div className="mt-5 border-t border-border-soft pt-4 text-center text-[11.5px] text-ink-dim">
+        {t("auth.qq_group_label")}
+        <a
+          href={QQ_GROUP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-1 text-accent hover:underline"
+        >
+          {QQ_GROUP_NUMBER}
+        </a>
       </div>
     </Modal>
   );

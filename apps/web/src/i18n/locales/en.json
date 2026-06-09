@@ -36,7 +36,8 @@
     "profile": "Profile",
     "session_expired": "Your session expired — please sign in again",
     "signin_failed": "Sign-in failed, please try again",
-    "signin_cancelled": "Sign-in cancelled"
+    "signin_cancelled": "Sign-in cancelled",
+    "qq_group_label": "Official QQ group:"
   },
   "home": {
     "hero_title": "AI Image Prompt Library",

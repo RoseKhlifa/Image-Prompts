@@ -36,7 +36,8 @@
     "profile": "个人资料",
     "session_expired": "登录已过期,请重新登录",
     "signin_failed": "登录失败,请重试",
-    "signin_cancelled": "已取消登录"
+    "signin_cancelled": "已取消登录",
+    "qq_group_label": "官方 QQ 交流群:"
   },
   "home": {
     "hero_title": "生图提示词聚合",
