@@ -169,6 +169,28 @@ export default function PromptDetailPage() {
             {d.negativePrompt && (
               <PromptTextBlock label={t("detail.negative_prompt")} value={d.negativePrompt} />
             )}
+
+            {/* Subtle source-attribution footer for prompts whose original
+                content came from elsewhere (the import pipeline). Not shown
+                on user submissions. The about page carries the full credits. */}
+            {d.sourceSite && (
+              <p className="text-[11px] text-ink-dim">
+                {t("detail.source_credit", { site: d.sourceSite })}
+                {d.sourceUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={d.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {t("detail.source_link")}
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
           </aside>
         </div>
 

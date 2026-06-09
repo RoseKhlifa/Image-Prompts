@@ -1,6 +1,5 @@
 import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ExternalLink } from "lucide-react";
 import { isLocale, pickBilingual, type Locale, type PromptSummary } from "@ip/shared";
 import { resolveImageUrl } from "../lib/imageUrl";
 import { useR2PoolMap } from "../lib/hooks/useR2Pool";
@@ -59,18 +58,6 @@ export default function PromptCard({ prompt }: { prompt: PromptSummary }) {
                 {prompt.contributor.name ?? t("common.anonymous")}
               </span>
             </button>
-          ) : prompt.sourceSite ? (
-            <a
-              href={prompt.sourceUrl ?? "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="pointer-events-auto inline-flex items-center gap-1 rounded-pill border border-border-soft bg-surface px-2 py-0.5 text-[10.5px] text-ink-muted hover:text-ink"
-              aria-label={t("card.source_chip_aria", { site: prompt.sourceSite })}
-            >
-              <ExternalLink size={10} aria-hidden />
-              {t("card.source_chip", { site: prompt.sourceSite })}
-            </a>
           ) : (
             <div className="flex items-center gap-1.5">
               <Avatar id={null} name={null} src={null} size={24} />

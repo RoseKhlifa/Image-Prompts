@@ -148,7 +148,7 @@ export async function importCategoryJsonl(
       }
 
       try {
-        await insertOne(rec, categoryIdBySlug, tagIdBySlug);
+        await insertOne(rec, args.startedBy, categoryIdBySlug, tagIdBySlug);
         counters.inserted += 1;
       } catch (e) {
         if (isDuplicateExternalId(e)) {
@@ -216,6 +216,7 @@ function isDuplicateExternalId(e: unknown): boolean {
 
 async function insertOne(
   rec: ImportRawRecord,
+  contributorId: string,
   categoryIdBySlug: Map<string, string>,
   tagIdBySlug: Map<string, string>,
 ): Promise<void> {
@@ -269,6 +270,11 @@ async function insertOne(
       title: titleBilingual,
       prompt: promptBilingual,
       categoryId: catId,
+      // Per 2026-06-09 UX: imports attribute to the running admin so cards
+      // render as a real contribution. The `source_url` + `source_site`
+      // columns still preserve attribution; the detail page renders it as
+      // a subtle footer line.
+      contributorId,
       externalId: rec.id,
       sourceUrl: rec.source_url,
       sourceSite: rec.source_site,

@@ -21,11 +21,14 @@ async function main() {
   console.log("by source_site:");
   for (const r of bySite.rows) console.log("  ", r);
 
-  const orphans = await db.execute(sql`
+  // Imports attribute to the running admin (2026-06-09 UX decision).
+  // Source attribution survives on source_site/source_url; cards render
+  // the contributor normally.
+  const attributed = await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM prompts
     WHERE source='imported' AND contributor_id IS NOT NULL
   `);
-  console.log("imported with non-null contributor (should be 0):", orphans.rows);
+  console.log("imported with attributed contributor:", attributed.rows);
 
   const userPrompt = await db
     .select({ slug: prompts.slug, contributorId: prompts.contributorId, source: prompts.source })

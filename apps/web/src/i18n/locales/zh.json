@@ -27,10 +27,6 @@
     "save": "保存",
     "cancel": "取消"
   },
-  "card": {
-    "source_chip": "来源 · {site}",
-    "source_chip_aria": "在 {site} 上打开来源页面"
-  },
   "auth": {
     "sign_in": "登录",
     "sign_in_with": "使用 {provider} 登录",
@@ -106,6 +102,8 @@
     "deleted": "已删除",
     "edit_queued_for_review": "已提交,等待站长审核",
     "edit_modal_title": "编辑提示词",
+    "source_credit": "原始来源:{site}",
+    "source_link": "查看",
     "delete_my_prompt_confirm": "确认删除「{title}」?此操作不可撤销,你的所有点赞收藏数据将一同消失。",
     "deleted_self": "已删除你的投稿"
   },

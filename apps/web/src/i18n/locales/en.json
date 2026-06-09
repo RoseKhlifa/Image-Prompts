@@ -27,10 +27,6 @@
     "save": "Save",
     "cancel": "Cancel"
   },
-  "card": {
-    "source_chip": "From {site}",
-    "source_chip_aria": "Open source page on {site}"
-  },
   "auth": {
     "sign_in": "Sign In",
     "sign_in_with": "Sign in with {provider}",
@@ -106,6 +102,8 @@
     "deleted": "Deleted",
     "edit_queued_for_review": "Submitted, awaiting owner review",
     "edit_modal_title": "Edit prompt",
+    "source_credit": "Original source: {site}",
+    "source_link": "view",
     "delete_my_prompt_confirm": "Delete \"{title}\"? Irreversible — all likes/favorites on this prompt will be lost.",
     "deleted_self": "Your submission was deleted"
   },
