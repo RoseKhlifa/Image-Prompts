@@ -1,3 +1,4 @@
+import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { isLocale, pickBilingual, type Locale } from "@ip/shared";
@@ -27,6 +28,40 @@ export default function PromptDetailPage() {
   useView(detail.data?.id);
   const contributor = detail.data?.contributor ?? null;
   const uploaderStats = useUserStats(contributor?.id);
+
+  // Track gallery wrapper height so the right-column aside can cap its
+  // max-height to the gallery's bottom edge — only on the lg+ two-column
+  // layout. Without this, when the gallery is shorter than the aside
+  // content (e.g. single landscape image), the grid row stretches to
+  // the aside's height and the left column shows empty space below the
+  // image. Updated via ResizeObserver so it reacts to image load + window
+  // resize. The matchMedia gate prevents the cap from kicking in on
+  // mobile where the aside is stacked below and shouldn't be height-
+  // limited.
+  const [galleryEl, setGalleryEl] = useState<HTMLDivElement | null>(null);
+  const [galleryHeight, setGalleryHeight] = useState<number | null>(null);
+  const [isLgUp, setIsLgUp] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setIsLgUp(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!galleryEl) {
+      setGalleryHeight(null);
+      return;
+    }
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0];
+      if (e) setGalleryHeight(e.contentRect.height);
+    });
+    ro.observe(galleryEl);
+    return () => ro.disconnect();
+  }, [galleryEl]);
 
   if (detail.isLoading) {
     return (
@@ -63,6 +98,10 @@ export default function PromptDetailPage() {
   const d = detail.data;
   const title = pickBilingual(d.title, locale) ?? d.slug;
   const visibleTags = (d.tags ?? []).filter((tag) => tag.slug !== "nsfw");
+  const asideStyle: CSSProperties | undefined =
+    isLgUp && galleryHeight !== null
+      ? { maxHeight: `min(${galleryHeight}px, calc(100vh - 6rem))` }
+      : undefined;
 
   return (
     <AppShell>
@@ -79,12 +118,20 @@ export default function PromptDetailPage() {
         {/* main two-column grid; right column sticky */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_480px]">
           {/* LEFT column: gallery (includes its own multi-image thumb strip) */}
-          <div className="min-w-0">
+          <div ref={setGalleryEl} className="min-w-0">
             <Gallery images={d.images} title={title} />
           </div>
 
-          {/* RIGHT column: title, meta, CTAs, params, prompts */}
-          <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+          {/* RIGHT column: title, meta, CTAs, params, prompts.
+              The inline `maxHeight` from `asideStyle` caps the aside to the
+              gallery's bottom edge so they bottom-align — see the
+              ResizeObserver in the component body. Falls back to the
+              Tailwind `lg:max-h-[calc(100vh-6rem)]` class on first paint
+              before the observer reports. */}
+          <aside
+            style={asideStyle}
+            className="flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1"
+          >
             <div>
               <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-ink">
                 {title}
