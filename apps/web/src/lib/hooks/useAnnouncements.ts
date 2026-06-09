@@ -18,14 +18,26 @@ export type PublicAnnouncement = OwnerAnnouncement;
  * minute of an owner write (which also invalidates this query key directly,
  * see useOwnerAnnouncements mutations).
  */
+export type AnnouncementsResponse = {
+  /** All active rows (banner + popup). Kept for back-compat with consumers
+   *  that haven't migrated to the split view. */
+  items: PublicAnnouncement[];
+  /** At most one — server enforces "one banner at a time" by truncating the
+   *  active banner list to the most-recently-started row. */
+  banners: PublicAnnouncement[];
+  /** All active popup announcements, queued. Client renders one at a time
+   *  (modal), with per-id dismissal via localStorage. */
+  popups: PublicAnnouncement[];
+};
+
 export function useAnnouncements(): UseQueryResult<
-  { items: PublicAnnouncement[] },
+  AnnouncementsResponse,
   ApiError
 > {
   return useQuery({
     queryKey: ["announcements"],
     queryFn: ({ signal }) =>
-      apiFetch<{ items: PublicAnnouncement[] }>("/api/announcements", { signal }),
+      apiFetch<AnnouncementsResponse>("/api/announcements", { signal }),
     staleTime: 60_000,
   });
 }

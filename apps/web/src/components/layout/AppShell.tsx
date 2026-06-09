@@ -10,6 +10,7 @@ import ProfileMenu from "../auth/ProfileMenu";
 import BrandLogo from "../BrandLogo";
 import BrowseTabs from "./BrowseTabs";
 import AnnouncementsBanner from "./AnnouncementsBanner";
+import AnnouncementsPopup from "./AnnouncementsPopup";
 import NotificationsBell from "../notifications/NotificationsBell";
 import SubmitModal from "../submit/SubmitModal";
 import { useSession } from "../../lib/hooks/useSession";
@@ -127,6 +128,7 @@ export default function AppShell({
         </div>
       </header>
       <AnnouncementsBanner />
+      <AnnouncementsPopup />
       {topBar}
       <div className="flex flex-1">
         {sidebar}

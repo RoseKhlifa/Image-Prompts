@@ -72,6 +72,11 @@ export const announcements = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     updatedBy: uuid("updated_by").references(() => users.id),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    // 0010: "banner" = ribbon below header (UI takes the most recent if
+    // multiple are active — only one rendered at a time), "popup" = modal
+    // dialog over the page (multiple queued; dismissible per id via
+    // localStorage).
+    displayMode: text("display_mode").notNull().default("banner"),
   },
   (t) => ({
     periodIdx: index("announcements_period_idx").on(t.startsAt, t.endsAt),

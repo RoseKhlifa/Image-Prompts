@@ -71,6 +71,13 @@
       "when": 1780938208323,
       "tag": "0009_m10b_announcements_polish",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780940000000,
+      "tag": "0010_m10b_announcement_display_mode",
+      "breakpoints": true
     }
   ]
 }

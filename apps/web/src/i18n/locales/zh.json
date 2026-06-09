@@ -416,6 +416,7 @@
       "subtitle": "发布站内公告(横幅形式),按时间窗口控制可见",
       "btn_new": "+ 新建公告",
       "col_title": "标题",
+      "col_display_mode": "展示形式",
       "col_severity": "等级",
       "col_status": "状态",
       "col_start": "开始",
@@ -438,7 +439,10 @@
       "modal_title_en": "英文标题",
       "modal_body_zh": "中文正文",
       "modal_body_en": "英文正文",
+      "modal_display_mode": "展示形式",
       "modal_severity": "等级",
+      "display_mode_banner": "横幅(顶部条幅,同时仅一条)",
+      "display_mode_popup": "弹窗(模态对话框,可叠加多条)",
       "modal_starts": "开始时间",
       "modal_ends": "结束时间(可选)",
       "modal_dismissible": "用户可关闭",
@@ -455,6 +459,8 @@
     }
   },
   "announcements": {
-    "banner_dismiss": "关闭"
+    "banner_dismiss": "关闭",
+    "popup_dismiss": "关闭",
+    "popup_acknowledge": "我知道了"
   }
 }

@@ -416,6 +416,7 @@
       "subtitle": "Publish site banners scoped by time window",
       "btn_new": "+ New announcement",
       "col_title": "Title",
+      "col_display_mode": "Display",
       "col_severity": "Severity",
       "col_status": "Status",
       "col_start": "Starts",
@@ -438,7 +439,10 @@
       "modal_title_en": "Title (English)",
       "modal_body_zh": "Body (Chinese)",
       "modal_body_en": "Body (English)",
+      "modal_display_mode": "Display mode",
       "modal_severity": "Severity",
+      "display_mode_banner": "Banner (top ribbon, only one at a time)",
+      "display_mode_popup": "Popup (modal dialog, multiple queued)",
       "modal_starts": "Starts at",
       "modal_ends": "Ends at (optional)",
       "modal_dismissible": "User can dismiss",
@@ -455,6 +459,8 @@
     }
   },
   "announcements": {
-    "banner_dismiss": "Dismiss"
+    "banner_dismiss": "Dismiss",
+    "popup_dismiss": "Close",
+    "popup_acknowledge": "Got it"
   }
 }

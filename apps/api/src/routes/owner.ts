@@ -483,6 +483,8 @@ const AnnouncementBodySchema = z.object({
     })
     .refine((v) => Boolean(v.zh || v.en), { message: "body_required" }),
   severity: z.enum(["info", "warning", "critical"]),
+  // Default to banner when caller omits it (back-compat with pre-0010 callers).
+  displayMode: z.enum(["banner", "popup"]).optional(),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime().optional(),
   dismissible: z.boolean().optional(),
@@ -523,6 +525,9 @@ app.post(
       body: compactBilingual(input.body)!,
       severity: input.severity,
       startsAt: new Date(input.startsAt),
+      ...(input.displayMode !== undefined
+        ? { displayMode: input.displayMode }
+        : {}),
       ...(input.endsAt !== undefined ? { endsAt: new Date(input.endsAt) } : {}),
       ...(input.dismissible !== undefined
         ? { dismissible: input.dismissible }
@@ -562,6 +567,8 @@ app.patch(
     if (input.endsAt !== undefined) updateInput.endsAt = new Date(input.endsAt);
     if (input.dismissible !== undefined)
       updateInput.dismissible = input.dismissible;
+    if (input.displayMode !== undefined)
+      updateInput.displayMode = input.displayMode;
     const updated = await updateAnnouncement(id, updateInput);
     if (!updated) throw new HTTPException(404, { message: "not_found" });
     await recordAudit({

@@ -75,10 +75,10 @@ export default function AnnouncementsBanner() {
 
   if (q.isLoading || q.isError || !q.data) return null;
 
-  // Filter dismissed + sort by severity (critical → warning → info). Server
-  // already drops out-of-window / soft-deleted rows, so this is purely a
-  // client-side dismiss filter + visual ordering.
-  const visible = q.data.items
+  // Server already enforces "at most 1 banner" via the `banners` field; we
+  // just filter dismissed. (`banners` is empty when no banner is active or
+  // when the only active banner was dismissed by the user.)
+  const visible = q.data.banners
     .filter((a) => !dismissed.has(a.id))
     .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 

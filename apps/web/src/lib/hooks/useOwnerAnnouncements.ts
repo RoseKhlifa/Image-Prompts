@@ -8,6 +8,7 @@ import {
 import { apiFetch, type ApiError } from "../api";
 
 export type Severity = "info" | "warning" | "critical";
+export type DisplayMode = "banner" | "popup";
 export type AnnouncementBilingual = { zh?: string; en?: string };
 
 /**
@@ -22,6 +23,7 @@ export type OwnerAnnouncement = {
   title: AnnouncementBilingual;
   body: AnnouncementBilingual;
   severity: Severity;
+  displayMode: DisplayMode;
   startsAt: string;
   endsAt: string | null;
   dismissible: boolean;
@@ -43,6 +45,7 @@ export type AnnouncementInput = {
   title: AnnouncementBilingual;
   body: AnnouncementBilingual;
   severity: Severity;
+  displayMode?: DisplayMode;       // default "banner"
   startsAt: string;
   endsAt?: string;
   dismissible?: boolean;

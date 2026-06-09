@@ -12,10 +12,12 @@ import {
   type AnnouncementInput,
   type OwnerAnnouncement,
   type Severity,
+  type DisplayMode,
 } from "../../lib/hooks/useOwnerAnnouncements";
 import { toast } from "../../lib/toast";
 
 const SEVERITIES: Severity[] = ["info", "warning", "critical"];
+const DISPLAY_MODES: DisplayMode[] = ["banner", "popup"];
 
 type ComputedStatus = "deleted" | "draft" | "active" | "expired";
 
@@ -80,6 +82,9 @@ export default function AnnouncementsPage() {
                 {t("owner.announcements.col_title")}
               </th>
               <th className="px-4 py-3 text-left font-semibold">
+                {t("owner.announcements.col_display_mode")}
+              </th>
+              <th className="px-4 py-3 text-left font-semibold">
                 {t("owner.announcements.col_severity")}
               </th>
               <th className="px-4 py-3 text-left font-semibold">
@@ -102,21 +107,21 @@ export default function AnnouncementsPage() {
           <tbody className="divide-y divide-border-soft">
             {q.isLoading && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-muted">
                   {t("common.loading")}
                 </td>
               </tr>
             )}
             {q.isError && !q.isLoading && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-danger">
+                <td colSpan={8} className="px-4 py-6 text-center text-danger">
                   {t("common.error_load")}
                 </td>
               </tr>
             )}
             {!q.isLoading && !q.isError && items.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-ink-muted">
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-muted">
                   {t("owner.announcements.no_announcements")}
                 </td>
               </tr>
@@ -170,6 +175,9 @@ function AnnouncementRow({
         <div className="truncate text-sm font-medium text-ink" title={title}>
           {title}
         </div>
+      </td>
+      <td className="px-4 py-3 text-xs text-ink-muted">
+        {t(`owner.announcements.display_mode_${row.displayMode}`)}
       </td>
       <td className="px-4 py-3">
         <SeverityPill severity={row.severity} />
@@ -309,6 +317,9 @@ function AnnouncementModal({
   const [bodyZh, setBodyZh] = useState(existing?.body.zh ?? "");
   const [bodyEn, setBodyEn] = useState(existing?.body.en ?? "");
   const [severity, setSeverity] = useState<Severity>(existing?.severity ?? "info");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(
+    existing?.displayMode ?? "popup",
+  );
   const [startsAt, setStartsAt] = useState(
     isoToLocalDatetimeInput(existing?.startsAt ?? new Date().toISOString()),
   );
@@ -356,6 +367,7 @@ function AnnouncementModal({
       title,
       body,
       severity,
+      displayMode,
       startsAt: localDatetimeInputToIso(startsAt),
       dismissible,
     };
@@ -480,7 +492,21 @@ function AnnouncementModal({
           </Field>
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Field label={t("owner.announcements.modal_display_mode")}>
+            <select
+              value={displayMode}
+              onChange={(e) => setDisplayMode(e.target.value as DisplayMode)}
+              disabled={pending}
+              className="w-full rounded-control border border-border-soft bg-panel-2 px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
+            >
+              {DISPLAY_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {t(`owner.announcements.display_mode_${m}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label={t("owner.announcements.modal_severity")}>
             <select
               value={severity}
@@ -495,6 +521,8 @@ function AnnouncementModal({
               ))}
             </select>
           </Field>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label={t("owner.announcements.modal_starts")}>
             <input
               type="datetime-local"

@@ -3,6 +3,7 @@ import { db } from "../db/client.ts";
 import { announcements } from "../db/schema/index.ts";
 
 export type Severity = "info" | "warning" | "critical";
+export type DisplayMode = "banner" | "popup";
 
 // `zh` / `en` are individually optional; the route layer enforces that at
 // least one is present. exactOptionalPropertyTypes means `?:` here does NOT
@@ -15,6 +16,7 @@ export type Announcement = {
   title: AnnouncementBilingual;
   body: AnnouncementBilingual;
   severity: Severity;
+  displayMode: DisplayMode;
   startsAt: Date;
   endsAt: Date | null;
   dismissible: boolean;
@@ -29,6 +31,7 @@ export type CreateInput = {
   title: AnnouncementBilingual;
   body: AnnouncementBilingual;
   severity: Severity;
+  displayMode?: DisplayMode;       // default "banner"
   startsAt: Date;
   endsAt?: Date;
   dismissible?: boolean;
@@ -47,6 +50,7 @@ function rowToAnnouncement(r: Row): Announcement {
     title: r.title,
     body: r.body,
     severity: r.severity,
+    displayMode: (r.displayMode === "popup" ? "popup" : "banner"),
     startsAt: r.startsAt,
     endsAt: r.endsAt,
     dismissible: r.dismissible,
@@ -112,6 +116,7 @@ export async function createAnnouncement(
       title: input.title,
       body: input.body,
       severity: input.severity,
+      displayMode: input.displayMode ?? "banner",
       startsAt: input.startsAt,
       endsAt: input.endsAt ?? null,
       dismissible: input.dismissible ?? true,
@@ -140,6 +145,7 @@ export async function updateAnnouncement(
   if (input.startsAt !== undefined) patch.startsAt = input.startsAt;
   if (input.endsAt !== undefined) patch.endsAt = input.endsAt;
   if (input.dismissible !== undefined) patch.dismissible = input.dismissible;
+  if (input.displayMode !== undefined) patch.displayMode = input.displayMode;
 
   const [row] = await db
     .update(announcements)
