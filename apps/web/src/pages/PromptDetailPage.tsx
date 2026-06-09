@@ -124,8 +124,12 @@ export default function PromptDetailPage() {
 
         {/* main two-column grid; right column sticky */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_480px]">
-          {/* LEFT column: gallery (includes its own multi-image thumb strip) */}
-          <div ref={setGalleryEl} className="min-w-0">
+          {/* LEFT column: gallery (includes its own multi-image thumb strip).
+              `lg:self-start` prevents the wrapper from stretching to the
+              grid row height — without it, the ResizeObserver below would
+              read the stretched wrapper (≈ aside content height) instead
+              of the gallery's natural height, defeating the cap. */}
+          <div ref={setGalleryEl} className="min-w-0 lg:self-start">
             <Gallery images={d.images} title={title} />
           </div>
 
