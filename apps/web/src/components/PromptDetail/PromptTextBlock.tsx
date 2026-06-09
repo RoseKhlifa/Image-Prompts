@@ -58,8 +58,10 @@ export default function PromptTextBlock({
           {t("detail.copy_prompt")}
         </button>
       </div>
-      <p className="whitespace-pre-wrap font-mono text-[13px] leading-[1.7] text-ink">{text}</p>
-      {hint && <p className="mt-2 text-[11px] text-ink-dim">{hint}</p>}
+      <div className="max-h-[60vh] overflow-y-auto pr-1">
+        <p className="whitespace-pre-wrap font-mono text-[13px] leading-[1.7] text-ink">{text}</p>
+        {hint && <p className="mt-2 text-[11px] text-ink-dim">{hint}</p>}
+      </div>
     </section>
   );
 }
