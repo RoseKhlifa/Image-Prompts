@@ -646,12 +646,20 @@ async function approveEditSubmission(
     const existingByKey = new Map(existingImages.map((r) => [r.r2Key, r]));
 
     const removedRows = existingImages.filter(
-      (r) => !submittedKeySet.has(r.r2Key),
+      (r) => !submittedKeySet.has(r.r2Key ?? ""),
     );
-    const removedImages = removedRows.map((r) => ({
-      r2AccountId: r.r2AccountId,
-      r2Key: r.r2Key,
-    }));
+    // Only R2-backed rows surface for R2 cleanup. Imported prompts have a null
+    // r2 pair (their image lives at remoteUrl), so there's nothing to delete
+    // from R2 for those — the DB delete below still removes the row.
+    const removedImages = removedRows
+      .filter(
+        (r): r is typeof r & { r2AccountId: string; r2Key: string } =>
+          r.r2AccountId !== null && r.r2Key !== null,
+      )
+      .map((r) => ({
+        r2AccountId: r.r2AccountId,
+        r2Key: r.r2Key,
+      }));
 
     if (removedRows.length > 0) {
       await tx

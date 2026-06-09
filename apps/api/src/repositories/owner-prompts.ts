@@ -33,8 +33,10 @@ export type OwnerPromptListItem = {
   category: { id: string; slug: string; name: Bilingual };
   contributor: { id: string; name: string | null; image: string | null } | null;
   primaryImage: {
-    r2AccountId: string;
-    r2Key: string;
+    // r2 pair is null for imported prompts; the frontend falls back to remoteUrl.
+    r2AccountId: string | null;
+    r2Key: string | null;
+    remoteUrl: string | null;
     width: number | null;
     height: number | null;
     lqip: string | null;
@@ -44,8 +46,10 @@ export type OwnerPromptListItem = {
 
 export type OwnerPromptImage = {
   id: string;
-  r2AccountId: string;
-  r2Key: string;
+  // r2 pair is null for imported prompts; remoteUrl holds the external CDN URL instead.
+  r2AccountId: string | null;
+  r2Key: string | null;
+  remoteUrl: string | null;
   order: number;
   altText: string | null;
   width: number | null;
@@ -61,7 +65,7 @@ export type OwnerPromptDetail = {
   negativePrompt: Bilingual | null;
   notes: Bilingual | null;
   aspectRatio: string | null;
-  source: "site" | "nanobanana_seed";
+  source: "site" | "nanobanana_seed" | "imported";
   approvedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -290,6 +294,7 @@ export async function listAllPromptsForOwner(
       promptId: promptImages.promptId,
       r2AccountId: promptImages.r2AccountId,
       r2Key: promptImages.r2Key,
+      remoteUrl: promptImages.remoteUrl,
       width: promptImages.width,
       height: promptImages.height,
       lqip: promptImages.lqip,
@@ -346,6 +351,7 @@ export async function listAllPromptsForOwner(
         ? {
             r2AccountId: img.r2AccountId,
             r2Key: img.r2Key,
+            remoteUrl: img.remoteUrl,
             width: img.width,
             height: img.height,
             lqip: img.lqip,
@@ -440,6 +446,7 @@ export async function getPromptForOwner(
       id: i.id,
       r2AccountId: i.r2AccountId,
       r2Key: i.r2Key,
+      remoteUrl: i.remoteUrl,
       order: i.order,
       altText: i.altText,
       width: i.width,
@@ -699,13 +706,18 @@ export async function updatePromptForOwner(
       );
 
       // 1. Remove existing rows whose key isn't in the kept set.
-      const removedRows = existing.filter((r) => !keptKeys.has(r.r2Key));
+      //    Imported rows have null r2 pair → keptKeys.has(null-ish) is always
+      //    false, so they get DELETED here (which is fine — the route just
+      //    skips R2 cleanup for entries with null r2 pair).
+      const removedRows = existing.filter((r) => !keptKeys.has(r.r2Key ?? ""));
       if (removedRows.length > 0) {
         await tx
           .delete(promptImages)
           .where(inArray(promptImages.id, removedRows.map((r) => r.id)));
         for (const r of removedRows) {
-          removedKeys.push({ r2AccountId: r.r2AccountId, r2Key: r.r2Key });
+          if (r.r2AccountId && r.r2Key) {
+            removedKeys.push({ r2AccountId: r.r2AccountId, r2Key: r.r2Key });
+          }
         }
       }
 
@@ -829,10 +841,14 @@ export async function deletePromptForOwner(
 
     return {
       deleted: true as const,
-      imageKeys: imgs.map((i) => ({
-        r2AccountId: i.r2AccountId,
-        r2Key: i.r2Key,
-      })),
+      // Only R2-backed images are surfaced for cleanup; imported (remoteUrl)
+      // rows have a null r2 pair and the route has nothing to delete from R2.
+      imageKeys: imgs
+        .filter(
+          (i): i is { r2AccountId: string; r2Key: string } =>
+            i.r2AccountId !== null && i.r2Key !== null,
+        )
+        .map((i) => ({ r2AccountId: i.r2AccountId, r2Key: i.r2Key })),
     };
   });
 }

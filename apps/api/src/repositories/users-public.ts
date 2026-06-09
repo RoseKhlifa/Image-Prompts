@@ -27,8 +27,9 @@ type PromptSummaryPublic = {
   aspectRatio: string | null;
   primaryImage:
     | {
-        r2AccountId: string;
-        r2Key: string;
+        // r2 pair is null for imported prompts; the frontend falls back to remoteUrl.
+        r2AccountId: string | null;
+        r2Key: string | null;
         width: number | null;
         height: number | null;
         lqip: string | null;

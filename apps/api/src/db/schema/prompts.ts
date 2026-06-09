@@ -20,7 +20,11 @@ export const submissionStatusEnum = pgEnum("submission_status", [
   "rejected",
 ]);
 
-export const promptSourceEnum = pgEnum("prompt_source", ["site", "nanobanana_seed"]);
+export const promptSourceEnum = pgEnum("prompt_source", [
+  "site",
+  "nanobanana_seed",
+  "imported",
+]);
 
 const bilingualCheck = (field: string) =>
   sql.raw(
@@ -43,6 +47,12 @@ export const prompts = pgTable(
       .references(() => categories.id),
     contributorId: uuid("contributor_id").references(() => users.id),
     source: promptSourceEnum().notNull().default("site"),
+    /** External record id when source='imported'. Unique-when-set so re-imports skip. */
+    externalId: text("external_id"),
+    /** URL of the original page the import came from (display + audit). */
+    sourceUrl: text("source_url"),
+    /** Human-facing label of the source site (e.g. "Liblib Inspiration"). */
+    sourceSite: text("source_site"),
     viewCount: integer("view_count").notNull().default(0),
     favoriteCount: integer("favorite_count").notNull().default(0),
     likeCount: integer("like_count").notNull().default(0),

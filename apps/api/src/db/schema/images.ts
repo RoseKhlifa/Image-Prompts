@@ -6,7 +6,6 @@ import {
   bigint,
   boolean,
   timestamp,
-  unique,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -43,10 +42,12 @@ export const promptImages = pgTable(
   {
     id: uuid().primaryKey().defaultRandom(),
     promptId: uuid("prompt_id").notNull(),
-    r2AccountId: uuid("r2_account_id")
-      .notNull()
-      .references(() => r2Accounts.id),
-    r2Key: text("r2_key").notNull(),
+    // Nullable now: imported prompts use remoteUrl instead of R2 storage.
+    // The DB-side CHECK constraint enforces at least one of (r2 pair, remoteUrl).
+    r2AccountId: uuid("r2_account_id").references(() => r2Accounts.id),
+    r2Key: text("r2_key"),
+    /** External CDN URL when the image isn't hosted on our R2. */
+    remoteUrl: text("remote_url"),
     order: integer().notNull().default(0),
     altText: text("alt_text"),
     width: integer(),
@@ -56,6 +57,7 @@ export const promptImages = pgTable(
   },
   (t) => ({
     promptOrderIdx: index("prompt_images_prompt_idx").on(t.promptId, t.order),
-    keyUnique: unique("prompt_images_account_key_uq").on(t.r2AccountId, t.r2Key),
+    // Partial unique enforced by migration 0013 (Drizzle can't express WHERE
+    // clauses on unique constraints — the SQL is the source of truth).
   }),
 );

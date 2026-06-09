@@ -2384,7 +2384,9 @@ describe("owner prompts — direct create (POST)", () => {
       .from(promptImages)
       .where(eq(promptImages.promptId, promptId));
     expect(imgs).toHaveLength(1);
-    expect(imgs[0]!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+    // r2Key is nullable since migration 0013 (imports use remoteUrl), but the
+    // owner create path always stores R2 — the `!` is safe here.
+    expect(imgs[0]!.r2Key!.startsWith(`prompts/${promptId}/`)).toBe(true);
 
     // Audit row exists.
     const aud = await db
@@ -2588,7 +2590,7 @@ describe("owner prompts — patch", () => {
       .select({ r2Key: promptImages.r2Key })
       .from(promptImages)
       .where(eq(promptImages.promptId, promptId));
-    expect(img!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+    expect(img!.r2Key!.startsWith(`prompts/${promptId}/`)).toBe(true);
 
     // PATCH with the same image. Server diff should keep + not migrate.
     const before = await db.select().from(promptImages).where(eq(promptImages.promptId, promptId));
@@ -2651,7 +2653,7 @@ describe("owner prompts — patch", () => {
     // The new row should sit at order=1 and have a prompts/<id>/1.<ext> key.
     const order1 = after.find((r) => r.order === 1);
     expect(order1).toBeDefined();
-    expect(order1!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+    expect(order1!.r2Key!.startsWith(`prompts/${promptId}/`)).toBe(true);
   });
 
   it("PATCH /prompts/:id images: remove and add via single PATCH", async () => {
@@ -2696,7 +2698,7 @@ describe("owner prompts — patch", () => {
       .where(eq(promptImages.promptId, promptId));
     expect(after).toHaveLength(1);
     expect(after[0]!.order).toBe(0);
-    expect(after[0]!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+    expect(after[0]!.r2Key!.startsWith(`prompts/${promptId}/`)).toBe(true);
   });
 
   it("PATCH /prompts/:id replaces tagSlugs cleanly", async () => {

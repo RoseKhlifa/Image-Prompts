@@ -142,8 +142,8 @@ export type ListMyFavoritesResult = {
       name: unknown;
     };
     primaryImage: {
-      r2AccountId: string;
-      r2Key: string;
+      r2AccountId: string | null;
+      r2Key: string | null;
       width: number | null;
       height: number | null;
       lqip: string | null;
