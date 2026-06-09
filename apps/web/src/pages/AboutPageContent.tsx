@@ -34,10 +34,19 @@ export default function AboutPageContent() {
     <article className="mx-auto max-w-6xl px-6 py-14">
       {/* Hero */}
       <header className="border-b border-border-soft pb-10">
-        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-dim">
-          / Image-Prompts
-        </p>
-        <h1 className="mt-3 font-serif text-[40px] font-semibold leading-tight tracking-tight text-ink sm:text-[48px]">
+        <div className="flex items-center gap-4">
+          <img
+            src="/logo.png"
+            alt="Image-Prompts logo"
+            width={64}
+            height={64}
+            className="h-16 w-16 shrink-0 rounded-card border border-border-soft bg-panel object-cover shadow-sm"
+          />
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-dim">
+            / Image-Prompts
+          </p>
+        </div>
+        <h1 className="mt-5 font-serif text-[40px] font-semibold leading-tight tracking-tight text-ink sm:text-[48px]">
           {t("about.title")}
         </h1>
         <p className="mt-4 max-w-2xl font-serif text-[17px] italic leading-snug text-ink-muted">
