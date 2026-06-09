@@ -69,6 +69,7 @@ export default function AboutPageContent() {
             id="intro"
             title={t("about.section_intro_title")}
             paragraphs={[
+              t("about.section_intro_p0"),
               t("about.section_intro_p1"),
               t("about.section_intro_p2"),
             ]}

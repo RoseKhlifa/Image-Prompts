@@ -175,7 +175,8 @@
     "toc_title": "Contents",
 
     "section_intro_title": "What this site is",
-    "section_intro_p1": "Image-Prompts is a low-friction, high-density, production-consumable bilingual prompt index. We care about three things: reusability of every prompt (one-click into Image-Studio), traceability of every external archive (every source listed), and attribution / copyright for every contributor.",
+    "section_intro_p0": "This site exists to round out the ecosystem around Image-Studio — the AI image-generation client. The \"inspiration source\" stays here on Image-Prompts; the \"composition and generation\" stays in Image-Studio; the two sides connect via one-click handoff. It isn't a standalone product — it's the prompt side of the Studio ecosystem.",
+    "section_intro_p1": "Around that goal, we care about three things: reusability of every prompt (one-click into Image-Studio), traceability of every external archive (every source listed), and attribution / copyright for every contributor.",
     "section_intro_p2": "We do not run paywalls, do not farm content, and do not stuff keywords for search engines. We do not surface content that needs an explicit warning on the homepage or mixed listings.",
 
     "section_sources_title": "Data sources",
