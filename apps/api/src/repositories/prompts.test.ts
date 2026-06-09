@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { desc, eq, like } from "drizzle-orm";
+import { desc, eq, isNull, like } from "drizzle-orm";
 import { db, pool } from "../db/client.ts";
 import { users } from "../db/schema/auth.ts";
 import { prompts } from "../db/schema/index.ts";
@@ -14,14 +14,19 @@ async function ensureTestUser(email: string) {
 }
 
 async function latestPromptForTest() {
-  // Use the prompt that listPrompts({ sort: "latest" }) would return first,
-  // so our session-aware tests can find it on page 1.
+  // ★ MUST restrict to contributor IS NULL — these tests mutate
+  //   prompts.contributor_id and leave it nulled on the way out. Without
+  //   this filter, the "latest" prompt may be a real user-authored row, and
+  //   a full `pnpm -F api test --run` would silently strip its contributor
+  //   reference. Bit the user's "冒险角色设计稿" on 2026-06-09; do not
+  //   relax this without an alternative fixture strategy.
   const [row] = await db
     .select({ id: prompts.id, slug: prompts.slug })
     .from(prompts)
+    .where(isNull(prompts.contributorId))
     .orderBy(desc(prompts.approvedAt))
     .limit(1);
-  if (!row) throw new Error("test fixture missing: run pnpm db:seed first");
+  if (!row) throw new Error("test fixture missing: need at least one seeded prompt with contributor_id IS NULL");
   return row;
 }
 
