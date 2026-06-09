@@ -214,17 +214,24 @@ export default function PromptDetailPage() {
               }}
             />
 
-            <div className="grid grid-cols-3 gap-2 text-[12.5px]">
-              <CopyPromptButton prompt={d.prompt} />
-              <LikeButton
-                promptId={d.id}
-                initial={{ liked: d.userLiked ?? false, count: d.likeCount }}
-                variant="full"
-              />
-              <FavoriteButton promptId={d.id} initial={{ favorited: d.userFavorited ?? false }} />
-            </div>
-
-            <div className="flex justify-end">
+            {/* Action row — three primary buttons share the bulk of the
+                row; the MoreMenu kebab sits as a small trailing affordance
+                on the same line. Avoids the standalone 4th row that the
+                previous layout produced. */}
+            <div className="flex items-center gap-2 text-[12.5px]">
+              <div className="min-w-0 flex-1">
+                <CopyPromptButton prompt={d.prompt} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <LikeButton
+                  promptId={d.id}
+                  initial={{ liked: d.userLiked ?? false, count: d.likeCount }}
+                  variant="full"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <FavoriteButton promptId={d.id} initial={{ favorited: d.userFavorited ?? false }} />
+              </div>
               <MoreMenu
                 promptId={d.id}
                 slug={d.slug}
