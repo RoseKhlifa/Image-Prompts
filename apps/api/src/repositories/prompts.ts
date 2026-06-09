@@ -8,18 +8,27 @@ import { excludeNsfw } from "./_filters.ts";
 
 type PromptListQuery = z.infer<typeof PromptListQuerySchema>;
 
+// PRIMARY: user-submitted content (source='site') always comes ahead of
+// imported / seeded content. This is the editorial signal — visitors should
+// see what real contributors made before they see the crawled gallery the
+// owner curated as a baseline. SECONDARY: the user-selected sort criterion.
+const sourcePriorityAsc = sql`CASE WHEN ${prompts.source} = 'site' THEN 0 ELSE 1 END`;
+
 const orderBy = (sort: PromptListQuery["sort"]) => {
-  switch (sort) {
-    case "popular":
-      return desc(prompts.viewCount);
-    case "liked":
-      return desc(prompts.likeCount);
-    case "sent":
-      return desc(prompts.sendCount);
-    case "latest":
-    default:
-      return desc(prompts.approvedAt);
-  }
+  const secondary = (() => {
+    switch (sort) {
+      case "popular":
+        return desc(prompts.viewCount);
+      case "liked":
+        return desc(prompts.likeCount);
+      case "sent":
+        return desc(prompts.sendCount);
+      case "latest":
+      default:
+        return desc(prompts.approvedAt);
+    }
+  })();
+  return [asc(sourcePriorityAsc), secondary];
 };
 
 export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
@@ -113,7 +122,7 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
     .leftJoin(users, eq(users.id, prompts.contributorId))
     .where(where)
-    .orderBy(orderBy(q.sort))
+    .orderBy(...orderBy(q.sort))
     .limit(q.pageSize)
     .offset(offset);
 
@@ -339,7 +348,9 @@ export async function listRelatedPrompts(promptId: string, categoryId: string, l
         sql`${prompts.id} <> ${promptId}`,
       ),
     )
-    .orderBy(desc(prompts.likeCount), desc(prompts.approvedAt))
+    // Source priority first (user submissions ahead of imports), then the
+    // ranking signal. Matches the listPrompts ordering rule.
+    .orderBy(asc(sourcePriorityAsc), desc(prompts.likeCount), desc(prompts.approvedAt))
     .limit(limit);
 
   if (rows.length === 0) return [];
