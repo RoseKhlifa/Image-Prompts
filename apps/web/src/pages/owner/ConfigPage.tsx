@@ -68,7 +68,17 @@ function SettingRow({ setting }: { setting: SiteSetting }) {
     mut.mutate(
       { key: setting.key, value: parsed },
       {
-        onError: (e) => setError(e.message ?? t("owner.config.save_failed")),
+        onError: (e) => {
+          // Translate well-known zod codes into UI copy; fall through to the
+          // raw server message for anything else (network errors etc).
+          if (e.message === "value_required") {
+            setError(t("owner.config.value_required"));
+          } else if (e.message === "key_not_writable") {
+            setError(t("owner.config.key_not_writable"));
+          } else {
+            setError(e.message ?? t("owner.config.save_failed"));
+          }
+        },
       },
     );
   }

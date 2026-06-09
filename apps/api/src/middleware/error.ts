@@ -11,7 +11,11 @@ export const errorHandler: ErrorHandler = (err, c) => {
     for (const issue of err.errors) {
       fields[issue.path.join(".") || "_root"] = issue.message;
     }
-    return c.json({ error: "validation_error", fields }, 400);
+    // Surface the first issue's message at the top level so generic UI
+    // handlers that read e.message see something useful instead of just
+    // the HTTP status text ("Bad Request").
+    const firstMessage = err.errors[0]?.message ?? "validation failed";
+    return c.json({ error: "validation_error", message: firstMessage, fields }, 400);
   }
   console.error("[server] unhandled error", err);
   return c.json({ error: "internal_error" }, 500);

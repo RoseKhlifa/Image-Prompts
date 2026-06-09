@@ -351,6 +351,7 @@
       "save": "Save",
       "parse_error": "JSON parse error",
       "value_required": "Empty values aren't allowed. Use \"\" for an empty string.",
+      "key_not_writable": "This setting is not in the writable allow-list.",
       "save_failed": "Save failed",
       "desc": {
         "submit.daily_limit": "Per-user daily submission limit (good standing)",
