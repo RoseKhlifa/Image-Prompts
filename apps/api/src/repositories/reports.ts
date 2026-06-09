@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { reports, prompts, users } from "../db/schema/index.ts";
 
@@ -123,7 +123,7 @@ export async function listReports(opts: {
     const found = await db
       .select({ id: prompts.id, slug: prompts.slug, title: prompts.title })
       .from(prompts)
-      .where(sql`${prompts.id} = ANY(${promptIds}::uuid[])`);
+      .where(inArray(prompts.id, promptIds));
     for (const p of found) {
       promptMap.set(p.id, { slug: p.slug, title: p.title as { zh?: string; en?: string } | null });
     }
@@ -136,7 +136,7 @@ export async function listReports(opts: {
     const found = await db
       .select({ id: users.id, name: users.name })
       .from(users)
-      .where(sql`${users.id} = ANY(${reviewerIds}::uuid[])`);
+      .where(inArray(users.id, reviewerIds));
     for (const u of found) reviewerMap.set(u.id, u);
   }
 
