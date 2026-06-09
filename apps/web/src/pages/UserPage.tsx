@@ -7,13 +7,17 @@ import AppShell from "../components/layout/AppShell";
 import Avatar from "../components/Avatar";
 import StatsCard from "../components/profile/StatsCard";
 import PromptCard from "../components/PromptCard";
-import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
+import Masonry, {
+  buildMasonryItem,
+  type MasonryBreakpoint,
+} from "../components/Masonry";
 import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import { useUser } from "../lib/hooks/useUser";
 import { useUserStats } from "../lib/hooks/useUserStats";
 import { useUserPrompts } from "../lib/hooks/useUserPrompts";
 import { useUserFavorites } from "../lib/hooks/useUserFavorites";
+import { useR2PoolMap } from "../lib/hooks/useR2Pool";
 import { useSession } from "../lib/hooks/useSession";
 
 const BREAKPOINTS: MasonryBreakpoint[] = [
@@ -33,6 +37,7 @@ export default function UserPage() {
 
   const user = useUser(id);
   const stats = useUserStats(id);
+  const { map: r2Map } = useR2PoolMap();
   const works = useUserPrompts(id);
   const favorites = useUserFavorites(id, isOwner && tab === "favorites");
 
@@ -151,14 +156,14 @@ export default function UserPage() {
                     </span>
                   </header>
                   <Masonry
-                    items={pinned.map<MasonryItem>((p) => ({
-                      key: `pinned-${p.id}`,
-                      aspectRatio:
-                        p.primaryImage?.width && p.primaryImage?.height
-                          ? p.primaryImage.width / p.primaryImage.height
-                          : 1,
-                      node: <PromptCard prompt={p} />,
-                    }))}
+                    items={pinned.map((p) =>
+                      buildMasonryItem(
+                        p,
+                        r2Map,
+                        <PromptCard prompt={p} />,
+                        `pinned-${p.id}`,
+                      ),
+                    )}
                     breakpoints={BREAKPOINTS}
                     gap={4}
                     className="p-2"
@@ -185,14 +190,9 @@ export default function UserPage() {
                     </span>
                   </header>
                   <Masonry
-                    items={(works.data?.items ?? []).map<MasonryItem>((p) => ({
-                      key: p.id,
-                      aspectRatio:
-                        p.primaryImage?.width && p.primaryImage?.height
-                          ? p.primaryImage.width / p.primaryImage.height
-                          : 1,
-                      node: <PromptCard prompt={p} />,
-                    }))}
+                    items={(works.data?.items ?? []).map((p) =>
+                      buildMasonryItem(p, r2Map, <PromptCard prompt={p} />),
+                    )}
                     breakpoints={BREAKPOINTS}
                     gap={4}
                     className="p-2"
@@ -207,14 +207,9 @@ export default function UserPage() {
           <EmptyState />
         ) : (
           <Masonry
-            items={(favorites.data?.items ?? []).map<MasonryItem>((p) => ({
-              key: p.id,
-              aspectRatio:
-                p.primaryImage?.width && p.primaryImage?.height
-                  ? p.primaryImage.width / p.primaryImage.height
-                  : 1,
-              node: <PromptCard prompt={p} />,
-            }))}
+            items={(favorites.data?.items ?? []).map((p) =>
+              buildMasonryItem(p, r2Map, <PromptCard prompt={p} />),
+            )}
             breakpoints={BREAKPOINTS}
             gap={4}
             className="p-2"

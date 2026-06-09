@@ -8,11 +8,16 @@ import PromptCard from "../components/PromptCard";
 import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
+import Pagination from "../components/Pagination";
 import { usePromptList } from "../lib/hooks/usePromptList";
 import { useSession } from "../lib/hooks/useSession";
 import { useUserFavorites } from "../lib/hooks/useUserFavorites";
 import { useUserPrompts } from "../lib/hooks/useUserPrompts";
-import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
+import { useR2PoolMap } from "../lib/hooks/useR2Pool";
+import Masonry, {
+  buildMasonryItem,
+  type MasonryBreakpoint,
+} from "../components/Masonry";
 
 // "about" lives on its own /:locale/about route — BrowseTabs navigates there.
 type Tab = "gallery" | "favorites" | "mine";
@@ -41,16 +46,26 @@ export default function HomePage() {
   const sort = asSort(params.get("sort"));
   const tab = asTab(params.get("tab"));
   const q = params.get("q") ?? undefined;
+  const page = Number(params.get("page") ?? "1") || 1;
   const session = useSession();
   const userId = (session.data?.user as { id?: string } | undefined)?.id;
+  const { map: r2Map } = useR2PoolMap();
 
-  const gallery = usePromptList({ sort, page: 1, pageSize: 24, q });
+  const gallery = usePromptList({ sort, page, pageSize: 24, q });
   const favorites = useUserFavorites(userId, tab === "favorites" && !!userId);
   const mine = useUserPrompts(tab === "mine" ? userId : undefined);
 
   function setSort(next: SortOption) {
     const updated = new URLSearchParams(params);
     updated.set("sort", next);
+    updated.delete("page");
+    setParams(updated);
+  }
+
+  function setPage(next: number) {
+    const updated = new URLSearchParams(params);
+    if (next <= 1) updated.delete("page");
+    else updated.set("page", String(next));
     setParams(updated);
   }
 
@@ -58,14 +73,9 @@ export default function HomePage() {
     if (!data || data.items.length === 0) return <EmptyState />;
     return (
       <Masonry
-        items={data.items.map<MasonryItem>((p) => ({
-          key: p.id,
-          aspectRatio:
-            p.primaryImage?.width && p.primaryImage?.height
-              ? p.primaryImage.width / p.primaryImage.height
-              : 1,
-          node: <PromptCard prompt={p} />,
-        }))}
+        items={data.items.map((p) =>
+          buildMasonryItem(p, r2Map, <PromptCard prompt={p} />),
+        )}
         breakpoints={BREAKPOINTS}
         gap={4}
         className="p-2"
@@ -85,7 +95,18 @@ export default function HomePage() {
               onRetry={() => gallery.refetch()}
             />
           )}
-          {!gallery.isLoading && !gallery.isError && gallery.data && renderItems(gallery.data)}
+          {!gallery.isLoading && !gallery.isError && gallery.data && (
+            <>
+              {renderItems(gallery.data)}
+              <Pagination
+                page={page}
+                hasMore={gallery.data.hasMore}
+                total={gallery.data.total}
+                pageSize={gallery.data.pageSize}
+                onChange={setPage}
+              />
+            </>
+          )}
         </>
       )}
       {tab === "favorites" &&

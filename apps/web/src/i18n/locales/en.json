@@ -25,7 +25,13 @@
     "close": "Close",
     "load_more": "Load more",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "prev_page": "Previous",
+    "next_page": "Next",
+    "prompt_zh": "Prompt (zh)",
+    "prompt_en": "Prompt (en)",
+    "negative_prompt_zh": "Negative prompt (zh)",
+    "negative_prompt_en": "Negative prompt (en)"
   },
   "auth": {
     "sign_in": "Sign In",

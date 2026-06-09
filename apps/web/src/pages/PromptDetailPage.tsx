@@ -98,9 +98,18 @@ export default function PromptDetailPage() {
   const d = detail.data;
   const title = pickBilingual(d.title, locale) ?? d.slug;
   const visibleTags = (d.tags ?? []).filter((tag) => tag.slug !== "nsfw");
+  // Lock the aside's height to the gallery's, so the functional column's
+  // bottom always sits flush with the image's bottom. When aside content
+  // is taller, it overflows into the internal scroll; when shorter, the
+  // box still fills down to gallery bottom (avoids the "aside ends mid-
+  // gallery" look). Capped at viewport-6rem so a tall portrait doesn't
+  // push the aside past the screen.
   const asideStyle: CSSProperties | undefined =
     isLgUp && galleryHeight !== null
-      ? { maxHeight: `min(${galleryHeight}px, calc(100vh - 6rem))` }
+      ? {
+          minHeight: `min(${galleryHeight}px, calc(100vh - 6rem))`,
+          maxHeight: `min(${galleryHeight}px, calc(100vh - 6rem))`,
+        }
       : undefined;
 
   return (
@@ -231,7 +240,12 @@ export default function PromptDetailPage() {
 
             <PromptTextBlock label={t("detail.prompt")} value={d.prompt} />
             {d.negativePrompt && (
-              <PromptTextBlock label={t("detail.negative_prompt")} value={d.negativePrompt} />
+              <PromptTextBlock
+                label={t("detail.negative_prompt")}
+                value={d.negativePrompt}
+                zhKey="common.negative_prompt_zh"
+                enKey="common.negative_prompt_en"
+              />
             )}
 
             {/* Subtle source-attribution footer for prompts whose original

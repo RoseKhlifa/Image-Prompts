@@ -7,10 +7,15 @@ import PromptCard from "../components/PromptCard";
 import { CardGridSkeleton } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
+import Pagination from "../components/Pagination";
 import { NsfwGateModal } from "../components/NsfwGateModal";
 import { usePromptList } from "../lib/hooks/usePromptList";
+import { useR2PoolMap } from "../lib/hooks/useR2Pool";
 import { withLocale } from "../lib/locale";
-import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../components/Masonry";
+import Masonry, {
+  buildMasonryItem,
+  type MasonryBreakpoint,
+} from "../components/Masonry";
 import { isLocale, type Locale, type SortOption, type AspectRatio } from "@ip/shared";
 
 const NSFW_ACK_KEY = "nsfw-ack";
@@ -63,6 +68,7 @@ export default function PromptListPage() {
   const isNsfwCategory = category === "nsfw";
   const [nsfwAcked, setNsfwAcked] = useState<boolean>(() => readNsfwAck());
   const gateBlocking = isNsfwCategory && !nsfwAcked;
+  const { map: r2Map } = useR2PoolMap();
 
   const query = useMemo(
     () => ({ category, tag, aspect, q, sort, page, pageSize: 24 }),
@@ -126,14 +132,9 @@ export default function PromptListPage() {
         ) : (
           <>
             <Masonry
-              items={list.data.items.map<MasonryItem>((p) => ({
-                key: p.id,
-                aspectRatio:
-                  p.primaryImage?.width && p.primaryImage?.height
-                    ? p.primaryImage.width / p.primaryImage.height
-                    : 1,
-                node: <PromptCard prompt={p} />,
-              }))}
+              items={list.data.items.map((p) =>
+                buildMasonryItem(p, r2Map, <PromptCard prompt={p} />),
+              )}
               breakpoints={BREAKPOINTS}
               gap={4}
               className="p-2"
@@ -151,41 +152,3 @@ export default function PromptListPage() {
   );
 }
 
-function Pagination({
-  page,
-  hasMore,
-  total,
-  pageSize,
-  onChange,
-}: {
-  page: number;
-  hasMore: boolean;
-  total: number;
-  pageSize: number;
-  onChange: (page: number) => void;
-}) {
-  const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  return (
-    <div className="flex items-center justify-center gap-2 border-t border-border-soft px-6 py-6 text-[13px]">
-      <button
-        type="button"
-        disabled={page <= 1}
-        onClick={() => onChange(page - 1)}
-        className="rounded-pill border border-border-soft bg-surface px-4 py-1.5 text-ink-muted hover:enabled:text-ink disabled:opacity-40"
-      >
-        ← prev
-      </button>
-      <span className="px-2 text-ink-dim">
-        {page} / {maxPage}
-      </span>
-      <button
-        type="button"
-        disabled={!hasMore}
-        onClick={() => onChange(page + 1)}
-        className="rounded-pill border border-border-soft bg-surface px-4 py-1.5 text-ink-muted hover:enabled:text-ink disabled:opacity-40"
-      >
-        next →
-      </button>
-    </div>
-  );
-}

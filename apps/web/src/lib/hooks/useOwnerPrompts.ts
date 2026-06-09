@@ -1,7 +1,10 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type UseInfiniteQueryResult,
+  type InfiniteData,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
@@ -116,31 +119,42 @@ export type OwnerPromptListFilters = {
 
 // ── Queries ─────────────────────────────────────────────────────────────
 
+type OwnerPromptPage = {
+  items: OwnerPromptListItem[];
+  nextCursor: string | null;
+};
+
+/**
+ * Infinite-paginated owner prompt list. The API uses keyset cursors so a
+ * useInfiniteQuery is the natural fit — each "load more" click fetches the
+ * next page using the previous response's `nextCursor`. Consumers should
+ * flatten `data.pages` to get the full accumulated list.
+ */
 export function useOwnerPrompts(
   filters: OwnerPromptListFilters = {},
-): UseQueryResult<
-  { items: OwnerPromptListItem[]; nextCursor: string | null },
-  ApiError
-> {
+): UseInfiniteQueryResult<InfiniteData<OwnerPromptPage>, ApiError> {
   // Stable key shape (sorted object) so the cache doesn't churn on key order.
   const key = {
     q: filters.q ?? "",
     categorySlug: filters.categorySlug ?? "",
     limit: filters.limit ?? 30,
   };
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["owner", "prompts", key],
-    queryFn: ({ signal }) => {
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
       const qs = new URLSearchParams();
       if (filters.q) qs.set("q", filters.q);
       if (filters.categorySlug) qs.set("categorySlug", filters.categorySlug);
       if (filters.limit) qs.set("limit", String(filters.limit));
+      if (pageParam) qs.set("cursor", pageParam);
       const tail = qs.toString();
-      return apiFetch<{ items: OwnerPromptListItem[]; nextCursor: string | null }>(
+      return apiFetch<OwnerPromptPage>(
         `/api/owner/prompts${tail ? `?${tail}` : ""}`,
         { signal },
       );
     },
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 10_000,
   });
 }

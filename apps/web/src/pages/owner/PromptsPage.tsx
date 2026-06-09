@@ -55,7 +55,10 @@ export default function PromptsPage() {
   }, [qDebounced, categorySlug]);
 
   const listQ = useOwnerPrompts(filters);
-  const items = listQ.data?.items ?? [];
+  const items = useMemo(
+    () => listQ.data?.pages.flatMap((p) => p.items) ?? [],
+    [listQ.data],
+  );
   const categoriesQ = useCategories();
   const categories = categoriesQ.data ?? [];
 
@@ -114,7 +117,14 @@ export default function PromptsPage() {
         </select>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-card border border-border-soft bg-panel">
+      <div className="mt-3 text-xs text-ink-dim">
+        {t("owner.prompts.loaded_count", {
+          shown: items.length,
+          defaultValue: `已加载 ${items.length} 条`,
+        })}
+      </div>
+
+      <div className="mt-2 overflow-x-auto rounded-card border border-border-soft bg-panel">
         <table className="w-full text-sm">
           <thead className="border-b border-border-soft text-xs uppercase tracking-wider text-ink-muted">
             <tr>
@@ -175,6 +185,21 @@ export default function PromptsPage() {
           </tbody>
         </table>
       </div>
+
+      {listQ.hasNextPage && (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => listQ.fetchNextPage()}
+            disabled={listQ.isFetchingNextPage}
+            className="rounded-pill border border-border-soft bg-surface px-5 py-2 text-sm text-ink-muted hover:enabled:text-ink disabled:opacity-40"
+          >
+            {listQ.isFetchingNextPage
+              ? t("common.loading")
+              : t("common.load_more")}
+          </button>
+        </div>
+      )}
 
       {(creating || editingId !== null) && (
         <OwnerPromptFormModal

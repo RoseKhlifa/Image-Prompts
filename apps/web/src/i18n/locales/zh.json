@@ -25,7 +25,13 @@
     "close": "关闭",
     "load_more": "加载更多",
     "save": "保存",
-    "cancel": "取消"
+    "cancel": "取消",
+    "prev_page": "上一页",
+    "next_page": "下一页",
+    "prompt_zh": "中文提示词",
+    "prompt_en": "英文提示词",
+    "negative_prompt_zh": "中文负面提示词",
+    "negative_prompt_en": "英文负面提示词"
   },
   "auth": {
     "sign_in": "登录",

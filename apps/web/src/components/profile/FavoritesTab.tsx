@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import PromptCard from "../PromptCard";
-import Masonry, { type MasonryBreakpoint, type MasonryItem } from "../Masonry";
+import Masonry, { buildMasonryItem, type MasonryBreakpoint } from "../Masonry";
+import Pagination from "../Pagination";
 import { useMyFavorites } from "../../lib/hooks/useMyFavorites";
+import { useR2PoolMap } from "../../lib/hooks/useR2Pool";
 import { CardGridSkeleton } from "../Skeleton";
 
 const BREAKPOINTS: MasonryBreakpoint[] = [
@@ -16,6 +18,7 @@ export default function FavoritesTab() {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const query = useMyFavorites(page, 24);
+  const { map: r2Map } = useR2PoolMap();
 
   if (query.isLoading) return <CardGridSkeleton count={12} />;
   if (query.isError) {
@@ -30,40 +33,20 @@ export default function FavoritesTab() {
     );
   }
 
-  const items: MasonryItem[] = query.data.items.map((p) => ({
-    key: p.id,
-    aspectRatio:
-      p.primaryImage?.width && p.primaryImage?.height
-        ? p.primaryImage.width / p.primaryImage.height
-        : 1,
-    node: <PromptCard prompt={p} />,
-  }));
+  const items = query.data.items.map((p) =>
+    buildMasonryItem(p, r2Map, <PromptCard prompt={p} />),
+  );
 
-  const maxPage = Math.max(1, Math.ceil(query.data.total / query.data.pageSize));
   return (
     <div className="space-y-4">
       <Masonry items={items} breakpoints={BREAKPOINTS} gap={4} className="p-2" />
-      <div className="flex items-center justify-center gap-2 py-4 text-[13px]">
-        <button
-          type="button"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => p - 1)}
-          className="rounded-pill border border-border-soft bg-surface px-4 py-1.5 text-ink-muted hover:enabled:text-ink disabled:opacity-40"
-        >
-          ← prev
-        </button>
-        <span className="px-2 text-ink-dim">
-          {page} / {maxPage}
-        </span>
-        <button
-          type="button"
-          disabled={!query.data.hasMore}
-          onClick={() => setPage((p) => p + 1)}
-          className="rounded-pill border border-border-soft bg-surface px-4 py-1.5 text-ink-muted hover:enabled:text-ink disabled:opacity-40"
-        >
-          next →
-        </button>
-      </div>
+      <Pagination
+        page={page}
+        hasMore={query.data.hasMore}
+        total={query.data.total}
+        pageSize={query.data.pageSize}
+        onChange={setPage}
+      />
     </div>
   );
 }
