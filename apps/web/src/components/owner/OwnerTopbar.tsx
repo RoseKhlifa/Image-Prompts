@@ -14,6 +14,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   categories: "owner.nav.categories",
   tags: "owner.nav.tags",
   prompts: "owner.nav.prompts",
+  import: "owner.nav.import",
 };
 
 export default function OwnerTopbar() {

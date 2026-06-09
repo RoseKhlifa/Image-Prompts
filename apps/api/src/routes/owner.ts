@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -9,7 +11,12 @@ import { getOwnerDashboard } from "../repositories/owner-stats.ts";
 import {
   listAllSettings,
   setSetting,
+  getSetting,
 } from "../repositories/site-settings.ts";
+import {
+  importCategoryJsonl,
+  listRecentImports,
+} from "../repositories/imports.ts";
 import {
   listAllR2AccountsForOwner,
   getR2AccountForOwner,
@@ -130,6 +137,7 @@ const WRITABLE_SETTING_KEYS = new Set<string>([
   "translator.rate_limit_per_user_hour",
   "site.maintenance_mode",
   "site.maintenance_message",
+  "import.data_root",
 ]);
 
 app.put(
@@ -1166,5 +1174,108 @@ app.delete(
     return c.json({ id, deleted: true });
   },
 );
+
+// ── Imports (crawled-prompt ingestion) ───────────────────────────────────
+//
+// Three endpoints power the /rosekhlifa/import admin page:
+//
+//  - POST /imports        runs importCategoryJsonl synchronously + audit-logs
+//  - GET  /imports        recent batch history (newest first, capped at 100)
+//  - GET  /imports/manifest  reads manifest.json from import.data_root, returns
+//                            the 16-category table data
+//
+// The actual JSONL streaming + DB writes live in repositories/imports.ts;
+// these endpoints are just the request/response shell. requireOwner() at the
+// top of this file gates every route here.
+
+const ImportBodySchema = z.object({
+  categorySlug: z.string().min(1).max(64),
+  dryRun: z.boolean().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+
+const DEFAULT_IMPORT_ROOT = "G:\\promptsandimages";
+
+type ManifestEntry = {
+  slug: string;
+  name: string;
+  count: number;
+  jsonl: string;
+};
+
+type Manifest = { categories: ManifestEntry[] };
+
+async function readImportManifest(): Promise<{ dataRoot: string; manifest: Manifest }> {
+  const dataRoot = (await getSetting("import.data_root")) ?? DEFAULT_IMPORT_ROOT;
+  if (typeof dataRoot !== "string") {
+    throw new HTTPException(500, { message: "invalid_data_root" });
+  }
+  const manifestPath = resolve(dataRoot, "exports/manifest.json");
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest;
+    return { dataRoot, manifest };
+  } catch (e) {
+    throw new HTTPException(500, {
+      message: `manifest_unreadable:${(e as Error).message}`,
+    });
+  }
+}
+
+app.post("/imports", zv("json", ImportBodySchema), async (c) => {
+  const ownerId = requireUserId(c);
+  const body = c.req.valid("json");
+
+  const { dataRoot, manifest } = await readImportManifest();
+
+  const entry = manifest.categories.find((m) => m.slug === body.categorySlug);
+  if (!entry) {
+    throw new HTTPException(400, { message: `unknown_category:${body.categorySlug}` });
+  }
+  const filePath = resolve(dataRoot, entry.jsonl);
+
+  const result = await importCategoryJsonl({
+    filePath,
+    categorySlug: body.categorySlug,
+    startedBy: ownerId,
+    ...(body.dryRun !== undefined ? { dryRun: body.dryRun } : {}),
+    ...(body.limit !== undefined ? { limit: body.limit } : {}),
+  });
+
+  await recordAudit({
+    actorId: ownerId,
+    action: body.dryRun ? "import.dry_run" : "import.run",
+    targetType: "import_batch",
+    targetId: result.batchId,
+    payload: {
+      categorySlug: body.categorySlug,
+      total: result.total,
+      inserted: result.inserted,
+      skippedDuplicate: result.skippedDuplicate,
+      failed: result.failed,
+    },
+  });
+
+  return c.json(result);
+});
+
+app.get("/imports", async (c) => {
+  const rawLimit = Number(c.req.query("limit") ?? "50");
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 50;
+  const rows = await listRecentImports({ limit });
+  return c.json({ items: rows });
+});
+
+app.get("/imports/manifest", async (c) => {
+  const { dataRoot, manifest } = await readImportManifest();
+  return c.json({
+    dataRoot,
+    categories: manifest.categories.map((m) => ({
+      slug: m.slug,
+      name: m.name,
+      count: m.count,
+      jsonl: m.jsonl,
+    })),
+  });
+});
 
 export default app;

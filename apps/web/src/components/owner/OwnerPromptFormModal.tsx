@@ -108,11 +108,20 @@ export default function OwnerPromptFormModal({
     // server diff-replace handles the "everything unchanged" case (no-op);
     // when the user edits, new submissions/* keys are migrated server-side
     // and removed prompts/<id>/* keys are best-effort deleted.
+    //
+    // Imported prompts store the image as a remote CDN URL (r2 pair is null)
+    // — the form modal only handles R2-backed slots, so we filter those rows
+    // out. In practice the import surface is read-only via this modal anyway.
     setImages(
-      detail.images.map((i) => ({
-        r2AccountId: i.r2AccountId,
-        r2Key: i.r2Key,
-      })),
+      detail.images
+        .filter(
+          (i): i is typeof i & { r2AccountId: string; r2Key: string } =>
+            i.r2AccountId !== null && i.r2Key !== null,
+        )
+        .map((i) => ({
+          r2AccountId: i.r2AccountId,
+          r2Key: i.r2Key,
+        })),
     );
   }, [isEdit, detail]);
 

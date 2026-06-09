@@ -326,6 +326,7 @@
       "categories": "分类",
       "tags": "标签",
       "prompts": "提示词",
+      "import": "导入",
       "root": "站长后台",
       "back_to_site": "回主站"
     },
@@ -626,6 +627,26 @@
       "save_success_create": "标签已创建",
       "save_success_update": "标签已更新",
       "save_failed": "保存失败"
+    },
+    "import": {
+      "title": "外部数据导入",
+      "subtitle": "从 {root} 按分类导入爬取的提示词。重复运行幂等。",
+      "manifest_unreadable": "未能读取 manifest.json,请确认 site_settings 中 import.data_root 是否正确。",
+      "col_slug": "分类 slug",
+      "col_name": "中文名",
+      "col_count": "总数",
+      "col_actions": "操作",
+      "col_started_at": "开始时间",
+      "col_status": "状态",
+      "col_inserted": "新增",
+      "col_skipped": "重复",
+      "col_failed": "失败",
+      "dry_run": "试导入 10",
+      "run": "导入此分类",
+      "run_success": "完成:新增 {inserted},跳过 {skipped},失败 {failed}",
+      "run_failed": "导入失败",
+      "history_title": "最近导入",
+      "history_empty": "暂无记录"
     }
   },
   "announcements": {

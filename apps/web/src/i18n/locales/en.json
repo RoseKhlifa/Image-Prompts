@@ -326,6 +326,7 @@
       "categories": "Categories",
       "tags": "Tags",
       "prompts": "Prompts",
+      "import": "Import",
       "root": "Owner Console",
       "back_to_site": "Back to site"
     },
@@ -626,6 +627,26 @@
       "save_success_create": "Published",
       "save_success_update": "Updated",
       "save_failed": "Save failed"
+    },
+    "import": {
+      "title": "External data import",
+      "subtitle": "Import crawled prompts by category from {root}. Re-runs are idempotent.",
+      "manifest_unreadable": "manifest.json could not be read. Check the import.data_root site setting.",
+      "col_slug": "Slug",
+      "col_name": "Name",
+      "col_count": "Total",
+      "col_actions": "Actions",
+      "col_started_at": "Started",
+      "col_status": "Status",
+      "col_inserted": "Inserted",
+      "col_skipped": "Skipped",
+      "col_failed": "Failed",
+      "dry_run": "Dry-run 10",
+      "run": "Run import",
+      "run_success": "Done: +{inserted} inserted, ~{skipped} skipped, !{failed} failed",
+      "run_failed": "Import failed",
+      "history_title": "Recent imports",
+      "history_empty": "No imports yet"
     }
   },
   "announcements": {

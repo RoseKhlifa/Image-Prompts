@@ -211,6 +211,7 @@ function PromptRow({
         {
           r2AccountId: row.primaryImage.r2AccountId,
           r2Key: row.primaryImage.r2Key,
+          remoteUrl: row.primaryImage.remoteUrl,
         },
         r2Map,
       )

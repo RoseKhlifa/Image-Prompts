@@ -22,6 +22,7 @@ import {
   promptImages,
   promptTags,
   submissions,
+  importBatches,
 } from "../db/schema/index.ts";
 import { createTestSession } from "../auth/test-session.ts";
 import { encryptSecret, decryptSecret } from "../lib/crypto.ts";
@@ -2880,5 +2881,260 @@ describe("owner prompts — delete", () => {
 
     // Clean up the test submission so the next test's cleanup doesn't block.
     await db.delete(submissions).where(eq(submissions.id, sub!.id));
+  });
+});
+
+// ── /api/owner/imports (Task 7) ──────────────────────────────────────────
+//
+// The crawled-prompt ingestion endpoints. Three routes wire up the
+// /rosekhlifa/import admin page. Deep behavior (streaming JSONL → prompts +
+// images + tags + import_batches) is covered by repositories/imports.test.ts;
+// this block exercises the route shell — auth gating + happy-path wiring.
+//
+// Strategy: write a temp manifest.json + tiny JSONL fixture, point
+// site_settings['import.data_root'] at it via the existing PUT /settings/:key
+// endpoint (which is already exercised earlier in this file), and assert the
+// three endpoints return the expected shapes. Cleanup wipes the temp dir +
+// the site_settings row + any import_batches rows the run produced.
+
+describe("owner imports — auth gate", () => {
+  it("POST /imports 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/imports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: sess.cookie },
+      body: JSON.stringify({ categorySlug: "food" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /imports 401 for anonymous caller", async () => {
+    const res = await app.request("/api/owner/imports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categorySlug: "food" }),
+    });
+    // softAuth + requireOwner: no cookie ⇒ 401 from requireUserId; some envs
+    // surface as 403 from the owner gate if a session exists. Either is a
+    // valid "blocked" verdict — assert it's not 2xx.
+    expect([401, 403]).toContain(res.status);
+  });
+
+  it("GET /imports 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/imports", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /imports/manifest 403 for non-owner", async () => {
+    const sess = await makeNonOwner("admin");
+    const res = await app.request("/api/owner/imports/manifest", {
+      headers: { Cookie: sess.cookie },
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("owner imports — happy path", () => {
+  // We stash a temp data root for each happy-path test so they're hermetic
+  // even if the dev box's real G:\promptsandimages root exists with content.
+  // The tmp dir + site_settings row get cleaned up after each test.
+  it("POST /imports 200 runs import + audit + returns result shape", async () => {
+    const { writeFile: wf, mkdir: mk, rm: rmf } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    const owner = await makeOwner();
+    const tmpRoot = join(tmpdir(), `tw47r-imports-route-${Date.now()}`);
+    const exportsDir = join(tmpRoot, "exports");
+    const jsonlDir = join(exportsDir, "by_category");
+    await mk(jsonlDir, { recursive: true });
+
+    const categorySlug = `tw47r-cat-${Math.random().toString(36).slice(2, 8)}`;
+    const externalId = `tw47r-rec-${Math.random().toString(36).slice(2, 10)}`;
+    const record = {
+      id: externalId,
+      title: "Route test title",
+      category: { slug: categorySlug, name: "测试" },
+      normalized_tags: ["tw47r-route-tag-a", "tw47r-route-tag-b"],
+      tags: ["raw"],
+      prompts: { zh: "", en: "A route test prompt." },
+      image_url: "https://example.com/route-test.jpg",
+      source_url: "https://example.com/route-test-source",
+      source_site: "TestSite",
+      source_id: "route-1",
+    };
+    const jsonlPath = join(jsonlDir, `${categorySlug}.jsonl`);
+    await wf(jsonlPath, JSON.stringify(record) + "\n", "utf8");
+    const manifestPath = join(exportsDir, "manifest.json");
+    await wf(
+      manifestPath,
+      JSON.stringify({
+        categories: [
+          {
+            slug: categorySlug,
+            name: "测试",
+            count: 1,
+            jsonl: `exports/by_category/${categorySlug}.jsonl`,
+          },
+        ],
+      }),
+      "utf8",
+    );
+
+    // Point import.data_root at the temp root via the PUT setting endpoint.
+    const setRes = await app.request("/api/owner/settings/import.data_root", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ value: tmpRoot }),
+    });
+    expect(setRes.status).toBe(200);
+
+    try {
+      // Manifest endpoint should now resolve.
+      const manRes = await app.request("/api/owner/imports/manifest", {
+        headers: { Cookie: owner.cookie },
+      });
+      expect(manRes.status).toBe(200);
+      const manJson = (await manRes.json()) as {
+        dataRoot: string;
+        categories: Array<{ slug: string; name: string; count: number }>;
+      };
+      expect(manJson.dataRoot).toBe(tmpRoot);
+      expect(manJson.categories[0]!.slug).toBe(categorySlug);
+
+      // Run a dry-run import via POST.
+      const dryRes = await app.request("/api/owner/imports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ categorySlug, dryRun: true }),
+      });
+      expect(dryRes.status).toBe(200);
+      const dryJson = (await dryRes.json()) as {
+        batchId: string;
+        dryRun: boolean;
+        inserted: number;
+        status: string;
+      };
+      expect(dryJson.dryRun).toBe(true);
+      expect(dryJson.status).toBe("done");
+      expect(dryJson.inserted).toBe(1);
+
+      // Audit row for the dry-run.
+      const dryAudit = await db
+        .select()
+        .from(auditLog)
+        .where(
+          and(
+            eq(auditLog.action, "import.dry_run"),
+            eq(auditLog.targetId, dryJson.batchId),
+          ),
+        );
+      expect(dryAudit).toHaveLength(1);
+      expect(dryAudit[0]!.actorId).toBe(owner.userId);
+
+      // Live import (idempotent — same external_id on re-run would skip).
+      const liveRes = await app.request("/api/owner/imports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ categorySlug }),
+      });
+      expect(liveRes.status).toBe(200);
+      const liveJson = (await liveRes.json()) as {
+        batchId: string;
+        dryRun: boolean;
+        inserted: number;
+        status: string;
+      };
+      expect(liveJson.dryRun).toBe(false);
+      expect(liveJson.status).toBe("done");
+      expect(liveJson.inserted).toBe(1);
+
+      // History endpoint includes our two runs.
+      const hRes = await app.request("/api/owner/imports", {
+        headers: { Cookie: owner.cookie },
+      });
+      expect(hRes.status).toBe(200);
+      const hJson = (await hRes.json()) as {
+        items: Array<{ id: string; categorySlug: string }>;
+      };
+      const ours = hJson.items.filter((r) => r.categorySlug === categorySlug);
+      expect(ours.length).toBeGreaterThanOrEqual(2);
+
+      // ── Cleanup of side-effects (DB rows from the live import). ───────
+      // The live run inserted 1 prompt + 1 prompt_image + N tags + 1 category.
+      const live = await db
+        .select({ id: prompts.id })
+        .from(prompts)
+        .where(eq(prompts.externalId, externalId));
+      if (live.length > 0) {
+        const ids = live.map((r) => r.id);
+        await db.delete(promptImages).where(inArray(promptImages.promptId, ids));
+        await db.delete(promptTags).where(inArray(promptTags.promptId, ids));
+        await db.delete(prompts).where(inArray(prompts.id, ids));
+      }
+      await db.delete(tags).where(like(tags.slug, "tw47r-route-tag-%"));
+      await db
+        .delete(categories)
+        .where(like(categories.slug, "tw47r-cat-%"));
+      // Audit rows + import_batches.
+      const batchIds = [dryJson.batchId, liveJson.batchId];
+      await db
+        .delete(auditLog)
+        .where(
+          and(
+            eq(auditLog.targetType, "import_batch"),
+            inArray(auditLog.targetId, batchIds),
+          ),
+        );
+      await db
+        .delete(importBatches)
+        .where(like(importBatches.categorySlug, "tw47r-cat-%"));
+      // site_settings row we wrote.
+      await db
+        .delete(siteSettings)
+        .where(eq(siteSettings.key, "import.data_root"));
+    } finally {
+      await rmf(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("POST /imports 400 for unknown category in the manifest", async () => {
+    const { writeFile: wf, mkdir: mk, rm: rmf } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    const owner = await makeOwner();
+    const tmpRoot = join(tmpdir(), `tw47r-imports-404-${Date.now()}`);
+    const exportsDir = join(tmpRoot, "exports");
+    await mk(exportsDir, { recursive: true });
+    await wf(
+      join(exportsDir, "manifest.json"),
+      JSON.stringify({ categories: [] }),
+      "utf8",
+    );
+
+    const setRes = await app.request("/api/owner/settings/import.data_root", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({ value: tmpRoot }),
+    });
+    expect(setRes.status).toBe(200);
+
+    try {
+      const res = await app.request("/api/owner/imports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+        body: JSON.stringify({ categorySlug: "does-not-exist" }),
+      });
+      expect(res.status).toBe(400);
+    } finally {
+      await db
+        .delete(siteSettings)
+        .where(eq(siteSettings.key, "import.data_root"));
+      await rmf(tmpRoot, { recursive: true, force: true });
+    }
   });
 });

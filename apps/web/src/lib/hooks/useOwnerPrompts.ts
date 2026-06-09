@@ -29,19 +29,26 @@ export type OwnerPromptListItem = {
   category: { id: string; slug: string; name: Bilingual };
   contributor: { id: string; name: string | null; image: string | null } | null;
   primaryImage: {
-    r2AccountId: string;
-    r2Key: string;
+    // r2 pair is null for imported prompts; remoteUrl holds the external CDN URL.
+    r2AccountId: string | null;
+    r2Key: string | null;
+    remoteUrl: string | null;
     width: number | null;
     height: number | null;
     lqip: string | null;
   } | null;
   tagSlugs: string[];
+  /** Non-null when source='imported'. */
+  sourceSite: string | null;
+  sourceUrl: string | null;
 };
 
 export type OwnerPromptImage = {
   id: string;
-  r2AccountId: string;
-  r2Key: string;
+  // r2 pair is null for imported prompts.
+  r2AccountId: string | null;
+  r2Key: string | null;
+  remoteUrl: string | null;
   order: number;
   altText: string | null;
   width: number | null;
@@ -57,7 +64,7 @@ export type OwnerPromptDetail = {
   negativePrompt: Bilingual | null;
   notes: Bilingual | null;
   aspectRatio: string | null;
-  source: "site" | "nanobanana_seed";
+  source: "site" | "nanobanana_seed" | "imported";
   approvedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -65,6 +72,9 @@ export type OwnerPromptDetail = {
   contributor: { id: string; name: string | null; image: string | null } | null;
   tagSlugs: string[];
   images: OwnerPromptImage[];
+  /** Non-null when source='imported'. */
+  sourceSite: string | null;
+  sourceUrl: string | null;
 };
 
 export type OwnerPromptImageInput = {
