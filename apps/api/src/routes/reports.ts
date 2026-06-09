@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import { verifyAuth } from "@hono/auth-js";
 import { requireUserId } from "../middleware/auth.ts";
 import { banCheck } from "../middleware/ban-check.ts";
 import { zv } from "../lib/validate.ts";
@@ -24,6 +25,7 @@ const app = new Hono();
  */
 app.post(
   "/",
+  verifyAuth(),
   banCheck(),
   zv("json", CreateReportBody),
   async (c) => {
