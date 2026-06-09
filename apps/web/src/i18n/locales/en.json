@@ -27,6 +27,10 @@
     "save": "Save",
     "cancel": "Cancel"
   },
+  "card": {
+    "source_chip": "From {site}",
+    "source_chip_aria": "Open source page on {site}"
+  },
   "auth": {
     "sign_in": "Sign In",
     "sign_in_with": "Sign in with {provider}",

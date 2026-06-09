@@ -42,6 +42,9 @@ export type OwnerPromptListItem = {
     lqip: string | null;
   } | null;
   tagSlugs: string[];
+  /** Non-null when source='imported'. Owner UI can show a source-attribution chip. */
+  sourceSite: string | null;
+  sourceUrl: string | null;
 };
 
 export type OwnerPromptImage = {
@@ -73,6 +76,9 @@ export type OwnerPromptDetail = {
   contributor: { id: string; name: string | null; image: string | null } | null;
   tagSlugs: string[];
   images: OwnerPromptImage[];
+  /** Non-null when source='imported'. */
+  sourceSite: string | null;
+  sourceUrl: string | null;
 };
 
 export type OwnerPromptImageInput = {
@@ -275,6 +281,8 @@ export async function listAllPromptsForOwner(
       contributorId: promptsTable.contributorId,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: promptsTable.sourceSite,
+      sourceUrl: promptsTable.sourceUrl,
     })
     .from(promptsTable)
     .innerJoin(categories, eq(categories.id, promptsTable.categoryId))
@@ -358,6 +366,8 @@ export async function listAllPromptsForOwner(
           }
         : null,
       tagSlugs: tagSlugsByPrompt.get(r.id) ?? [],
+      sourceSite: r.sourceSite,
+      sourceUrl: r.sourceUrl,
     };
   });
 
@@ -396,6 +406,8 @@ export async function getPromptForOwner(
       contributorId: promptsTable.contributorId,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: promptsTable.sourceSite,
+      sourceUrl: promptsTable.sourceUrl,
     })
     .from(promptsTable)
     .innerJoin(categories, eq(categories.id, promptsTable.categoryId))
@@ -453,6 +465,8 @@ export async function getPromptForOwner(
       height: i.height,
       lqip: i.lqip,
     })),
+    sourceSite: row.sourceSite,
+    sourceUrl: row.sourceUrl,
   };
 }
 

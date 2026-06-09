@@ -59,8 +59,9 @@ export type PromptSummary = {
   tags: Array<{ slug: string; name: BilingualText }>;
   aspectRatio: AspectRatio | null;
   primaryImage: {
-    r2AccountId: string;
-    r2Key: string;
+    r2AccountId: string | null;
+    r2Key: string | null;
+    remoteUrl: string | null;
     width: number | null;
     height: number | null;
     lqip: string | null;
@@ -80,6 +81,12 @@ export type PromptSummary = {
     name: string | null;
     avatarUrl: string | null;
   } | null;
+  /**
+   * When set, the primaryImage may carry a remoteUrl instead of an R2 ref.
+   * Surfaces on cards as a small "来源 · {site}" chip + source_url link.
+   */
+  sourceSite?: string;
+  sourceUrl?: string;
 };
 
 export type PromptDetail = PromptSummary & {
@@ -88,15 +95,16 @@ export type PromptDetail = PromptSummary & {
   notes: OptionalBilingualText | null;
   images: Array<{
     id: string;
-    r2AccountId: string;
-    r2Key: string;
+    r2AccountId: string | null;
+    r2Key: string | null;
+    remoteUrl: string | null;
     order: number;
     altText: string | null;
     width: number | null;
     height: number | null;
     lqip: string | null;
   }>;
-  source: "site" | "nanobanana_seed";
+  source: "site" | "nanobanana_seed" | "imported";
   createdAt: string;
   updatedAt: string;
 };

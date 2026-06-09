@@ -27,6 +27,10 @@
     "save": "保存",
     "cancel": "取消"
   },
+  "card": {
+    "source_chip": "来源 · {site}",
+    "source_chip_aria": "在 {site} 上打开来源页面"
+  },
   "auth": {
     "sign_in": "登录",
     "sign_in_with": "使用 {provider} 登录",

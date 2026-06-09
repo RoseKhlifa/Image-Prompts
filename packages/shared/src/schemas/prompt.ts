@@ -24,8 +24,9 @@ export const TagSchema = z.object({
 
 export const PromptImageSchema = z.object({
   id: UuidSchema,
-  r2AccountId: UuidSchema,
-  r2Key: z.string().min(1),
+  r2AccountId: UuidSchema.nullable(),
+  r2Key: z.string().min(1).nullable(),
+  remoteUrl: z.string().nullable(),
   order: z.number().int().default(0),
   altText: z.string().nullable(),
   width: z.number().int().positive().nullable(),
@@ -47,6 +48,7 @@ export const PromptSummarySchema = z.object({
   primaryImage: PromptImageSchema.pick({
     r2AccountId: true,
     r2Key: true,
+    remoteUrl: true,
     width: true,
     height: true,
     lqip: true,
@@ -67,6 +69,8 @@ export const PromptSummarySchema = z.object({
       avatarUrl: z.string().nullable(),
     })
     .nullable(),
+  sourceSite: z.string().optional(),
+  sourceUrl: z.string().url().optional(),
 });
 
 export const PromptDetailSchema = PromptSummarySchema.extend({
@@ -74,7 +78,7 @@ export const PromptDetailSchema = PromptSummarySchema.extend({
   negativePrompt: OptionalBilingualTextSchema.nullable(),
   notes: OptionalBilingualTextSchema.nullable(),
   images: z.array(PromptImageSchema),
-  source: z.enum(["site", "nanobanana_seed"]),
+  source: z.enum(["site", "nanobanana_seed", "imported"]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

@@ -95,11 +95,21 @@ export default function MyPromptEditModal({ promptId, slug, onClose }: Props) {
     // accepted by SelfEditInputSchema. The approving owner's flow keeps
     // unchanged prompts/<id>/* rows in place and migrates only the freshly
     // uploaded submissions/* entries.
+    //
+    // Imported prompts (remoteUrl, no R2 pair) aren't user-editable through
+    // this modal — the contributor-owned self-edit flow only applies to
+    // submissions a user uploaded. Filter them out defensively so the
+    // SlotValue type invariant holds.
     setImages(
-      detail.images.map((i) => ({
-        r2AccountId: i.r2AccountId,
-        r2Key: i.r2Key,
-      })),
+      detail.images
+        .filter(
+          (i): i is typeof i & { r2AccountId: string; r2Key: string } =>
+            i.r2AccountId !== null && i.r2Key !== null,
+        )
+        .map((i) => ({
+          r2AccountId: i.r2AccountId,
+          r2Key: i.r2Key,
+        })),
     );
   }, [detail]);
 

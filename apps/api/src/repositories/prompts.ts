@@ -95,6 +95,8 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
       contributorId: prompts.contributorId,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: prompts.sourceSite,
+      sourceUrl: prompts.sourceUrl,
       userLiked: currentUserId
         ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE likes.prompt_id = ${prompts.id} AND likes.user_id = ${currentUserId})`
         : sql<boolean>`FALSE`,
@@ -121,6 +123,7 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
       promptId: promptImages.promptId,
       r2AccountId: promptImages.r2AccountId,
       r2Key: promptImages.r2Key,
+      remoteUrl: promptImages.remoteUrl,
       width: promptImages.width,
       height: promptImages.height,
       lqip: promptImages.lqip,
@@ -168,6 +171,7 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
         ? {
             r2AccountId: img.r2AccountId,
             r2Key: img.r2Key,
+            remoteUrl: img.remoteUrl,
             width: img.width,
             height: img.height,
             lqip: img.lqip,
@@ -185,6 +189,8 @@ export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
       sendCount: r.sendCount,
       favoriteCount: r.favoriteCount,
       approvedAt: r.approvedAt.toISOString(),
+      ...(r.sourceSite ? { sourceSite: r.sourceSite } : {}),
+      ...(r.sourceUrl ? { sourceUrl: r.sourceUrl } : {}),
       ...(currentUserId ? { userLiked: r.userLiked, userFavorited: r.userFavorited } : {}),
     };
   });
@@ -222,6 +228,8 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
       categoryName: categories.name,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: prompts.sourceSite,
+      sourceUrl: prompts.sourceUrl,
       userLiked: currentUserId
         ? sql<boolean>`EXISTS (SELECT 1 FROM likes WHERE likes.prompt_id = ${prompts.id} AND likes.user_id = ${currentUserId})`
         : sql<boolean>`FALSE`,
@@ -262,6 +270,7 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
       ? {
           r2AccountId: images[0].r2AccountId,
           r2Key: images[0].r2Key,
+          remoteUrl: images[0].remoteUrl,
           width: images[0].width,
           height: images[0].height,
           lqip: images[0].lqip,
@@ -271,6 +280,7 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
       id: i.id,
       r2AccountId: i.r2AccountId,
       r2Key: i.r2Key,
+      remoteUrl: i.remoteUrl,
       order: i.order,
       altText: i.altText,
       width: i.width,
@@ -292,6 +302,8 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
     approvedAt: row.approvedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    ...(row.sourceSite ? { sourceSite: row.sourceSite } : {}),
+    ...(row.sourceUrl ? { sourceUrl: row.sourceUrl } : {}),
     ...(currentUserId ? { userLiked: row.userLiked, userFavorited: row.userFavorited } : {}),
   };
 }
@@ -326,6 +338,7 @@ export async function listRelatedPrompts(promptId: string, categoryId: string, l
       promptId: promptImages.promptId,
       r2AccountId: promptImages.r2AccountId,
       r2Key: promptImages.r2Key,
+      remoteUrl: promptImages.remoteUrl,
       width: promptImages.width,
       height: promptImages.height,
       lqip: promptImages.lqip,
@@ -348,6 +361,7 @@ export async function listRelatedPrompts(promptId: string, categoryId: string, l
         ? {
             r2AccountId: img.r2AccountId,
             r2Key: img.r2Key,
+            remoteUrl: img.remoteUrl,
             width: img.width,
             height: img.height,
             lqip: img.lqip,

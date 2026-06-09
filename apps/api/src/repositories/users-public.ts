@@ -30,6 +30,7 @@ type PromptSummaryPublic = {
         // r2 pair is null for imported prompts; the frontend falls back to remoteUrl.
         r2AccountId: string | null;
         r2Key: string | null;
+        remoteUrl: string | null;
         width: number | null;
         height: number | null;
         lqip: string | null;
@@ -41,6 +42,12 @@ type PromptSummaryPublic = {
   favoriteCount: number;
   sendCount: number;
   approvedAt: string;
+  /**
+   * Surfaces on cards when contributor is null but the prompt was imported
+   * from an external source. Matches PromptSummary.sourceSite/sourceUrl.
+   */
+  sourceSite?: string;
+  sourceUrl?: string;
 };
 
 export type UserPublic = {
@@ -115,6 +122,8 @@ export async function getPinnedPromptsForUser(
       contributorId: prompts.contributorId,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: prompts.sourceSite,
+      sourceUrl: prompts.sourceUrl,
       pinOrder: userPinnedPrompts.order,
     })
     .from(userPinnedPrompts)
@@ -147,6 +156,7 @@ export async function getPinnedPromptsForUser(
       ? {
           r2AccountId: firstImg.get(r.id)!.r2AccountId,
           r2Key: firstImg.get(r.id)!.r2Key,
+          remoteUrl: firstImg.get(r.id)!.remoteUrl,
           width: firstImg.get(r.id)!.width,
           height: firstImg.get(r.id)!.height,
           lqip: firstImg.get(r.id)!.lqip,
@@ -164,6 +174,8 @@ export async function getPinnedPromptsForUser(
     favoriteCount: r.favoriteCount,
     sendCount: r.sendCount,
     approvedAt: r.approvedAt.toISOString(),
+    ...(r.sourceSite ? { sourceSite: r.sourceSite } : {}),
+    ...(r.sourceUrl ? { sourceUrl: r.sourceUrl } : {}),
   }));
 }
 
@@ -211,6 +223,8 @@ export async function listUserPrompts(userId: string, opts: ListOpts) {
       contributorId: prompts.contributorId,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: prompts.sourceSite,
+      sourceUrl: prompts.sourceUrl,
     })
     .from(prompts)
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
@@ -247,6 +261,7 @@ export async function listUserPrompts(userId: string, opts: ListOpts) {
         ? {
             r2AccountId: firstImg.get(r.id)!.r2AccountId,
             r2Key: firstImg.get(r.id)!.r2Key,
+            remoteUrl: firstImg.get(r.id)!.remoteUrl,
             width: firstImg.get(r.id)!.width,
             height: firstImg.get(r.id)!.height,
             lqip: firstImg.get(r.id)!.lqip,
@@ -264,6 +279,8 @@ export async function listUserPrompts(userId: string, opts: ListOpts) {
       favoriteCount: r.favoriteCount,
       sendCount: r.sendCount,
       approvedAt: r.approvedAt.toISOString(),
+      ...(r.sourceSite ? { sourceSite: r.sourceSite } : {}),
+      ...(r.sourceUrl ? { sourceUrl: r.sourceUrl } : {}),
     })),
     nextCursor:
       rows.length > opts.limit ? trimmed[trimmed.length - 1]!.approvedAt.toISOString() : null,
@@ -292,6 +309,8 @@ export async function listUserFavorites(userId: string, opts: ListOpts) {
       contributorId: prompts.contributorId,
       contributorName: users.name,
       contributorImage: users.image,
+      sourceSite: prompts.sourceSite,
+      sourceUrl: prompts.sourceUrl,
     })
     .from(favorites)
     .innerJoin(prompts, eq(prompts.id, favorites.promptId))
@@ -329,6 +348,7 @@ export async function listUserFavorites(userId: string, opts: ListOpts) {
         ? {
             r2AccountId: firstImg.get(r.id)!.r2AccountId,
             r2Key: firstImg.get(r.id)!.r2Key,
+            remoteUrl: firstImg.get(r.id)!.remoteUrl,
             width: firstImg.get(r.id)!.width,
             height: firstImg.get(r.id)!.height,
             lqip: firstImg.get(r.id)!.lqip,
@@ -346,6 +366,8 @@ export async function listUserFavorites(userId: string, opts: ListOpts) {
       favoriteCount: r.favoriteCount,
       sendCount: r.sendCount,
       approvedAt: r.approvedAt.toISOString(),
+      ...(r.sourceSite ? { sourceSite: r.sourceSite } : {}),
+      ...(r.sourceUrl ? { sourceUrl: r.sourceUrl } : {}),
     })),
     nextCursor:
       rows.length > opts.limit ? trimmed[trimmed.length - 1]!.favoritedAt.toISOString() : null,

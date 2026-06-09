@@ -28,4 +28,24 @@ describe("resolveImageUrl", () => {
   it("returns placeholder when image is null", () => {
     expect(resolveImageUrl(null, pool)).toBe(IMAGE_URL_PLACEHOLDER);
   });
+
+  it("returns the remote URL when remoteUrl is set", () => {
+    const url = resolveImageUrl(
+      { r2AccountId: null, r2Key: null, remoteUrl: "https://cdn.example.com/a.jpg" },
+      new Map(),
+    );
+    expect(url).toBe("https://cdn.example.com/a.jpg");
+  });
+
+  it("prefers remoteUrl over a stale R2 pair (defensive)", () => {
+    const url = resolveImageUrl(
+      {
+        r2AccountId: "00000000-0000-0000-0000-000000000001",
+        r2Key: "prompts/foo.jpg",
+        remoteUrl: "https://cdn.example.com/b.jpg",
+      },
+      new Map(),
+    );
+    expect(url).toBe("https://cdn.example.com/b.jpg");
+  });
 });
