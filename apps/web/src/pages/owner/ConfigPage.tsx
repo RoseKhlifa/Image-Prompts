@@ -71,7 +71,13 @@ function SettingRow({ setting }: { setting: SiteSetting }) {
         />
         {error && <div className="mt-1 text-xs text-rose-400">{error}</div>}
       </td>
-      <td className="px-4 py-2 text-xs text-zinc-500">{setting.description}</td>
+      <td className="px-4 py-2 text-xs text-zinc-400">
+        {/* Prefer the locale-specific gloss; fall back to the DB description
+            (English from seed) when the key has no i18n entry yet. */}
+        {t(`owner.config.desc.${setting.key}`, {
+          defaultValue: setting.description,
+        })}
+      </td>
       <td className="px-4 py-2 text-right">
         <button
           type="button"

@@ -90,7 +90,17 @@ export const authConfig = initAuthConfig(() => ({
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  session: { strategy: "database" },
+  session: {
+    strategy: "database",
+    // Idle TTL: 3 hours. The session row's `expires` is set to now + maxAge
+    // when created and refreshed on activity (gated by updateAge). Auth.js
+    // defaults to 30 days, which is too generous for an admin-heavy console;
+    // 3h matches the "remember me for the afternoon" feel the user asked for.
+    maxAge: 60 * 60 * 3,
+    // Refresh the expiry at most once every 30 minutes of activity so we
+    // don't thrash the sessions table on every page view.
+    updateAge: 60 * 30,
+  },
   providers: PROVIDERS,
   callbacks: {
     async session({ session, user }) {

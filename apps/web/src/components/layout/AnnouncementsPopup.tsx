@@ -96,7 +96,7 @@ export default function AnnouncementsPopup() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="announcement-popup-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3 py-4 sm:px-4 sm:py-8"
       onClick={() => {
         if (active.dismissible) dismiss(active.id);
       }}
@@ -105,7 +105,7 @@ export default function AnnouncementsPopup() {
         className={`relative w-full max-w-lg overflow-hidden rounded-card border bg-panel shadow-2xl ${borderFor(active.severity)}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`px-5 py-3 ${headerBgFor(active.severity)}`}>
+        <div className={`pl-5 pr-14 py-3 ${headerBgFor(active.severity)}`}>
           <h2
             id="announcement-popup-title"
             className="text-base font-semibold text-ink"
@@ -113,17 +113,19 @@ export default function AnnouncementsPopup() {
             {title}
           </h2>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap px-5 py-4 text-sm text-ink-muted">
+        <div className="max-h-[55vh] overflow-y-auto whitespace-pre-wrap px-5 py-4 text-sm text-ink-muted sm:max-h-[60vh]">
           {body}
         </div>
         {active.dismissible && (
+          // ★ Mobile: ≥44×44px tap target per Apple HIG. The header reserves
+          // right-side padding (pr-14) so the title never sits under the X.
           <button
             type="button"
             onClick={() => dismiss(active.id)}
             aria-label={t("announcements.popup_dismiss")}
-            className="absolute right-3 top-3 rounded-control p-1 text-ink-muted hover:bg-black/10 hover:text-ink dark:hover:bg-white/10"
+            className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-control text-ink-muted hover:bg-black/10 hover:text-ink dark:hover:bg-white/10"
           >
-            <X size={18} aria-hidden />
+            <X size={20} aria-hidden />
           </button>
         )}
         {active.dismissible && (
@@ -131,7 +133,7 @@ export default function AnnouncementsPopup() {
             <button
               type="button"
               onClick={() => dismiss(active.id)}
-              className="rounded-pill bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent-2"
+              className="w-full rounded-pill bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-2 sm:w-auto sm:py-1.5 sm:text-xs"
             >
               {t("announcements.popup_acknowledge")}
             </button>
