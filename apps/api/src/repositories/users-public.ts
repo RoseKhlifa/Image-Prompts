@@ -64,9 +64,16 @@ export async function listUserPrompts(userId: string, opts: ListOpts) {
       categoryId: prompts.categoryId,
       categorySlug: categories.slug,
       categoryName: categories.name,
+      // ★ Without these the PromptCard renders "anonymous" even on the
+      //   contributor's own works tab — `listPrompts` includes contributor
+      //   info, but this projection used to skip it. Keep them in sync.
+      contributorId: prompts.contributorId,
+      contributorName: users.name,
+      contributorImage: users.image,
     })
     .from(prompts)
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
+    .leftJoin(users, eq(users.id, prompts.contributorId))
     .where(and(...conds))
     .orderBy(desc(prompts.approvedAt))
     .limit(opts.limit + 1);
@@ -104,6 +111,13 @@ export async function listUserPrompts(userId: string, opts: ListOpts) {
             lqip: firstImg.get(r.id)!.lqip,
           }
         : null,
+      contributor: r.contributorId
+        ? {
+            id: r.contributorId,
+            name: r.contributorName,
+            avatarUrl: r.contributorImage,
+          }
+        : null,
       viewCount: r.viewCount,
       likeCount: r.likeCount,
       favoriteCount: r.favoriteCount,
@@ -134,10 +148,14 @@ export async function listUserFavorites(userId: string, opts: ListOpts) {
       categorySlug: categories.slug,
       categoryName: categories.name,
       favoritedAt: favorites.createdAt,
+      contributorId: prompts.contributorId,
+      contributorName: users.name,
+      contributorImage: users.image,
     })
     .from(favorites)
     .innerJoin(prompts, eq(prompts.id, favorites.promptId))
     .innerJoin(categories, eq(categories.id, prompts.categoryId))
+    .leftJoin(users, eq(users.id, prompts.contributorId))
     .where(and(...conds))
     .orderBy(desc(favorites.createdAt))
     .limit(opts.limit + 1);
@@ -173,6 +191,13 @@ export async function listUserFavorites(userId: string, opts: ListOpts) {
             width: firstImg.get(r.id)!.width,
             height: firstImg.get(r.id)!.height,
             lqip: firstImg.get(r.id)!.lqip,
+          }
+        : null,
+      contributor: r.contributorId
+        ? {
+            id: r.contributorId,
+            name: r.contributorName,
+            avatarUrl: r.contributorImage,
           }
         : null,
       viewCount: r.viewCount,

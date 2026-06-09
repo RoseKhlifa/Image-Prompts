@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { verifyAuth } from "@hono/auth-js";
 import { eq } from "drizzle-orm";
-import { SubmissionInputSchema } from "@ip/shared";
+import { SelfEditInputSchema } from "@ip/shared";
 import { z } from "zod";
 import { zv } from "../lib/validate.ts";
 import { requireUserId } from "../middleware/auth.ts";
@@ -12,6 +12,7 @@ import { createRateLimiter } from "../lib/rate-limit.ts";
 import { db } from "../db/client.ts";
 import {
   prompts as promptsTable,
+  promptImages,
   categories,
   r2Accounts,
 } from "../db/schema/index.ts";
@@ -125,7 +126,7 @@ app.post(
     }
     await next();
   },
-  zv("json", SubmissionInputSchema),
+  zv("json", SelfEditInputSchema),
   async (c) => {
     const userId = requireUserId(c);
     const { id: originalPromptId } = c.req.valid("param");
@@ -175,6 +176,32 @@ app.post(
       }
     }
 
+    // Keyspace gate: the SelfEditInputSchema admits both `submissions/*`
+    // (a fresh upload from this edit) and `prompts/<uuid>/*` (a kept image
+    // already on the original prompt). Cross-check the kept ones so a user
+    // can't smuggle in a key from someone else's prompt.
+    const promptKeyPrefix = `prompts/${originalPromptId}/`;
+    const keptKeys = input.images
+      .filter((i) => i.r2Key.startsWith("prompts/"))
+      .map((i) => i.r2Key);
+    if (keptKeys.length > 0) {
+      const validKept = keptKeys.every((k) => k.startsWith(promptKeyPrefix));
+      if (!validKept) {
+        throw new HTTPException(400, { message: "kept_image_foreign" });
+      }
+      const existingRows = await db
+        .select({ r2Key: promptImages.r2Key })
+        .from(promptImages)
+        .where(eq(promptImages.promptId, originalPromptId));
+      const existingSet = new Set(existingRows.map((r) => r.r2Key));
+      const orphans = keptKeys.filter((k) => !existingSet.has(k));
+      if (orphans.length > 0) {
+        throw new HTTPException(400, {
+          message: `kept_image_missing:${orphans.join(",")}`,
+        });
+      }
+    }
+
     const accountIds = [...new Set(input.images.map((i) => i.r2AccountId))];
     const accountRows = await db.select().from(r2Accounts);
     const accMap = new Map(accountRows.map((a) => [a.id, a]));
@@ -183,7 +210,11 @@ app.post(
         throw new HTTPException(400, { message: "invalid_r2_account" });
       }
     }
+    // Only HEAD-check the newly uploaded `submissions/*` keys. Kept
+    // `prompts/<id>/*` keys were just validated to belong to this prompt
+    // above; they live in R2 already and re-checking adds latency.
     for (const img of input.images) {
+      if (!img.r2Key.startsWith("submissions/")) continue;
       const account = accMap.get(img.r2AccountId)!;
       const head = await headObject(account, img.r2Key);
       if (!head) {

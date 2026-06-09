@@ -514,13 +514,18 @@ type FinalFields = {
  * diff-replace its image rows. The route receives `migrateKeys` (submissions/*
  * → prompts/<id>/<order>.<ext>) and `removedKeys` (existing rows to nuke).
  *
- * Image diff semantics differ from the owner-prompts repo: the submission's
- * imageKeys are the AUTHORITATIVE new image set. Every submission image is a
- * fresh upload in submissions/ (the user picked them through the upload
- * pipeline), so every submission image is a "migrate", and every existing
- * row whose r2Key isn't in the submission's set is a "remove". Crucially,
- * this gives the user a full replace; partial keep-and-add isn't supported
- * for self-edits in this iteration (the user can only replace, not keep).
+ * Image diff supports BOTH keyspaces in sub.images:
+ *   - `submissions/*` → a fresh upload; the route copies it to
+ *     prompts/<id>/<targetOrder>.<ext> and inserts a new prompt_image row.
+ *   - `prompts/<id>/*` → an image the user kept from the original prompt.
+ *     The repo updates its `order` in-place; nothing crosses the R2 layer.
+ * Anything in `existingImages` whose key isn't in the submission's set is a
+ * "remove" — DELETEd from prompt_images in-tx, R2 object best-effort
+ * deleted by the route post-tx.
+ *
+ * The me-prompts edit route validates kept keys belong to *this* prompt
+ * before the submission is created, so we can trust the keyspace check
+ * here without re-running the FK lookup.
  */
 async function approveEditSubmission(
   input: ApproveInput,
@@ -621,9 +626,11 @@ async function approveEditSubmission(
         .where(inArray(tagsTable.slug, removedTags));
     }
 
-    // 5. Diff-replace images. The submission's imageKeys are the
-    //    authoritative new set. We capture removed rows + delete them in-tx;
-    //    the route migrates the new submission keys post-tx via copyObject.
+    // 5. Diff-replace images. The submission's imageKeys carry both
+    //    `submissions/*` (fresh uploads — migrate via copyObject post-tx) and
+    //    `prompts/<id>/*` (existing images the user kept — keep the row but
+    //    UPDATE its order). Existing rows whose key isn't in the new set get
+    //    deleted in-tx and their R2 objects best-effort cleaned by the route.
     const existingImages = await tx
       .select({
         id: promptImages.id,
@@ -633,15 +640,49 @@ async function approveEditSubmission(
       .from(promptImages)
       .where(eq(promptImages.promptId, promptId));
 
-    const removedImages = existingImages.map((r) => ({
+    const promptKeyPrefix = `prompts/${promptId}/`;
+    const submittedKeysOrdered = sub.images.map((img) => img.r2Key);
+    const submittedKeySet = new Set(submittedKeysOrdered);
+    const existingByKey = new Map(existingImages.map((r) => [r.r2Key, r]));
+
+    const removedRows = existingImages.filter(
+      (r) => !submittedKeySet.has(r.r2Key),
+    );
+    const removedImages = removedRows.map((r) => ({
       r2AccountId: r.r2AccountId,
       r2Key: r.r2Key,
     }));
 
-    if (existingImages.length > 0) {
+    if (removedRows.length > 0) {
       await tx
         .delete(promptImages)
-        .where(inArray(promptImages.id, existingImages.map((r) => r.id)));
+        .where(inArray(promptImages.id, removedRows.map((r) => r.id)));
+    }
+
+    // Renumber kept rows so their `order` matches the user's final layout.
+    // The order is interleaved with migrating slots — index in sub.images is
+    // the source of truth for both. We bump kept orders into a temporary
+    // negative range first to dodge the (prompt_id, order) collision while
+    // the migrating slots haven't INSERTed yet (route inserts post-tx).
+    for (let idx = 0; idx < sub.images.length; idx++) {
+      const key = sub.images[idx]!.r2Key;
+      if (!key.startsWith(promptKeyPrefix)) continue;
+      const row = existingByKey.get(key);
+      if (!row) continue;
+      await tx
+        .update(promptImages)
+        .set({ order: -1 - idx })
+        .where(eq(promptImages.id, row.id));
+    }
+    for (let idx = 0; idx < sub.images.length; idx++) {
+      const key = sub.images[idx]!.r2Key;
+      if (!key.startsWith(promptKeyPrefix)) continue;
+      const row = existingByKey.get(key);
+      if (!row) continue;
+      await tx
+        .update(promptImages)
+        .set({ order: idx })
+        .where(eq(promptImages.id, row.id));
     }
 
     // 6. Notification: same shape as the insert path so the user gets a
@@ -668,12 +709,24 @@ async function approveEditSubmission(
     });
 
     // 7. Migrate buckets — the route handles R2 work + INSERT post-tx.
-    const migrateKeys = sub.images.map((img, idx) => ({
-      r2AccountId: img.r2AccountId,
-      r2Key: img.r2Key,
-      altText: img.altText ?? null,
-      targetOrder: idx,
-    }));
+    //    ONLY emit migrate entries for `submissions/*` keys; kept
+    //    `prompts/<id>/*` keys had their rows renumbered above.
+    const migrateKeys: Array<{
+      r2AccountId: string;
+      r2Key: string;
+      altText: string | null;
+      targetOrder: number;
+    }> = [];
+    for (let idx = 0; idx < sub.images.length; idx++) {
+      const img = sub.images[idx]!;
+      if (img.r2Key.startsWith(promptKeyPrefix)) continue;
+      migrateKeys.push({
+        r2AccountId: img.r2AccountId,
+        r2Key: img.r2Key,
+        altText: img.altText ?? null,
+        targetOrder: idx,
+      });
+    }
 
     return {
       promptId,

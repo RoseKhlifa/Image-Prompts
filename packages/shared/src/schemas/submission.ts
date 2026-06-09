@@ -13,6 +13,24 @@ export const SubmissionImageInputSchema = z.object({
   altText: z.string().max(200).optional(),
 });
 
+/**
+ * Self-edit image input: extends SubmissionImageInputSchema by ALSO accepting
+ * `prompts/<uuid>/<n>.<ext>` keys — the user has chosen to keep an image
+ * that's already attached to their existing prompt. The me-prompts edit
+ * route additionally validates that any kept key actually belongs to the
+ * prompt being edited (so you can't smuggle in a key from someone else's
+ * prompt). New uploads still arrive via the regular submissions/ keyspace.
+ */
+export const SelfEditImageInputSchema = z.object({
+  r2AccountId: z.string().uuid(),
+  r2Key: z
+    .string()
+    .min(1)
+    .max(512)
+    .regex(/^(submissions|prompts)\//),
+  altText: z.string().max(200).optional(),
+});
+
 export const SubmissionInputSchema = z
   .object({
     // Title is language-agnostic — a single string the contributor types in
@@ -59,6 +77,58 @@ export const SubmissionInputSchema = z
   })
   // Prompt is still bilingual but only ONE language is required. The
   // contributor can fill zh, en, or both — at least one non-empty.
+  .refine((v) => Boolean(v.promptZh || v.promptEn), {
+    message: "prompt_required",
+    path: ["promptZh"],
+  });
+
+/**
+ * Self-edit input: same shape as SubmissionInputSchema but the image array
+ * uses SelfEditImageInputSchema so the user can KEEP any image already in
+ * their prompt's `prompts/<id>/*` keyspace. The me-prompts edit route is
+ * responsible for the cross-key validation (kept key → must belong to the
+ * prompt being edited).
+ */
+export const SelfEditInputSchema = z
+  .object({
+    title: z
+      .string({
+        required_error: "title_required",
+        invalid_type_error: "title_required",
+      })
+      .trim()
+      .min(1, { message: "title_required" })
+      .max(200, { message: "title_too_long" }),
+    promptZh: z.string().trim().max(8000, { message: "prompt_too_long" }).optional(),
+    promptEn: z.string().trim().max(8000, { message: "prompt_too_long" }).optional(),
+    negativePromptZh: z
+      .string()
+      .trim()
+      .max(2000, { message: "negative_too_long" })
+      .optional(),
+    negativePromptEn: z
+      .string()
+      .trim()
+      .max(2000, { message: "negative_too_long" })
+      .optional(),
+    notesZh: z.string().trim().max(2000, { message: "notes_too_long" }).optional(),
+    notesEn: z.string().trim().max(2000, { message: "notes_too_long" }).optional(),
+    aspectRatio: AspectRatioSchema.optional(),
+    categoryId: z
+      .string({
+        required_error: "category_required",
+        invalid_type_error: "category_required",
+      })
+      .uuid({ message: "category_required" }),
+    tagSlugs: z
+      .array(TagSlugSchema)
+      .max(6, { message: "too_many_tags" })
+      .default([]),
+    images: z
+      .array(SelfEditImageInputSchema)
+      .min(1, { message: "images_required" })
+      .max(5, { message: "too_many_images" }),
+  })
   .refine((v) => Boolean(v.promptZh || v.promptEn), {
     message: "prompt_required",
     path: ["promptZh"],
@@ -176,6 +246,7 @@ export const AdminSubmissionDetailSchema = AdminSubmissionListItemSchema.extend(
 });
 
 export type SubmissionInput = z.infer<typeof SubmissionInputSchema>;
+export type SelfEditInput = z.infer<typeof SelfEditInputSchema>;
 export type PresignRequest = z.infer<typeof PresignRequestSchema>;
 export type PresignResponse = z.infer<typeof PresignResponseSchema>;
 export type RejectInput = z.infer<typeof RejectInputSchema>;

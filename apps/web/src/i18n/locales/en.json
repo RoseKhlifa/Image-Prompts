@@ -95,7 +95,6 @@
     "deleted": "Deleted",
     "edit_queued_for_review": "Submitted, awaiting owner review",
     "edit_modal_title": "Edit prompt",
-    "edit_requires_resubmit_images": "Please re-upload images to submit an edit.",
     "delete_my_prompt_confirm": "Delete \"{title}\"? Irreversible — all likes/favorites on this prompt will be lost.",
     "deleted_self": "Your submission was deleted"
   },

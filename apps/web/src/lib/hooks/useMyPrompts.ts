@@ -3,7 +3,7 @@ import {
   useQueryClient,
   type UseMutationResult,
 } from "@tanstack/react-query";
-import type { SubmissionInput } from "@ip/shared";
+import type { SelfEditInput } from "@ip/shared";
 import { apiFetch, type ApiError } from "../api";
 
 // ── DELETE /api/me/prompts/:id ───────────────────────────────────────────
@@ -39,15 +39,18 @@ export function useDeleteMyPrompt(): UseMutationResult<
 
 // ── POST /api/me/prompts/:id/edit ────────────────────────────────────────
 //
-// Queue a self-edit submission. The body matches POST /api/submissions —
-// SubmissionInput from @ip/shared — and the server INSERTs a submissions row
-// with originalPromptId = the URL :id. The moderator's approval will UPDATE
-// the original prompt in place rather than INSERT a new one.
+// Queue a self-edit submission. The body uses SelfEditInput from @ip/shared,
+// which is identical to SubmissionInput except its image r2Key regex also
+// accepts the prompt's existing `prompts/<id>/*` keys (so the user can keep
+// any image already on the prompt without re-uploading). The moderator's
+// approval will UPDATE the original prompt in place rather than INSERT a new
+// one — kept images stay put, new uploads migrate from submissions/ to
+// prompts/<id>/.
 
 export function useSubmitMyPromptEdit(): UseMutationResult<
   { submissionId: string; status: "pending" },
   ApiError,
-  { id: string; input: SubmissionInput }
+  { id: string; input: SelfEditInput }
 > {
   const qc = useQueryClient();
   return useMutation({

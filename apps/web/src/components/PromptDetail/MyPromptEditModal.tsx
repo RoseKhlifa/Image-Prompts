@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import {
-  SubmissionInputSchema,
+  SelfEditInputSchema,
   type AspectRatio,
-  type SubmissionInput,
+  type SelfEditInput,
 } from "@ip/shared";
 import { usePromptDetail } from "../../lib/hooks/usePromptDetail";
 import { useCategories } from "../../lib/hooks/useCategories";
@@ -90,10 +90,11 @@ export default function MyPromptEditModal({ promptId, slug, onClose }: Props) {
     // {id, slug, name}. Use the id.
     setCategoryId(detail.category?.id ?? "");
     setTagSlugs(detail.tags?.map((t2) => t2.slug) ?? []);
-    // Re-pre-populate images with the prompts/<id>/* keys. The user may
-    // remove/replace them (submissions/* takes over after upload); the
-    // approving moderator's flow will copy submissions/* → prompts/<id>/*
-    // and best-effort delete the prior prompt/* keys.
+    // Pre-populate images with the existing prompts/<id>/* keys. The user
+    // can keep, replace, or remove any of them; mixed keyspaces are now
+    // accepted by SelfEditInputSchema. The approving owner's flow keeps
+    // unchanged prompts/<id>/* rows in place and migrates only the freshly
+    // uploaded submissions/* entries.
     setImages(
       detail.images.map((i) => ({
         r2AccountId: i.r2AccountId,
@@ -122,17 +123,7 @@ export default function MyPromptEditModal({ promptId, slug, onClose }: Props) {
     }
     setErrors([]);
 
-    // The submission schema requires `submissions/*` keys for images. When
-    // the user has kept any prompts/<id>/* image as-is (i.e. didn't replace
-    // it), the schema parse will fail. We surface that case here so they
-    // know they need to re-upload to "lock in" any image as part of the edit.
-    const nonSubmission = images.find((i) => !i.r2Key.startsWith("submissions/"));
-    if (nonSubmission) {
-      setErrors([t("detail.edit_requires_resubmit_images")]);
-      return;
-    }
-
-    const candidate: Partial<SubmissionInput> = {
+    const candidate: Partial<SelfEditInput> = {
       title: title.trim(),
       promptZh: promptZh.trim() || undefined,
       promptEn: promptEn.trim() || undefined,
@@ -148,7 +139,7 @@ export default function MyPromptEditModal({ promptId, slug, onClose }: Props) {
         r2Key: i.r2Key,
       })),
     };
-    const parsed = SubmissionInputSchema.safeParse(candidate);
+    const parsed = SelfEditInputSchema.safeParse(candidate);
     if (!parsed.success) {
       setErrors(parsed.error.issues.map((i) => i.message));
       return;
