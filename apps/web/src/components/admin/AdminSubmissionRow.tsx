@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { isLocale, type Locale, type AdminSubmissionListItem } from "@ip/shared";
@@ -15,6 +16,13 @@ export default function AdminSubmissionRow({ item, selected, onSelect }: Props) 
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
   const { map } = useR2PoolMap();
+  // Per-row reveal state: NSFW thumbnails ship blurred and a click-to-reveal
+  // overlay sits on top of the image. State is intentionally LOCAL so it
+  // resets on page reload / status-tab switch — moderators opt in per row,
+  // every time. The row's outer <button> handles selection; the reveal
+  // overlay is a nested <button> that calls stopPropagation so revealing
+  // does not also select the row.
+  const [revealed, setRevealed] = useState(false);
   const title = (locale === "zh" ? item.titleZh ?? item.titleEn : item.titleEn ?? item.titleZh) ?? "(untitled)";
   const img = item.primaryImage
     ? resolveImageUrl(
@@ -22,6 +30,7 @@ export default function AdminSubmissionRow({ item, selected, onSelect }: Props) 
         map,
       )
     : null;
+  const blurThumb = item.isNsfw && !revealed;
   return (
     <button
       type="button"
@@ -30,7 +39,40 @@ export default function AdminSubmissionRow({ item, selected, onSelect }: Props) 
         selected ? "border-accent bg-accent/5" : "border-border-soft hover:border-accent/40"
       }`}
     >
-      {img && <img src={img} alt="" className="h-16 w-16 rounded object-cover" />}
+      {img && (
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded">
+          <img
+            src={img}
+            alt=""
+            className={`h-16 w-16 object-cover ${blurThumb ? "scale-110 blur-lg" : ""}`}
+          />
+          {blurThumb && (
+            // Reveal overlay: <div role="button"> rather than a nested
+            // <button>, since the row's outer element is already a
+            // <button> (invalid HTML to nest). Both click and Enter/Space
+            // call stopPropagation so revealing does not also select the
+            // row in the split-pane preview.
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                setRevealed(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setRevealed(true);
+                }
+              }}
+              className="absolute inset-0 flex cursor-pointer items-center justify-center bg-zinc-950/40 text-[10px] font-semibold text-rose-200 hover:bg-zinc-950/30"
+            >
+              {t("admin.submissions.reveal_nsfw")}
+            </div>
+          )}
+        </div>
+      )}
       <div className="min-w-0">
         <div className="flex items-center gap-1">
           <span className="line-clamp-1 text-sm font-medium text-ink">{title}</span>

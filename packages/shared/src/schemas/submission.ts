@@ -212,6 +212,13 @@ export const SubmissionListItemSchema = z.object({
   // can tell pending edits apart from fresh submissions.
   originalPromptId: z.string().uuid().nullable(),
   originalPromptSlug: z.string().nullable(),
+  // Whether this submission targets the nsfw category. Surfaced on the list
+  // DTO so the mod-queue row can blur the thumbnail behind a click-to-reveal
+  // overlay without needing the detail endpoint. The nsfw-tag invariant
+  // (assertNsfwTagInvariant) guarantees this is equivalent to
+  // tagSlugs === ["nsfw"], but we derive it from the category to keep the
+  // signal authoritative at the source.
+  isNsfw: z.boolean(),
   createdAt: z.string().datetime(),
   reviewedAt: z.string().datetime().nullable(),
 });

@@ -181,6 +181,12 @@ function listItem(
       : null,
     originalPromptId: s.originalPromptId,
     originalPromptSlug: s.originalPromptId ? originalSlug : null,
+    // The nsfw-tag invariant (assertNsfwTagInvariant) guarantees that a
+    // submission targeting the nsfw category has tagSlugs === ["nsfw"],
+    // and a non-nsfw submission cannot carry the nsfw tag. So checking
+    // tagSlugs is equivalent to checking the category slug, without a
+    // join. Surfaced here so the mod-queue row can blur the thumbnail.
+    isNsfw: s.tagSlugs.includes("nsfw"),
     createdAt: s.createdAt.toISOString(),
     reviewedAt: s.reviewedAt ? s.reviewedAt.toISOString() : null,
   };
