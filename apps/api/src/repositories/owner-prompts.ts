@@ -7,6 +7,7 @@ import {
   tags as tagsTable,
   categories,
   submissions,
+  importTokens,
 } from "../db/schema/index.ts";
 import { users } from "../db/schema/auth.ts";
 import { bi } from "../lib/bilingual.ts";
@@ -840,11 +841,26 @@ export async function deletePromptForOwner(
         .where(inArray(tagsTable.slug, tagRows.map((r) => r.slug)));
     }
 
-    // 3. NULL submissions.promoted_to so the FK doesn't block delete.
+    // 3. NULL non-cascading FKs into prompts so the DELETE isn't blocked.
+    //    All three are ON DELETE NO ACTION in the actual DB (see migrations
+    //    0006 / 0011 — neither carries an onDelete clause):
+    //      - submissions.promoted_to  (post-approval published prompt pointer)
+    //      - submissions.original_prompt_id  (self-edit target, migration 0011)
+    //      - import_tokens.prompt_id  (studio launch tokens, migration 0006)
+    //    `prompt_tags`, `likes`, `favorites`, `view_log`, `user_pinned_prompts`
+    //    all cascade on prompt delete — no manual NULL needed.
     await tx
       .update(submissions)
       .set({ promotedTo: null })
       .where(eq(submissions.promotedTo, id));
+    await tx
+      .update(submissions)
+      .set({ originalPromptId: null })
+      .where(eq(submissions.originalPromptId, id));
+    await tx
+      .update(importTokens)
+      .set({ promptId: null })
+      .where(eq(importTokens.promptId, id));
 
     // 4. DELETE prompt_images (no FK cascade on prompt_id).
     await tx.delete(promptImages).where(eq(promptImages.promptId, id));
