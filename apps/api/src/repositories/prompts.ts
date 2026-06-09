@@ -314,7 +314,11 @@ export async function getPromptBySlug(slug: string, currentUserId?: string) {
 }
 
 export async function listRelatedPrompts(promptId: string, categoryId: string, limit = 6) {
-  // Same-category siblings, excluding self. M5 will switch to "shared tags" ranking.
+  // Same-category siblings, excluding self. The `categoryId` filter already
+  // constrains visibility correctly: an SFW source naturally yields SFW
+  // siblings (a prompt belongs to exactly one category), and an NSFW source
+  // yields its NSFW siblings — which is what we want on the detail page of
+  // a gated NSFW prompt. So we do NOT apply `excludeNsfw()` here.
   const rows = await db
     .select({
       id: prompts.id,
@@ -333,7 +337,6 @@ export async function listRelatedPrompts(promptId: string, categoryId: string, l
       and(
         eq(prompts.categoryId, categoryId),
         sql`${prompts.id} <> ${promptId}`,
-        excludeNsfw(),
       ),
     )
     .orderBy(desc(prompts.likeCount), desc(prompts.approvedAt))

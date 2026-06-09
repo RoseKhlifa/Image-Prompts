@@ -1,6 +1,11 @@
-import { sql, asc, desc, inArray, eq, and } from "drizzle-orm";
+import { sql, asc, desc, inArray, eq, and, ne } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import { tags, promptTags, favorites, prompts } from "../db/schema/index.ts";
+
+// The `nsfw` tag is an internal marker (every NSFW-category prompt carries it,
+// and only it). It must never appear in the sidebar tag list or the submission
+// autocomplete — the category is the user-facing entry point.
+const NSFW_TAG_SLUG = "nsfw";
 
 export type TagScope =
   | { kind: "favorites"; userId: string }
@@ -22,6 +27,7 @@ export async function listTags(limit = 100, scope?: TagScope) {
     const rows = await db
       .select()
       .from(tags)
+      .where(ne(tags.slug, NSFW_TAG_SLUG))
       .orderBy(desc(tags.usageCount), asc(tags.slug))
       .limit(limit);
     return rows.map((t) => ({
@@ -51,6 +57,7 @@ export async function listTags(limit = 100, scope?: TagScope) {
           eq(favorites.userId, scope.userId),
         ),
       )
+      .where(ne(tags.slug, NSFW_TAG_SLUG))
       .groupBy(tags.id, tags.slug, tags.name)
       .orderBy(desc(scopedCount), asc(tags.slug))
       .limit(limit);
@@ -74,6 +81,7 @@ export async function listTags(limit = 100, scope?: TagScope) {
         eq(prompts.contributorId, scope.userId),
       ),
     )
+    .where(ne(tags.slug, NSFW_TAG_SLUG))
     .groupBy(tags.id, tags.slug, tags.name)
     .orderBy(desc(scopedCount), asc(tags.slug))
     .limit(limit);
@@ -91,6 +99,7 @@ export async function searchTags(q: string, limit = 8) {
     const rows = await db
       .select()
       .from(tags)
+      .where(ne(tags.slug, NSFW_TAG_SLUG))
       .orderBy(desc(tags.usageCount), asc(tags.slug))
       .limit(limit);
     return rows.map((t) => ({
@@ -105,9 +114,12 @@ export async function searchTags(q: string, limit = 8) {
     .select()
     .from(tags)
     .where(
-      sql`${tags.slug} ILIKE ${like}
+      and(
+        ne(tags.slug, NSFW_TAG_SLUG),
+        sql`(${tags.slug} ILIKE ${like}
           OR (${tags.name} ->> 'zh') ILIKE ${like}
-          OR (${tags.name} ->> 'en') ILIKE ${like}`,
+          OR (${tags.name} ->> 'en') ILIKE ${like})`,
+      ),
     )
     .orderBy(desc(tags.usageCount), asc(tags.slug))
     .limit(limit);
