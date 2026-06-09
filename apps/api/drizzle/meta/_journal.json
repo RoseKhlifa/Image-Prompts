@@ -78,6 +78,13 @@
       "when": 1780940000000,
       "tag": "0010_m10b_announcement_display_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781000000000,
+      "tag": "0011_user_self_edit_submissions",
+      "breakpoints": true
     }
   ]
 }

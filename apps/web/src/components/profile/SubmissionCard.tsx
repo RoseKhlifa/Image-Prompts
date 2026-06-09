@@ -39,11 +39,18 @@ export default function SubmissionCard({
       id={`submission-${item.id}`}
     >
       {imgUrl && <img src={imgUrl} alt="" className="mb-2 aspect-square w-full rounded object-cover" />}
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between gap-1">
         <span className="line-clamp-1 text-sm font-medium text-ink">{title}</span>
-        <span className={`rounded px-1.5 py-0.5 text-[10px] ${BADGE_CLASS[item.status]}`}>
-          {t(`my_submissions.status_${item.status}`)}
-        </span>
+        <div className="flex items-center gap-1">
+          {item.originalPromptId && (
+            <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+              {t("my_submissions.edit_badge")}
+            </span>
+          )}
+          <span className={`rounded px-1.5 py-0.5 text-[10px] ${BADGE_CLASS[item.status]}`}>
+            {t(`my_submissions.status_${item.status}`)}
+          </span>
+        </div>
       </div>
       {item.status === "rejected" && item.rejectReason && (
         <p className="text-xs text-ink/70">

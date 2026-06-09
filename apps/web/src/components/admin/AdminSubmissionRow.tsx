@@ -32,7 +32,14 @@ export default function AdminSubmissionRow({ item, selected, onSelect }: Props) 
     >
       {img && <img src={img} alt="" className="h-16 w-16 rounded object-cover" />}
       <div className="min-w-0">
-        <div className="line-clamp-1 text-sm font-medium text-ink">{title}</div>
+        <div className="flex items-center gap-1">
+          <span className="line-clamp-1 text-sm font-medium text-ink">{title}</span>
+          {item.originalPromptId && (
+            <span className="shrink-0 rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">
+              {t("admin.submissions.edit_badge")}
+            </span>
+          )}
+        </div>
         <div className="text-xs text-ink/60">{item.contributor.email ?? item.contributor.id}</div>
         <div className="text-[11px] text-ink/50">
           {t("admin.submitted_at")}: {new Date(item.createdAt).toLocaleString()}

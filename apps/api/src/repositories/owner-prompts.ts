@@ -107,7 +107,38 @@ export type OwnerPromptUpdatePatch = Partial<{
   aspectRatio: string | null;
   categoryId: string;
   tagSlugs: string[];
+  /**
+   * Optional ordered image list. When provided, the repo diff-replaces the
+   * prompt's image set: entries whose r2Key starts with `prompts/<thisId>/`
+   * are treated as "kept" (we reorder them), entries whose r2Key starts with
+   * `submissions/` are treated as "new" (the ROUTE layer migrates them
+   * post-tx via copyObject + INSERT). Existing rows not in the list are
+   * removed (the route layer best-effort deletes their R2 objects post-tx).
+   * Any other prefix is rejected with `invalid_image_key`.
+   */
+  images: OwnerPromptImageInput[];
 }>;
+
+/**
+ * Result of updatePromptForOwner. `removedKeys` are images the caller must
+ * best-effort delete from R2 post-tx. `migrateKeys` are images the caller
+ * must copyObject from submissions/ → prompts/<id>/<targetOrder>.<ext> and
+ * then INSERT into prompt_images (we deliberately do NOT insert here so the
+ * INSERT only happens once the R2 copy succeeded).
+ */
+export type OwnerPromptUpdateResult = {
+  detail: OwnerPromptDetail;
+  removedKeys: Array<{ r2AccountId: string; r2Key: string }>;
+  migrateKeys: Array<{
+    r2AccountId: string;
+    r2Key: string;
+    altText: string | null;
+    width: number | null;
+    height: number | null;
+    lqip: string | null;
+    targetOrder: number;
+  }>;
+};
 
 export type OwnerPromptListFilters = {
   /** ILIKE match against title->>'zh', title->>'en', prompt->>'zh', prompt->>'en', slug. */
@@ -498,17 +529,26 @@ export async function createPromptDirect(
 // ── updatePromptForOwner ────────────────────────────────────────────────
 
 /**
- * Patch any subset of writable fields on a prompt. tagSlugs is a "replace"
- * strategy: delete existing prompt_tags rows, insert new ones, and adjust
- * tags.usage_count deltas (bump for added slugs, decrement for removed).
- * Does NOT touch images — image editing is out of scope for MVP.
+ * Patch any subset of writable fields on a prompt. tagSlugs and images use
+ * "replace" semantics:
+ *
+ *  - tagSlugs: delete existing prompt_tags rows, insert new ones, adjust
+ *    tags.usage_count deltas (bump for added slugs, decrement for removed).
+ *
+ *  - images: diff-replace. We partition the incoming list into kept (r2Key
+ *    starts with `prompts/<id>/`) and migrate (r2Key starts with
+ *    `submissions/`). Existing rows whose r2Key isn't in the kept set are
+ *    removed (and surfaced for R2 cleanup); migrate rows are NOT inserted
+ *    here — the route does that AFTER the R2 copyObject succeeds.
  *
  * Returns null if the prompt doesn't exist; the route maps that to 404.
+ * Otherwise returns { detail, removedKeys, migrateKeys } so the route can do
+ * the R2 work outside this transaction.
  */
 export async function updatePromptForOwner(
   id: string,
   patch: OwnerPromptUpdatePatch,
-): Promise<OwnerPromptDetail | null> {
+): Promise<OwnerPromptUpdateResult | null> {
   // Existence check up front so we can return null without entering the tx.
   const existing = await db
     .select({
@@ -544,6 +584,10 @@ export async function updatePromptForOwner(
     if (finalEn && finalEn.length > 0) out.en = finalEn;
     return Object.keys(out).length > 0 ? out : null;
   }
+
+  // Image diff buckets — populated inside the tx, returned by the function.
+  const removedKeys: OwnerPromptUpdateResult["removedKeys"] = [];
+  const migrateKeys: OwnerPromptUpdateResult["migrateKeys"] = [];
 
   await db.transaction(async (tx) => {
     const setClause: Record<string, unknown> = { updatedAt: sql`now()` };
@@ -624,9 +668,97 @@ export async function updatePromptForOwner(
           .where(inArray(tagsTable.slug, removed));
       }
     }
+
+    // ── Image diff-replace ──────────────────────────────────────────────
+    //
+    // The incoming list is the authoritative ordering. Every entry must live
+    // in either `prompts/<id>/` (already a member — we may reorder it) or
+    // `submissions/` (a fresh upload — the route copies it post-tx). Any
+    // other prefix is a programmer error and rejects the request.
+    if (patch.images !== undefined) {
+      const promptPrefix = `prompts/${id}/`;
+      for (const img of patch.images) {
+        const isKept = img.r2Key.startsWith(promptPrefix);
+        const isNew = img.r2Key.startsWith("submissions/");
+        if (!isKept && !isNew) {
+          throw new Error(`invalid_image_key:${img.r2Key}`);
+        }
+      }
+
+      const existing = await tx
+        .select({
+          id: promptImages.id,
+          r2AccountId: promptImages.r2AccountId,
+          r2Key: promptImages.r2Key,
+        })
+        .from(promptImages)
+        .where(eq(promptImages.promptId, id));
+
+      const keptKeys = new Set(
+        patch.images.filter((i) => i.r2Key.startsWith(promptPrefix)).map((i) => i.r2Key),
+      );
+
+      // 1. Remove existing rows whose key isn't in the kept set.
+      const removedRows = existing.filter((r) => !keptKeys.has(r.r2Key));
+      if (removedRows.length > 0) {
+        await tx
+          .delete(promptImages)
+          .where(inArray(promptImages.id, removedRows.map((r) => r.id)));
+        for (const r of removedRows) {
+          removedKeys.push({ r2AccountId: r.r2AccountId, r2Key: r.r2Key });
+        }
+      }
+
+      // 2. Reassign `order` on kept rows to match the position in patch.images.
+      //
+      // We bump every kept row's order to a temporary +1000 offset first so the
+      // intermediate values can't collide with the final ones. The two-pass is
+      // because prompt_images has no UNIQUE constraint on (promptId, order)
+      // today, but a future unique index would make a one-pass UPDATE break
+      // if any kept rows shuffle. Cheaper than a partial unique now.
+      const keptInOrder: Array<{ id: string; r2Key: string; targetOrder: number }> = [];
+      for (let idx = 0; idx < patch.images.length; idx += 1) {
+        const img = patch.images[idx]!;
+        if (!img.r2Key.startsWith(promptPrefix)) continue;
+        const row = existing.find((r) => r.r2Key === img.r2Key);
+        if (!row) continue; // Caller asserted it was kept but the row is gone; ignore.
+        keptInOrder.push({ id: row.id, r2Key: img.r2Key, targetOrder: idx });
+      }
+      if (keptInOrder.length > 0) {
+        for (const k of keptInOrder) {
+          await tx
+            .update(promptImages)
+            .set({ order: k.targetOrder + 1000 })
+            .where(eq(promptImages.id, k.id));
+        }
+        for (const k of keptInOrder) {
+          await tx
+            .update(promptImages)
+            .set({ order: k.targetOrder })
+            .where(eq(promptImages.id, k.id));
+        }
+      }
+
+      // 3. Collect migrate buckets — the route INSERTs after copyObject.
+      for (let idx = 0; idx < patch.images.length; idx += 1) {
+        const img = patch.images[idx]!;
+        if (!img.r2Key.startsWith("submissions/")) continue;
+        migrateKeys.push({
+          r2AccountId: img.r2AccountId,
+          r2Key: img.r2Key,
+          altText: img.altText ?? null,
+          width: img.width ?? null,
+          height: img.height ?? null,
+          lqip: img.lqip ?? null,
+          targetOrder: idx,
+        });
+      }
+    }
   });
 
-  return getPromptForOwner(id);
+  const detail = await getPromptForOwner(id);
+  if (!detail) return null;
+  return { detail, removedKeys, migrateKeys };
 }
 
 // ── deletePromptForOwner ────────────────────────────────────────────────

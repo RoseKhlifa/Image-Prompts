@@ -1,7 +1,12 @@
 import { useTranslation } from "react-i18next";
 import ImageSlot, { type SlotValue } from "./ImageSlot.tsx";
 
-const MAX = 5;
+// Image slot cap. Matches the server's owner-prompts/submissions cap of 10 so
+// the form never lets the user upload an image the server would reject. The
+// public submission flow has a separate server-side limit (5 in the shared
+// SubmissionInputSchema) which still applies — the form just shows up to 10
+// slots; the schema validates on submit.
+const MAX = 10;
 
 type Props = {
   value: SlotValue[];

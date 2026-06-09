@@ -14,6 +14,7 @@ import publicRoute from "./routes/public.ts";
 import importTokensRoute from "./routes/import-tokens.ts";
 import interactionsRoute from "./routes/interactions.ts";
 import meRoute from "./routes/me.ts";
+import mePromptsRoute from "./routes/me-prompts.ts";
 import submissionsRoute from "./routes/submissions.ts";
 import adminRoute from "./routes/admin.ts";
 import ownerRoute from "./routes/owner.ts";
@@ -56,6 +57,10 @@ export function createServer() {
   //   listing — Hono dispatches per-method so they don't conflict.
   app.route("/api/prompts", interactionsRoute);
   app.route("/api/me", meRoute);
+  // Self-edit / self-delete for user-owned prompts. Mounted as a sibling of
+  // /api/me so it can be gated by verifyAuth + banCheck independently of the
+  // legacy /api/me routes (favorites, submissions, notifications, etc.).
+  app.route("/api/me/prompts", mePromptsRoute);
   app.route("/api/submissions", submissionsRoute);
   app.route("/api/admin", adminRoute);
   app.route("/api/owner", ownerRoute);

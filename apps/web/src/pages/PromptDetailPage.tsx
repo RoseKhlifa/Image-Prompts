@@ -157,6 +157,9 @@ export default function PromptDetailPage() {
                 slug={d.slug}
                 {...(d.title.zh !== undefined ? { titleZh: d.title.zh } : {})}
                 {...(d.title.en !== undefined ? { titleEn: d.title.en } : {})}
+                {...(d.contributor?.id !== undefined
+                  ? { contributorId: d.contributor.id }
+                  : {})}
               />
             </div>
 

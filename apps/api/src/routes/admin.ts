@@ -113,15 +113,14 @@ app.post(
       throw new HTTPException(403, { message: "edits_require_admin" });
     }
 
-    let promptId: string;
-    let slug: string;
+    let approveResult: Awaited<ReturnType<typeof approveSubmission>>;
     try {
-      ({ promptId, slug } = await approveSubmission({
+      approveResult = await approveSubmission({
         submissionId: subId,
         actorId,
         actorRole: role,
         edits: edits as Parameters<typeof approveSubmission>[0]["edits"],
-      }));
+      });
     } catch (e: unknown) {
       if (e instanceof NotFoundError) {
         throw new HTTPException(404, { message: "not_found" });
@@ -131,38 +130,80 @@ app.post(
       }
       throw e;
     }
+    const { promptId, slug } = approveResult;
 
-    // Post-transaction image migration. Each image is copied from
-    // submissions/<user>/<uuid>.<ext> to prompts/<promptId>/<idx>.<ext>,
-    // then an INSERT into prompt_images is performed, then the original is
-    // best-effort deleted (a failed delete logs but does not fail the
-    // request — orphan submission objects are tolerable).
+    // Post-transaction image work. The shape differs per mode:
+    //
+    //  - mode="insert" (fresh prompt): migrate every submission image to
+    //    prompts/<id>/<idx>.<ext> + INSERT prompt_images.
+    //  - mode="update" (self-edit approved): same migrate flow but using the
+    //    repo's migrateKeys list (which already has targetOrder filled in);
+    //    additionally, best-effort delete every removedKey (the existing
+    //    prompt's old images that the repo nuked inside the tx).
+    //
+    // A failed copyObject/INSERT in either mode surfaces as 500
+    // image_migration_failed; orphaned submission objects (delete failures)
+    // are logged-only.
     try {
-      const [subRow] = await db
-        .select()
-        .from(submissions)
-        .where(eq(submissions.id, subId))
-        .limit(1);
-      const imageKeys = subRow!.imageKeys;
       const accRows = await db.select().from(r2Accounts);
       const accMap = new Map(accRows.map((a) => [a.id, a]));
-      for (const [idx, img] of imageKeys.entries()) {
-        const account = accMap.get(img.r2AccountId);
-        if (!account) throw new Error(`unknown account ${img.r2AccountId}`);
-        const ext = img.r2Key.split(".").pop() ?? "jpg";
-        const newKey = buildPromptKey(promptId, idx, ext);
-        await copyObject(account, img.r2Key, newKey);
-        await db.insert(promptImages).values({
-          promptId,
-          r2AccountId: img.r2AccountId,
-          r2Key: newKey,
-          altText: img.altText ?? null,
-          order: idx,
-        });
-        try {
-          await deleteObject(account, img.r2Key);
-        } catch (e) {
-          console.warn("[approve] delete original failed", img.r2Key, e);
+
+      if (approveResult.mode === "insert") {
+        const [subRow] = await db
+          .select()
+          .from(submissions)
+          .where(eq(submissions.id, subId))
+          .limit(1);
+        const imageKeys = subRow!.imageKeys;
+        for (const [idx, img] of imageKeys.entries()) {
+          const account = accMap.get(img.r2AccountId);
+          if (!account) throw new Error(`unknown account ${img.r2AccountId}`);
+          const ext = img.r2Key.split(".").pop() ?? "jpg";
+          const newKey = buildPromptKey(promptId, idx, ext);
+          await copyObject(account, img.r2Key, newKey);
+          await db.insert(promptImages).values({
+            promptId,
+            r2AccountId: img.r2AccountId,
+            r2Key: newKey,
+            altText: img.altText ?? null,
+            order: idx,
+          });
+          try {
+            await deleteObject(account, img.r2Key);
+          } catch (e) {
+            console.warn("[approve] delete original failed", img.r2Key, e);
+          }
+        }
+      } else {
+        // mode === "update": process migrateKeys + removedKeys.
+        for (const m of approveResult.migrateKeys) {
+          const account = accMap.get(m.r2AccountId);
+          if (!account) throw new Error(`unknown account ${m.r2AccountId}`);
+          const ext = m.r2Key.split(".").pop() ?? "jpg";
+          const newKey = buildPromptKey(promptId, m.targetOrder, ext);
+          await copyObject(account, m.r2Key, newKey);
+          await db.insert(promptImages).values({
+            promptId,
+            r2AccountId: m.r2AccountId,
+            r2Key: newKey,
+            altText: m.altText,
+            order: m.targetOrder,
+          });
+          try {
+            await deleteObject(account, m.r2Key);
+          } catch (e) {
+            console.warn("[approve_edit] delete original failed", m.r2Key, e);
+          }
+        }
+        for (const r of approveResult.removedKeys) {
+          const account = accMap.get(r.r2AccountId);
+          if (account) {
+            try {
+              await deleteObject(account, r.r2Key);
+            } catch (e) {
+              console.warn("[approve_edit] R2 delete removed failed", r.r2Key, e);
+            }
+          }
         }
       }
     } catch (e: unknown) {

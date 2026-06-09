@@ -896,6 +896,10 @@ const PromptUpdateBodySchema = z.object({
   aspectRatio: z.string().max(20).optional(),
   categoryId: z.string().uuid().optional(),
   tagSlugs: z.array(z.string().min(1).max(40)).max(10).optional(),
+  // Optional images array — same shape as create. When provided, the repo
+  // diff-replaces (kept = `prompts/<id>/…`, new = `submissions/…`) and we
+  // do the R2 copy + INSERT + cleanup post-tx below.
+  images: z.array(OwnerPromptImageSchema).min(1).max(10).optional(),
 });
 
 app.get("/prompts", zv("query", PromptListQuerySchema), async (c) => {
@@ -1017,10 +1021,23 @@ app.patch(
     if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
     if (input.categoryId !== undefined) patch.categoryId = input.categoryId;
     if (input.tagSlugs !== undefined) patch.tagSlugs = input.tagSlugs;
+    if (input.images !== undefined) {
+      patch.images = input.images.map((img) => {
+        const o: NonNullable<OwnerPromptUpdatePatch["images"]>[number] = {
+          r2AccountId: img.r2AccountId,
+          r2Key: img.r2Key,
+        };
+        if (img.altText !== undefined) o.altText = img.altText;
+        if (img.width !== undefined) o.width = img.width;
+        if (img.height !== undefined) o.height = img.height;
+        if (img.lqip !== undefined) o.lqip = img.lqip;
+        return o;
+      });
+    }
 
-    let updated: Awaited<ReturnType<typeof updatePromptForOwner>>;
+    let result: Awaited<ReturnType<typeof updatePromptForOwner>>;
     try {
-      updated = await updatePromptForOwner(id, patch);
+      result = await updatePromptForOwner(id, patch);
     } catch (e: unknown) {
       // categoryId FK violation (unknown category) surfaces as a postgres
       // error with code 23503 (foreign_key_violation). Pg's node driver
@@ -1038,9 +1055,64 @@ app.patch(
       if (looksLikeFkViolation) {
         throw new HTTPException(400, { message: "invalid_category" });
       }
+      if (msg.startsWith("invalid_image_key")) {
+        throw new HTTPException(400, { message: "invalid_image_key" });
+      }
       throw e;
     }
-    if (!updated) throw new HTTPException(404, { message: "not_found" });
+    if (!result) throw new HTTPException(404, { message: "not_found" });
+
+    // Post-tx R2 work for the image diff. Same shape as the direct-create
+    // migration: copyObject submissions/* → prompts/<id>/<order>.<ext>,
+    // INSERT a prompt_images row at that order, best-effort deleteObject
+    // the original. Removed images are best-effort deleted (warnings only).
+    if (patch.images !== undefined) {
+      try {
+        const accRows = await db.select().from(r2Accounts);
+        const accMap = new Map(accRows.map((a) => [a.id, a]));
+        for (const m of result.migrateKeys) {
+          const account = accMap.get(m.r2AccountId);
+          if (!account) throw new Error(`unknown account ${m.r2AccountId}`);
+          const ext = m.r2Key.split(".").pop() ?? "jpg";
+          const newKey = buildPromptKey(id, m.targetOrder, ext);
+          await copyObject(account, m.r2Key, newKey);
+          await db.insert(promptImages).values({
+            promptId: id,
+            r2AccountId: m.r2AccountId,
+            r2Key: newKey,
+            altText: m.altText,
+            width: m.width,
+            height: m.height,
+            lqip: m.lqip,
+            order: m.targetOrder,
+          });
+          try {
+            await deleteObject(account, m.r2Key);
+          } catch (e) {
+            console.warn("[owner.update] delete original failed", m.r2Key, e);
+          }
+        }
+        for (const r of result.removedKeys) {
+          const account = accMap.get(r.r2AccountId);
+          if (account) {
+            try {
+              await deleteObject(account, r.r2Key);
+            } catch (e) {
+              console.warn("[owner.update] R2 delete removed failed", r.r2Key, e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[owner.update] image migration failed", { id, e });
+        throw new HTTPException(500, { message: "image_migration_failed" });
+      }
+    }
+
+    // Re-read to pick up the newly-inserted prompt_image rows.
+    const refreshed = patch.images !== undefined
+      ? await getPromptForOwner(id)
+      : result.detail;
+    if (!refreshed) throw new HTTPException(404, { message: "not_found" });
 
     const hadEdits = Object.keys(patch).length > 0;
     await recordAudit({
@@ -1048,9 +1120,9 @@ app.patch(
       action: "prompt.update",
       targetType: "prompt",
       targetId: id,
-      payload: { slug: updated.slug, hadEdits },
+      payload: { slug: refreshed.slug, hadEdits },
     });
-    return c.json(updated);
+    return c.json(refreshed);
   },
 );
 

@@ -554,8 +554,8 @@ describe("updatePromptForOwner", () => {
     await new Promise((r) => setTimeout(r, 5));
     const patched = await updatePromptForOwner(id, { aspectRatio: "21:9" });
     expect(patched).not.toBeNull();
-    expect(patched!.aspectRatio).toBe("21:9");
-    expect(patched!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
+    expect(patched!.detail.aspectRatio).toBe("21:9");
+    expect(patched!.detail.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
   });
 
   it("merges bilingual jsonb safely (zh overwrite preserves en)", async () => {
@@ -575,8 +575,8 @@ describe("updatePromptForOwner", () => {
       owner.id,
     );
     const patched = await updatePromptForOwner(id, { titleZh: "新中" });
-    expect(patched!.title.zh).toBe("新中");
-    expect(patched!.title.en).toBe("Original EN"); // EN preserved
+    expect(patched!.detail.title.zh).toBe("新中");
+    expect(patched!.detail.title.en).toBe("Original EN"); // EN preserved
   });
 
   it("replaces tagSlugs (delta-adjusts usage_count)", async () => {
@@ -645,15 +645,160 @@ describe("updatePromptForOwner", () => {
       negativePromptZh: "",
       negativePromptEn: "",
     });
-    expect(patched!.negativePrompt).toBeNull();
+    expect(patched!.detail.negativePrompt).toBeNull();
   });
 
-  it("does not touch images on PATCH", async () => {
+  it("does not touch images on PATCH (when images is undefined)", async () => {
     const { id } = await makePromptDirect();
     const before = await getPromptForOwner(id);
     await updatePromptForOwner(id, { aspectRatio: "16:9" });
     const after = await getPromptForOwner(id);
     expect(after!.images).toEqual(before!.images);
+  });
+
+  // ── Image diff-replace ────────────────────────────────────────────────
+  //
+  // tw42r- prefix per the test-isolation spec for Feature A. We pass r2Keys
+  // that match the patterns the real flow will use:
+  //   - prompts/<id>/<order>.<ext> for "kept" (already-migrated) images
+  //   - submissions/* for "new" (fresh upload, route migrates post-tx)
+  // Foreign keyspaces (any other prefix) must reject.
+
+  it("update with images: kept-only (no R2 change, count unchanged)", async () => {
+    const owner = await makeOwner();
+    const cat = await makeCategory();
+    const r2 = await makeR2();
+    const { id } = await createPromptDirect(
+      {
+        titleZh: null, titleEn: "tw42r-kept",
+        promptZh: null, promptEn: "p",
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: cat.id, tagSlugs: [],
+        images: [
+          { r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}-a.jpg` },
+        ],
+      },
+      owner.id,
+    );
+    // Manually rename the existing row's key to look like a migrated one so
+    // the diff-replace recognises it as "kept" by the prompts/<id>/ prefix.
+    const keptKey = `prompts/${id}/0.jpg`;
+    await db.update(promptImages).set({ r2Key: keptKey }).where(eq(promptImages.promptId, id));
+
+    const before = await db.select().from(promptImages).where(eq(promptImages.promptId, id));
+    const result = await updatePromptForOwner(id, {
+      images: [{ r2AccountId: r2.id, r2Key: keptKey }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.removedKeys).toEqual([]);
+    expect(result!.migrateKeys).toEqual([]);
+    const after = await db.select().from(promptImages).where(eq(promptImages.promptId, id));
+    expect(after).toHaveLength(before.length);
+  });
+
+  it("update with images: add new (submission key in migrateKeys, removed empty)", async () => {
+    const owner = await makeOwner();
+    const cat = await makeCategory();
+    const r2 = await makeR2();
+    const { id } = await createPromptDirect(
+      {
+        titleZh: null, titleEn: "tw42r-add",
+        promptZh: null, promptEn: "p",
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: cat.id, tagSlugs: [],
+        images: [
+          { r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}-a.jpg` },
+        ],
+      },
+      owner.id,
+    );
+    const keptKey = `prompts/${id}/0.jpg`;
+    await db.update(promptImages).set({ r2Key: keptKey }).where(eq(promptImages.promptId, id));
+
+    const newSubKey = `submissions/owner/${uniq()}-new.jpg`;
+    const result = await updatePromptForOwner(id, {
+      images: [
+        { r2AccountId: r2.id, r2Key: keptKey },
+        { r2AccountId: r2.id, r2Key: newSubKey },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.removedKeys).toEqual([]);
+    expect(result!.migrateKeys).toHaveLength(1);
+    expect(result!.migrateKeys[0]!.r2Key).toBe(newSubKey);
+    expect(result!.migrateKeys[0]!.targetOrder).toBe(1);
+  });
+
+  it("update with images: remove existing (empty array → all removed, kept = 0)", async () => {
+    const owner = await makeOwner();
+    const cat = await makeCategory();
+    const r2 = await makeR2();
+    const { id } = await createPromptDirect(
+      {
+        titleZh: null, titleEn: "tw42r-remove",
+        promptZh: null, promptEn: "p",
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: cat.id, tagSlugs: [],
+        images: [
+          { r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}-a.jpg` },
+          { r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}-b.jpg` },
+        ],
+      },
+      owner.id,
+    );
+    const before = await db.select().from(promptImages).where(eq(promptImages.promptId, id));
+    expect(before).toHaveLength(2);
+
+    // Re-key the existing images so they look "kept" — but we pass [] so the
+    // diff treats them all as "removed".
+    await db.update(promptImages).set({ r2Key: sql`replace(${promptImages.r2Key}, 'submissions/', 'prompts/' || ${id} || '/')` }).where(eq(promptImages.promptId, id));
+
+    // Wait, simpler: just set them deterministically.
+    const all = await db.select().from(promptImages).where(eq(promptImages.promptId, id));
+    for (const r of all) {
+      await db.update(promptImages).set({ r2Key: `prompts/${id}/${r.order}.jpg` }).where(eq(promptImages.id, r.id));
+    }
+
+    // For a "1-10 images" length restriction, the repo doesn't enforce ≥1
+    // — that's the route's zod schema. Here we test that passing an empty
+    // diff-replace removes everything.
+    const result = await updatePromptForOwner(id, { images: [] });
+    expect(result).not.toBeNull();
+    expect(result!.removedKeys).toHaveLength(2);
+    expect(result!.migrateKeys).toEqual([]);
+    const after = await db.select().from(promptImages).where(eq(promptImages.promptId, id));
+    expect(after).toHaveLength(0);
+  });
+
+  it("update with images: reject foreign keyspace (invalid_image_key)", async () => {
+    const owner = await makeOwner();
+    const cat = await makeCategory();
+    const r2 = await makeR2();
+    const { id } = await createPromptDirect(
+      {
+        titleZh: null, titleEn: "tw42r-reject",
+        promptZh: null, promptEn: "p",
+        negativePromptZh: null, negativePromptEn: null,
+        notesZh: null, notesEn: null,
+        aspectRatio: null,
+        categoryId: cat.id, tagSlugs: [],
+        images: [
+          { r2AccountId: r2.id, r2Key: `submissions/owner/${uniq()}.jpg` },
+        ],
+      },
+      owner.id,
+    );
+    await expect(
+      updatePromptForOwner(id, {
+        images: [{ r2AccountId: r2.id, r2Key: "evil/key.jpg" }],
+      }),
+    ).rejects.toThrow(/invalid_image_key/);
   });
 });
 

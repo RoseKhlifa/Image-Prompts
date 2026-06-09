@@ -106,6 +106,12 @@ export const submissions = pgTable(
     reviewedBy: uuid("reviewed_by").references(() => users.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     promotedTo: uuid("promoted_to").references(() => prompts.id),
+    /**
+     * Set when this submission is a user-self-edit of an existing prompt.
+     * Approving such a submission UPDATEs that prompt in place rather than
+     * inserting a new one (see approveSubmission). Null for vanilla submissions.
+     */
+    originalPromptId: uuid("original_prompt_id").references(() => prompts.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

@@ -96,7 +96,7 @@ export type OwnerPromptInput = {
   images: OwnerPromptImageInput[];
 };
 
-export type OwnerPromptUpdatePatch = Partial<Omit<OwnerPromptInput, "images">>;
+export type OwnerPromptUpdatePatch = Partial<OwnerPromptInput>;
 
 export type OwnerPromptListFilters = {
   q?: string;

@@ -2554,6 +2554,151 @@ describe("owner prompts — patch", () => {
     expect(patchRes.status).toBe(400);
   });
 
+  // ── Image diff-replace via PATCH (tw42u- prefix) ────────────────────
+  //
+  // The route's PATCH handler proxies `images` to the repo's diff-replace and
+  // then does the post-tx R2 work (copyObject + INSERT + best-effort delete).
+  // We assert end-to-end through the route layer with the S3 SDK mocked.
+
+  it("PATCH /prompts/:id images: kept-only (no R2 ops issued)", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("tw42u-kept")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}tw42u-kept`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+
+    // After direct-create migration the row's r2Key is prompts/<id>/0.<ext>.
+    const [img] = await db
+      .select({ r2Key: promptImages.r2Key })
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+    expect(img!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+
+    // PATCH with the same image. Server diff should keep + not migrate.
+    const before = await db.select().from(promptImages).where(eq(promptImages.promptId, promptId));
+    const patchRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        images: [{ r2AccountId: r2Id, r2Key: img!.r2Key }],
+      }),
+    });
+    expect(patchRes.status).toBe(200);
+    const after = await db.select().from(promptImages).where(eq(promptImages.promptId, promptId));
+    expect(after).toHaveLength(before.length);
+  });
+
+  it("PATCH /prompts/:id images: add new submission key (copies + inserts)", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("tw42u-add")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}tw42u-add`, promptEn: "p",
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+    const [existing] = await db
+      .select({ r2Key: promptImages.r2Key })
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+
+    const newSubKey = `submissions/owner/${TEST_TAX_PREFIX}tw42u-add-${Date.now()}.jpg`;
+    const patchRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        images: [
+          { r2AccountId: r2Id, r2Key: existing!.r2Key },
+          { r2AccountId: r2Id, r2Key: newSubKey },
+        ],
+      }),
+    });
+    expect(patchRes.status).toBe(200);
+    const after = await db
+      .select()
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+    expect(after).toHaveLength(2);
+    // The new row should sit at order=1 and have a prompts/<id>/1.<ext> key.
+    const order1 = after.find((r) => r.order === 1);
+    expect(order1).toBeDefined();
+    expect(order1!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+  });
+
+  it("PATCH /prompts/:id images: remove and add via single PATCH", async () => {
+    const owner = await makeOwner();
+    const r2Id = await getTestR2AccountId();
+    const catRes = await app.request("/api/owner/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(makeCategoryBody("tw42u-swap")),
+    });
+    const { id: catId } = (await catRes.json()) as { id: string };
+    s3Mock.on(CopyObjectCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+    const createRes = await app.request("/api/owner/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify(
+        makePromptCreateBody({
+          categoryId: catId, r2AccountId: r2Id,
+          titleEn: `${TEST_TAX_PREFIX}tw42u-swap`, promptEn: "p",
+          imageCount: 2,
+        }),
+      ),
+    });
+    const { id: promptId } = (await createRes.json()) as { id: string };
+    const before = await db.select().from(promptImages).where(eq(promptImages.promptId, promptId));
+    expect(before).toHaveLength(2);
+
+    // PATCH with only ONE new submission key — both existing images get removed.
+    const newSubKey = `submissions/owner/${TEST_TAX_PREFIX}tw42u-swap-${Date.now()}.jpg`;
+    const patchRes = await app.request(`/api/owner/prompts/${promptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Cookie: owner.cookie },
+      body: JSON.stringify({
+        images: [{ r2AccountId: r2Id, r2Key: newSubKey }],
+      }),
+    });
+    expect(patchRes.status).toBe(200);
+    const after = await db
+      .select()
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+    expect(after).toHaveLength(1);
+    expect(after[0]!.order).toBe(0);
+    expect(after[0]!.r2Key.startsWith(`prompts/${promptId}/`)).toBe(true);
+  });
+
   it("PATCH /prompts/:id replaces tagSlugs cleanly", async () => {
     const owner = await makeOwner();
     const r2Id = await getTestR2AccountId();

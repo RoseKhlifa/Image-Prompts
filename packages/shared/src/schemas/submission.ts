@@ -137,6 +137,11 @@ export const SubmissionListItemSchema = z.object({
   promotedTo: z
     .object({ promptId: z.string().uuid(), slug: z.string() })
     .nullable(),
+  // When set, this submission is a user-self-edit of an existing prompt.
+  // The UI surfaces a small "edit" badge alongside the row so users + admins
+  // can tell pending edits apart from fresh submissions.
+  originalPromptId: z.string().uuid().nullable(),
+  originalPromptSlug: z.string().nullable(),
   createdAt: z.string().datetime(),
   reviewedAt: z.string().datetime().nullable(),
 });

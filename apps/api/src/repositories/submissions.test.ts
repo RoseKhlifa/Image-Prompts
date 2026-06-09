@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { eq, like, inArray } from "drizzle-orm";
+import { eq, like, inArray, and } from "drizzle-orm";
 import { db } from "../db/client.ts";
 import {
   users,
@@ -31,6 +31,7 @@ const TEST_PROMPT_SLUG_PREFIX = "task16-prompt-";
 async function cleanup() {
   // 1. audit_log: actions used by approve/reject transactions
   await db.delete(auditLog).where(eq(auditLog.action, "submission.approve"));
+  await db.delete(auditLog).where(eq(auditLog.action, "submission.approve_edit"));
   await db.delete(auditLog).where(eq(auditLog.action, "submission.reject"));
 
   // 2. Find test users
@@ -356,6 +357,144 @@ describe("approveSubmission (transaction)", () => {
     const [p] = await db.select().from(promptsTable).where(eq(promptsTable.id, promptId));
     expect(p!.title).toMatchObject({ zh: `${TEST_PROMPT_SLUG_PREFIX}新` });
     expect(p!.categoryId).toBe(c2.id);
+  });
+
+  // ── Edit-approval path (originalPromptId set) ─────────────────────────
+  //
+  // When a submission carries originalPromptId, approving UPDATEs that
+  // existing prompt rather than INSERTing a new one. The repo returns
+  // `mode: "update"` with migrateKeys + removedKeys for the route to do R2
+  // work; we don't exercise R2 here (the route layer test covers that).
+  it("approve an edit submission updates existing prompt instead of creating new", async () => {
+    const u = await makeUser();
+    const a = await makeAdmin();
+    const c = await makeCategory("edit-c");
+    const tagA = await makeTag("edit-a");
+    const tagB = await makeTag("edit-b");
+    // Need a real r2_accounts row for the FK on prompt_images.r2_account_id.
+    const { encryptSecret } = await import("../lib/crypto.ts");
+    process.env.R2_ENCRYPTION_KEY ||=
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const [r2acc] = await db
+      .insert(r2Accounts)
+      .values({
+        name: "subs-repo-test-r2",
+        accountId: "subs-edit-acc",
+        endpoint: "https://subs.example.com",
+        accessKeyId: "K",
+        accessKeySecretEncrypted: encryptSecret("s"),
+        bucket: "subs-edit",
+        publicUrl: "https://subs.example.com",
+        priority: 999,
+        enabled: false,
+      })
+      .returning();
+    const r2id = r2acc!.id;
+
+    // 1. Seed an existing prompt + its tags + images directly.
+    const [parent] = await db
+      .insert(promptsTable)
+      .values({
+        slug: `${TEST_PROMPT_SLUG_PREFIX}edit-parent-${counter}`,
+        title: { zh: "原标题" },
+        prompt: { zh: "原 prompt" },
+        categoryId: c.id,
+        contributorId: u.id,
+      })
+      .returning({ id: promptsTable.id });
+    const parentId = parent!.id;
+    await db.insert(promptTags).values({ promptId: parentId, tagId: tagA.id });
+    await db.insert(promptImages).values({
+      promptId: parentId,
+      r2AccountId: r2id,
+      r2Key: `prompts/${parentId}/0.jpg`,
+      order: 0,
+    });
+
+    // 2. Create a self-edit submission targeting parentId with NEW tags +
+    //    images. The submission shape is identical to a vanilla submission
+    //    — only originalPromptId is the new lever.
+    const subId = await createSubmission({
+      contributorId: u.id,
+      titleZh: "新标题", titleEn: null,
+      promptZh: "新 prompt", promptEn: null,
+      negativePromptZh: null, negativePromptEn: null,
+      notesZh: null, notesEn: null,
+      aspectRatio: "16:9",
+      categoryId: c.id,
+      tagSlugs: [tagB.slug],
+      images: [
+        {
+          r2AccountId: r2id,
+          r2Key: "submissions/edit/new.jpg",
+        },
+      ],
+      agreedGuidelinesVersion: 1,
+      originalPromptId: parentId,
+    });
+
+    // 3. Approve. The repo returns mode="update", same promptId as parent.
+    const result = await approveSubmission({
+      submissionId: subId,
+      actorId: a.id,
+      actorRole: "admin",
+      edits: {},
+    });
+    expect(result.mode).toBe("update");
+    expect(result.promptId).toBe(parentId);
+
+    // 4. Original prompt's fields updated, NOT a new row.
+    const [refreshed] = await db
+      .select()
+      .from(promptsTable)
+      .where(eq(promptsTable.id, parentId));
+    expect(refreshed!.title).toMatchObject({ zh: "新标题" });
+    expect(refreshed!.aspectRatio).toBe("16:9");
+
+    // 5. Tags diff-replaced: tagA gone, tagB present.
+    const pt = await db
+      .select({ slug: tags.slug })
+      .from(promptTags)
+      .innerJoin(tags, eq(tags.id, promptTags.tagId))
+      .where(eq(promptTags.promptId, parentId));
+    expect(pt.map((r) => r.slug)).toEqual([tagB.slug]);
+
+    // 6. Existing prompt_images row gone (diff said "remove + migrate").
+    //    The route would post-tx INSERT the new prompts/<id>/0.<ext> row;
+    //    here we only assert the in-tx half. migrateKeys carries the
+    //    submission key the route will copy.
+    const imgs = await db
+      .select()
+      .from(promptImages)
+      .where(eq(promptImages.promptId, parentId));
+    expect(imgs).toHaveLength(0);
+
+    if (result.mode === "update") {
+      expect(result.migrateKeys).toHaveLength(1);
+      expect(result.migrateKeys[0]!.r2Key).toBe("submissions/edit/new.jpg");
+      expect(result.removedKeys).toHaveLength(1);
+      expect(result.removedKeys[0]!.r2Key).toBe(`prompts/${parentId}/0.jpg`);
+    }
+
+    // 7. Submission row flipped to approved with promotedTo=parentId.
+    const [reread] = await db
+      .select()
+      .from(submissions)
+      .where(eq(submissions.id, subId));
+    expect(reread!.status).toBe("approved");
+    expect(reread!.promotedTo).toBe(parentId);
+
+    // 8. Audit row records the edit-approve action separately.
+    const audits = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetId, subId),
+          eq(auditLog.action, "submission.approve_edit"),
+        ),
+      );
+    expect(audits).toHaveLength(1);
   });
 });
 

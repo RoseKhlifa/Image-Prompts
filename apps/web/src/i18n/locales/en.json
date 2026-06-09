@@ -92,7 +92,12 @@
     "edit": "Edit",
     "delete": "Delete",
     "delete_confirm": "Delete \"{title}\"? This cannot be undone.",
-    "deleted": "Deleted"
+    "deleted": "Deleted",
+    "edit_queued_for_review": "Submitted, awaiting owner review",
+    "edit_modal_title": "Edit prompt",
+    "edit_requires_resubmit_images": "Please re-upload images to submit an edit.",
+    "delete_my_prompt_confirm": "Delete \"{title}\"? Irreversible — all likes/favorites on this prompt will be lost.",
+    "deleted_self": "Your submission was deleted"
   },
   "studio_modal": {
     "title": "Image-Studio not detected",
@@ -218,7 +223,8 @@
     "reject_reason_label": "Reason",
     "view_prompt": "View",
     "submitted_at": "Submitted {time}",
-    "reviewed_at": "Reviewed {time}"
+    "reviewed_at": "Reviewed {time}",
+    "edit_badge": "Edit"
   },
   "guidelines": {
     "modal_title": "Submission guidelines",
@@ -253,6 +259,9 @@
     "approved_toast": "Approved — the prompt is live",
     "rejected_toast": "Rejected — contributor will be notified",
     "moderator_no_edit": "Moderator cannot edit before approving",
+    "submissions": {
+      "edit_badge": "Edit request"
+    },
     "error": {
       "not_pending": "This submission was already handled by someone else",
       "migration": "Image migration failed, manual cleanup required"
@@ -583,7 +592,6 @@
       "modal_save": "Save",
       "modal_saving": "Saving…",
       "modal_cancel": "Cancel",
-      "image_edit_unavailable": "Images are read-only in edit mode. To replace images, create a new prompt.",
       "save_success_create": "Published",
       "save_success_update": "Updated",
       "save_failed": "Save failed"

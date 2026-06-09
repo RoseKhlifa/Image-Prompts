@@ -6,6 +6,7 @@ import { isLocale, type Locale } from "@ip/shared";
 import { toast } from "../../lib/toast";
 import { useSession } from "../../lib/hooks/useSession";
 import { useDeleteOwnerPrompt } from "../../lib/hooks/useOwnerPrompts";
+import { useDeleteMyPrompt } from "../../lib/hooks/useMyPrompts";
 import { withLocale } from "../../lib/locale";
 
 // Lazy-load the owner modal — most viewers aren't owners, and the modal pulls
@@ -14,30 +15,45 @@ import { withLocale } from "../../lib/locale";
 const OwnerPromptFormModal = lazy(
   () => import("../owner/OwnerPromptFormModal"),
 );
+// Same logic for the contributor self-edit modal — only loaded when the
+// signed-in viewer is the contributor and clicks "edit".
+const MyPromptEditModal = lazy(() => import("./MyPromptEditModal"));
 
 type Props = {
   promptId: string;
   slug: string;
   titleZh?: string;
   titleEn?: string;
+  /**
+   * The prompt's contributor id (null for seed content). When the signed-in
+   * viewer matches this and isOwner is false, MoreMenu shows the contributor
+   * branch: 编辑 → MyPromptEditModal (queues a submission), 删除 → confirm
+   * + DELETE /api/me/prompts/:id (immediate). The owner branch (isOwner=true)
+   * still takes precedence — owners see the existing OwnerPromptFormModal.
+   */
+  contributorId?: string | null;
 };
 
 /**
- * Detail-page "more" affordance. Always shows Report. When the viewer is an
- * owner (session.user.isOwner === true), appends Edit + Delete:
- *   - Edit opens OwnerPromptFormModal in edit mode (lazy-loaded; the modal
- *     fetches the detail on mount via useOwnerPromptDetail).
- *   - Delete confirms, then DELETEs and navigates to the prompts list.
+ * Detail-page "more" affordance. Three branches, in priority order:
  *
- * Non-owners see the original report-only menu — that's the existing shape
- * tested in MoreMenu.test.tsx, which we keep green by mocking useSession to
- * return null (anon) for those baseline tests.
+ *   1. isOwner: 编辑 (OwnerPromptFormModal) + 删除 (immediate, owner DELETE).
+ *      Highest precedence — owners always get the direct affordance.
+ *   2. contributor (session.user.id === contributorId, NOT owner):
+ *      编辑 (MyPromptEditModal, queues a submission) + 删除 (confirm +
+ *      /api/me/prompts/:id DELETE). The owner's UI affordance is shadowed.
+ *   3. otherwise: Report only (the M5 placeholder).
+ *
+ * Non-owners + non-contributors see the original report-only menu — that's
+ * the existing shape tested in MoreMenu.test.tsx, kept green by mocking
+ * useSession to return null for those baseline tests.
  */
 export default function MoreMenu({
   promptId,
-  slug: _slug,
+  slug,
   titleZh,
   titleEn,
+  contributorId,
 }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -45,11 +61,21 @@ export default function MoreMenu({
   const locale: Locale = isLocale(param) ? param : "zh";
   const session = useSession();
   const isOwner = session.data?.user.isOwner ?? false;
+  const sessionUserId = session.data?.user.id ?? null;
+  const isContributor =
+    !isOwner &&
+    Boolean(contributorId) &&
+    Boolean(sessionUserId) &&
+    sessionUserId === contributorId;
 
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
+  // Two separate edit modal flags so the owner branch and the contributor
+  // branch can both compile in this file without colliding.
+  const [editingOwner, setEditingOwner] = useState(false);
+  const [editingMine, setEditingMine] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const deleteMut = useDeleteOwnerPrompt();
+  const ownerDeleteMut = useDeleteOwnerPrompt();
+  const myDeleteMut = useDeleteMyPrompt();
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -70,22 +96,43 @@ export default function MoreMenu({
     setOpen(false);
   }
 
-  function handleEdit() {
-    setEditing(true);
+  function handleEditOwner() {
+    setEditingOwner(true);
     setOpen(false);
   }
 
-  function handleDelete() {
+  function handleEditMine() {
+    setEditingMine(true);
     setOpen(false);
-    const title = titleZh ?? titleEn ?? _slug;
+  }
+
+  function handleDeleteOwner() {
+    setOpen(false);
+    const title = titleZh ?? titleEn ?? slug;
     if (!window.confirm(t("detail.delete_confirm", { title }))) return;
-    deleteMut.mutate(promptId, {
+    ownerDeleteMut.mutate(promptId, {
       onSuccess: () => {
         toast.success(t("detail.deleted"));
         navigate(withLocale(locale, "/prompts"));
       },
       onError: (err) => toast.error(err.message ?? t("common.error")),
     });
+  }
+
+  function handleDeleteMine() {
+    setOpen(false);
+    const title = titleZh ?? titleEn ?? slug;
+    if (!window.confirm(t("detail.delete_my_prompt_confirm", { title }))) return;
+    myDeleteMut.mutate(
+      { id: promptId, slug },
+      {
+        onSuccess: () => {
+          toast.success(t("detail.deleted_self"));
+          navigate(withLocale(locale, "/prompts"));
+        },
+        onError: (err) => toast.error(err.message ?? t("common.error")),
+      },
+    );
   }
 
   return (
@@ -118,7 +165,7 @@ export default function MoreMenu({
               <button
                 type="button"
                 role="menuitem"
-                onClick={handleEdit}
+                onClick={handleEditOwner}
                 className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] text-ink-muted hover:bg-panel-2 hover:text-ink"
               >
                 <Pencil size={12} aria-hidden />
@@ -127,7 +174,29 @@ export default function MoreMenu({
               <button
                 type="button"
                 role="menuitem"
-                onClick={handleDelete}
+                onClick={handleDeleteOwner}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] text-ink-muted hover:bg-danger/10 hover:text-danger"
+              >
+                <Trash2 size={12} aria-hidden />
+                {t("detail.delete")}
+              </button>
+            </>
+          )}
+          {isContributor && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleEditMine}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] text-ink-muted hover:bg-panel-2 hover:text-ink"
+              >
+                <Pencil size={12} aria-hidden />
+                {t("detail.edit")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleDeleteMine}
                 className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] text-ink-muted hover:bg-danger/10 hover:text-danger"
               >
                 <Trash2 size={12} aria-hidden />
@@ -137,11 +206,20 @@ export default function MoreMenu({
           )}
         </div>
       )}
-      {editing && isOwner && (
+      {editingOwner && isOwner && (
         <Suspense fallback={null}>
           <OwnerPromptFormModal
             editingId={promptId}
-            onClose={() => setEditing(false)}
+            onClose={() => setEditingOwner(false)}
+          />
+        </Suspense>
+      )}
+      {editingMine && isContributor && (
+        <Suspense fallback={null}>
+          <MyPromptEditModal
+            promptId={promptId}
+            slug={slug}
+            onClose={() => setEditingMine(false)}
           />
         </Suspense>
       )}

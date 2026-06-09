@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 import { X } from "lucide-react";
@@ -11,8 +11,6 @@ import {
   type OwnerPromptUpdatePatch,
 } from "../../lib/hooks/useOwnerPrompts";
 import { useCategories } from "../../lib/hooks/useCategories";
-import { useR2PoolMap } from "../../lib/hooks/useR2Pool";
-import { resolveImageUrl } from "../../lib/imageUrl";
 import { toast } from "../../lib/toast";
 import TagPicker from "../submit/TagPicker";
 import ImageUploadGrid from "../submit/ImageUploadGrid";
@@ -72,7 +70,6 @@ export default function OwnerPromptFormModal({
   const detail = detailQ.data;
   const categoriesQ = useCategories();
   const categories = categoriesQ.data ?? [];
-  const { map: r2Map } = useR2PoolMap();
 
   const createMut = useCreateOwnerPrompt();
   const updateMut = useUpdateOwnerPrompt();
@@ -107,6 +104,16 @@ export default function OwnerPromptFormModal({
     setAspectRatio(detail.aspectRatio ?? "");
     setCategoryId(detail.category.id);
     setTagSlugs(detail.tagSlugs);
+    // Pre-populate the image grid with the existing prompt's images. The
+    // server diff-replace handles the "everything unchanged" case (no-op);
+    // when the user edits, new submissions/* keys are migrated server-side
+    // and removed prompts/<id>/* keys are best-effort deleted.
+    setImages(
+      detail.images.map((i) => ({
+        r2AccountId: i.r2AccountId,
+        r2Key: i.r2Key,
+      })),
+    );
   }, [isEdit, detail]);
 
   useEffect(() => {
@@ -116,8 +123,6 @@ export default function OwnerPromptFormModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [pending, onClose]);
-
-  const existingImages = useMemo(() => detail?.images ?? [], [detail]);
 
   function validate(): string[] {
     const errs: string[] = [];
@@ -130,7 +135,7 @@ export default function OwnerPromptFormModal({
     if (!categoryId) {
       errs.push(t("owner.prompts.modal_category_required"));
     }
-    if (!isEdit && images.length === 0) {
+    if (images.length === 0) {
       errs.push(t("owner.prompts.modal_images_required"));
     }
     return errs;
@@ -149,6 +154,12 @@ export default function OwnerPromptFormModal({
       // we send all fields (it's a single editing session) — `mergeBi` on the
       // server preserves untouched sides, and the empty string clears optional
       // ones. We never send undefined keys here (exactOptionalPropertyTypes).
+      //
+      // Images: always send the current grid state. The server diff-replace
+      // partitions entries by r2Key prefix — `prompts/<id>/*` stays put
+      // (potentially reordered), `submissions/*` is migrated via copyObject,
+      // and existing-but-missing rows are best-effort deleted. Sending the
+      // same array twice is a safe no-op.
       const patch: OwnerPromptUpdatePatch = {
         titleZh,
         titleEn,
@@ -161,6 +172,7 @@ export default function OwnerPromptFormModal({
         aspectRatio: aspectRatio || "",
         categoryId,
         tagSlugs,
+        images,
       };
       updateMut.mutate(
         { id: editingId, patch },
@@ -399,37 +411,9 @@ export default function OwnerPromptFormModal({
               <span className="block text-xs uppercase tracking-wider text-ink-muted">
                 {t("owner.prompts.modal_images")}
               </span>
-              {isEdit ? (
-                <>
-                  <p className="mt-1 text-xs text-ink-muted">
-                    {t("owner.prompts.image_edit_unavailable")}
-                  </p>
-                  <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-                    {existingImages.map((img) => {
-                      const url = resolveImageUrl(
-                        { r2AccountId: img.r2AccountId, r2Key: img.r2Key },
-                        r2Map,
-                      );
-                      return (
-                        <div
-                          key={img.id}
-                          className="aspect-square overflow-hidden rounded-card border border-border-soft"
-                        >
-                          <img
-                            src={url}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div className="mt-2">
-                  <ImageUploadGrid value={images} onChange={setImages} />
-                </div>
-              )}
+              <div className="mt-2">
+                <ImageUploadGrid value={images} onChange={setImages} />
+              </div>
             </div>
           </>
         )}

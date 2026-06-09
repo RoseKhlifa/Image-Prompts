@@ -29,6 +29,12 @@ type CreateInput = {
   tagSlugs: string[];
   images: ImageInput[];
   agreedGuidelinesVersion: number;
+  /**
+   * When set, this submission is a self-edit of the named prompt. Approving
+   * the submission UPDATEs that prompt in place (see approveSubmission)
+   * rather than inserting a new one. Omitted for vanilla submissions.
+   */
+  originalPromptId?: string;
 };
 
 export async function createSubmission(input: CreateInput): Promise<string> {
@@ -55,6 +61,9 @@ export async function createSubmission(input: CreateInput): Promise<string> {
       })),
       agreedGuidelinesVersion: input.agreedGuidelinesVersion,
       status: "pending",
+      ...(input.originalPromptId !== undefined
+        ? { originalPromptId: input.originalPromptId }
+        : {}),
     })
     .returning({ id: submissions.id });
   return row!.id;
@@ -77,6 +86,16 @@ function flat(row: typeof submissions.$inferSelect) {
   };
 }
 
+/**
+ * Alias the prompts table a second time so we can JOIN it twice: once for
+ * `promoted_to` (already-approved → published prompt) and once for
+ * `original_prompt_id` (self-edit pointer). drizzle uses the table name
+ * verbatim in SQL, so we need a distinct alias to avoid the second JOIN
+ * shadowing the first.
+ */
+import { alias } from "drizzle-orm/pg-core";
+const originalPromptsAlias = alias(promptsTable, "original_prompts_alias");
+
 export async function getSubmissionById(id: string) {
   const rows = await db
     .select({
@@ -88,10 +107,15 @@ export async function getSubmissionById(id: string) {
         rejectedCount: users.rejectedCount,
       },
       promotedSlug: promptsTable.slug,
+      originalSlug: originalPromptsAlias.slug,
     })
     .from(submissions)
     .leftJoin(users, eq(submissions.contributorId, users.id))
     .leftJoin(promptsTable, eq(submissions.promotedTo, promptsTable.id))
+    .leftJoin(
+      originalPromptsAlias,
+      eq(submissions.originalPromptId, originalPromptsAlias.id),
+    )
     .where(eq(submissions.id, id))
     .limit(1);
   const r = rows[0];
@@ -114,6 +138,8 @@ export async function getSubmissionById(id: string) {
     promotedTo: s.promotedTo
       ? { promptId: s.promotedTo, slug: r.promotedSlug ?? "" }
       : null,
+    originalPromptId: s.originalPromptId,
+    originalPromptSlug: s.originalPromptId ? r.originalSlug ?? null : null,
     createdAt: s.createdAt.toISOString(),
     reviewedAt: s.reviewedAt ? s.reviewedAt.toISOString() : null,
     contributor: r.contributor,
@@ -130,6 +156,7 @@ function listItem(
   s: typeof submissions.$inferSelect,
   promotedSlug: string | null = null,
   promotedImage: { r2AccountId: string; r2Key: string } | null = null,
+  originalSlug: string | null = null,
 ) {
   const f = flat(s);
   return {
@@ -146,6 +173,8 @@ function listItem(
     promotedTo: s.promotedTo && promotedSlug
       ? { promptId: s.promotedTo, slug: promotedSlug }
       : null,
+    originalPromptId: s.originalPromptId,
+    originalPromptSlug: s.originalPromptId ? originalSlug : null,
     createdAt: s.createdAt.toISOString(),
     reviewedAt: s.reviewedAt ? s.reviewedAt.toISOString() : null,
   };
@@ -163,6 +192,7 @@ export async function listForUser(userId: string, opts: ListOpts) {
         r2AccountId: promptImages.r2AccountId,
         r2Key: promptImages.r2Key,
       },
+      originalSlug: originalPromptsAlias.slug,
     })
     .from(submissions)
     .leftJoin(promptsTable, eq(submissions.promotedTo, promptsTable.id))
@@ -172,6 +202,10 @@ export async function listForUser(userId: string, opts: ListOpts) {
         eq(promptImages.promptId, submissions.promotedTo),
         eq(promptImages.order, 0),
       ),
+    )
+    .leftJoin(
+      originalPromptsAlias,
+      eq(submissions.originalPromptId, originalPromptsAlias.id),
     )
     .where(and(...conds))
     .orderBy(desc(submissions.createdAt))
@@ -185,6 +219,7 @@ export async function listForUser(userId: string, opts: ListOpts) {
         r.promotedImage && r.promotedImage.r2AccountId && r.promotedImage.r2Key
           ? { r2AccountId: r.promotedImage.r2AccountId, r2Key: r.promotedImage.r2Key }
           : null,
+        r.originalSlug,
       ),
     ),
     nextCursor:
@@ -213,6 +248,7 @@ export async function listForAdmin(opts: ListOpts) {
         email: users.email,
         rejectedCount: users.rejectedCount,
       },
+      originalSlug: originalPromptsAlias.slug,
     })
     .from(submissions)
     .leftJoin(promptsTable, eq(submissions.promotedTo, promptsTable.id))
@@ -222,6 +258,10 @@ export async function listForAdmin(opts: ListOpts) {
         eq(promptImages.promptId, submissions.promotedTo),
         eq(promptImages.order, 0),
       ),
+    )
+    .leftJoin(
+      originalPromptsAlias,
+      eq(submissions.originalPromptId, originalPromptsAlias.id),
     )
     .innerJoin(users, eq(submissions.contributorId, users.id))
     .where(where)
@@ -236,6 +276,7 @@ export async function listForAdmin(opts: ListOpts) {
         r.promotedImage && r.promotedImage.r2AccountId && r.promotedImage.r2Key
           ? { r2AccountId: r.promotedImage.r2AccountId, r2Key: r.promotedImage.r2Key }
           : null,
+        r.originalSlug,
       ),
       contributor: r.contributor,
     })),
@@ -301,10 +342,40 @@ async function generateUniqueSlug(
   throw new Error("could not generate unique slug");
 }
 
-export async function approveSubmission(input: ApproveInput): Promise<{
-  promptId: string;
-  slug: string;
-}> {
+/**
+ * Result of approveSubmission. `mode` distinguishes the two paths:
+ *
+ *   - "insert": fresh approval, no originalPromptId. The route migrates each
+ *     `imageKeys` entry (submissions/<user>/<uuid>.<ext>) into
+ *     `prompts/<promptId>/<idx>.<ext>` and INSERTs a prompt_images row.
+ *
+ *   - "update": self-edit approval. The submission's originalPromptId pointed
+ *     at an existing prompt; the repo UPDATEd that prompt's fields and did
+ *     diff-replace on tags + image rows. The route still needs to do R2 work:
+ *     migrate every `migrateKeys` entry (the submission's images) into
+ *     prompts/<id>/<targetOrder>.<ext> + INSERT prompt_images, and best-effort
+ *     deleteObject every removedKey.
+ */
+export type ApproveResult =
+  | {
+      mode: "insert";
+      promptId: string;
+      slug: string;
+    }
+  | {
+      mode: "update";
+      promptId: string;
+      slug: string;
+      migrateKeys: Array<{
+        r2AccountId: string;
+        r2Key: string;
+        altText: string | null;
+        targetOrder: number;
+      }>;
+      removedKeys: Array<{ r2AccountId: string; r2Key: string }>;
+    };
+
+export async function approveSubmission(input: ApproveInput): Promise<ApproveResult> {
   const sub = await getSubmissionById(input.submissionId);
   if (!sub) throw new NotFoundError();
   if (sub.status !== "pending") throw new AlreadyResolvedError();
@@ -322,6 +393,12 @@ export async function approveSubmission(input: ApproveInput): Promise<{
     categoryId: input.edits.categoryId ?? sub.categoryId,
     tagSlugs: input.edits.tagSlugs ?? sub.tagSlugs,
   };
+
+  // Branch on the edit-approval path. When `originalPromptId` is set, we
+  // UPDATE that existing prompt in place rather than INSERTing a fresh row.
+  if (sub.originalPromptId) {
+    return await approveEditSubmission(input, sub, final);
+  }
 
   const result = await db.transaction(async (tx) => {
     const slug = await generateUniqueSlug(
@@ -414,7 +491,205 @@ export async function approveSubmission(input: ApproveInput): Promise<{
     return { promptId, slug };
   });
 
-  return result;
+  return { mode: "insert", promptId: result.promptId, slug: result.slug };
+}
+
+type FinalFields = {
+  titleZh: string | null;
+  titleEn: string | null;
+  promptZh: string | null;
+  promptEn: string | null;
+  negativePromptZh: string | null;
+  negativePromptEn: string | null;
+  notesZh: string | null;
+  notesEn: string | null;
+  aspectRatio: string | null;
+  categoryId: string;
+  tagSlugs: string[];
+};
+
+/**
+ * Edit-approval path. The submission's originalPromptId points at an existing
+ * prompt; we UPDATE that prompt's fields, diff-replace its tag set, and
+ * diff-replace its image rows. The route receives `migrateKeys` (submissions/*
+ * → prompts/<id>/<order>.<ext>) and `removedKeys` (existing rows to nuke).
+ *
+ * Image diff semantics differ from the owner-prompts repo: the submission's
+ * imageKeys are the AUTHORITATIVE new image set. Every submission image is a
+ * fresh upload in submissions/ (the user picked them through the upload
+ * pipeline), so every submission image is a "migrate", and every existing
+ * row whose r2Key isn't in the submission's set is a "remove". Crucially,
+ * this gives the user a full replace; partial keep-and-add isn't supported
+ * for self-edits in this iteration (the user can only replace, not keep).
+ */
+async function approveEditSubmission(
+  input: ApproveInput,
+  sub: NonNullable<Awaited<ReturnType<typeof getSubmissionById>>>,
+  final: FinalFields,
+): Promise<ApproveResult> {
+  if (!sub.originalPromptId) {
+    throw new Error("approveEditSubmission requires originalPromptId");
+  }
+  const promptId = sub.originalPromptId;
+
+  const result = await db.transaction(async (tx) => {
+    // 1. Read the existing prompt to make sure it still exists (a self-edit
+    //    submission could outlive its target if the user later deletes the
+    //    original via the self-delete endpoint).
+    const [existing] = await tx
+      .select({ id: promptsTable.id, slug: promptsTable.slug })
+      .from(promptsTable)
+      .where(eq(promptsTable.id, promptId))
+      .limit(1);
+    if (!existing) {
+      // Original prompt is gone — treat the submission like a normal new-
+      // insert approval. We don't take that path here; instead surface a
+      // clear error so an operator can decide.
+      throw new Error("original_prompt_gone");
+    }
+
+    const title = bi(final.titleZh, final.titleEn);
+    const prompt = bi(final.promptZh, final.promptEn);
+    if (!title || !prompt) throw new Error("approve_edit: title/prompt cannot be empty");
+
+    // 2. UPDATE the original prompt's fields.
+    await tx
+      .update(promptsTable)
+      .set({
+        title,
+        prompt,
+        negativePrompt: bi(final.negativePromptZh, final.negativePromptEn),
+        notes: bi(final.notesZh, final.notesEn),
+        aspectRatio: final.aspectRatio,
+        categoryId: final.categoryId,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(promptsTable.id, promptId));
+
+    // 3. RACE GATE: conditional UPDATE on submissions WHERE status='pending'.
+    const updateResult = await tx
+      .update(submissions)
+      .set({
+        status: "approved",
+        promotedTo: promptId,
+        reviewedBy: input.actorId,
+        reviewedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(submissions.id, input.submissionId),
+          eq(submissions.status, "pending"),
+        ),
+      );
+    if ((updateResult.rowCount ?? 0) === 0) {
+      throw new AlreadyResolvedError();
+    }
+
+    // 4. Diff-replace tags on the existing prompt.
+    const existingTags = await tx
+      .select({ slug: tagsTable.slug })
+      .from(promptTags)
+      .innerJoin(tagsTable, eq(tagsTable.id, promptTags.tagId))
+      .where(eq(promptTags.promptId, promptId));
+    const before = new Set(existingTags.map((r) => r.slug));
+    const after = new Set(final.tagSlugs);
+    const added = [...after].filter((s) => !before.has(s));
+    const removedTags = [...before].filter((s) => !after.has(s));
+
+    await tx.delete(promptTags).where(eq(promptTags.promptId, promptId));
+    if (final.tagSlugs.length > 0) {
+      const tagRows = await tx
+        .select({ id: tagsTable.id, slug: tagsTable.slug })
+        .from(tagsTable)
+        .where(inArray(tagsTable.slug, final.tagSlugs));
+      if (tagRows.length > 0) {
+        await tx
+          .insert(promptTags)
+          .values(tagRows.map((t) => ({ promptId, tagId: t.id })));
+      }
+    }
+    if (added.length > 0) {
+      await tx
+        .update(tagsTable)
+        .set({ usageCount: sql`${tagsTable.usageCount} + 1` })
+        .where(inArray(tagsTable.slug, added));
+    }
+    if (removedTags.length > 0) {
+      await tx
+        .update(tagsTable)
+        .set({ usageCount: sql`GREATEST(${tagsTable.usageCount} - 1, 0)` })
+        .where(inArray(tagsTable.slug, removedTags));
+    }
+
+    // 5. Diff-replace images. The submission's imageKeys are the
+    //    authoritative new set. We capture removed rows + delete them in-tx;
+    //    the route migrates the new submission keys post-tx via copyObject.
+    const existingImages = await tx
+      .select({
+        id: promptImages.id,
+        r2AccountId: promptImages.r2AccountId,
+        r2Key: promptImages.r2Key,
+      })
+      .from(promptImages)
+      .where(eq(promptImages.promptId, promptId));
+
+    const removedImages = existingImages.map((r) => ({
+      r2AccountId: r.r2AccountId,
+      r2Key: r.r2Key,
+    }));
+
+    if (existingImages.length > 0) {
+      await tx
+        .delete(promptImages)
+        .where(inArray(promptImages.id, existingImages.map((r) => r.id)));
+    }
+
+    // 6. Notification: same shape as the insert path so the user gets a
+    //    "your submission was approved" surface.
+    await tx.insert(notifications).values({
+      userId: sub.contributor.id,
+      type: "submission_approved",
+      payload: {
+        submissionId: input.submissionId,
+        promptId,
+        promptSlug: existing.slug,
+        titleZh: final.titleZh,
+        titleEn: final.titleEn,
+      },
+    });
+
+    const hadEdits = Object.keys(input.edits).length > 0;
+    await tx.insert(auditLog).values({
+      actorId: input.actorId,
+      action: "submission.approve_edit",
+      targetType: "submission",
+      targetId: input.submissionId,
+      payload: { promptId, hadEdits, edits: hadEdits ? input.edits : undefined },
+    });
+
+    // 7. Migrate buckets — the route handles R2 work + INSERT post-tx.
+    const migrateKeys = sub.images.map((img, idx) => ({
+      r2AccountId: img.r2AccountId,
+      r2Key: img.r2Key,
+      altText: img.altText ?? null,
+      targetOrder: idx,
+    }));
+
+    return {
+      promptId,
+      slug: existing.slug,
+      migrateKeys,
+      removedKeys: removedImages,
+    };
+  });
+
+  return {
+    mode: "update" as const,
+    promptId: result.promptId,
+    slug: result.slug,
+    migrateKeys: result.migrateKeys,
+    removedKeys: result.removedKeys,
+  };
 }
 
 type RejectInput = {
