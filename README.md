@@ -251,7 +251,7 @@ pnpm check          # typecheck + lint + test
 ## 致谢
 
 每行代码都站在他人肩膀上。核心依赖与基础设施(排名不分先后):
-
+- **灵感来源**:[LINUX DO - 新的理想型社区](https://linux.do/)
 - **运行时**:[React](https://react.dev/) · [Vite](https://vite.dev/) · [Hono](https://hono.dev/) · [TypeScript](https://www.typescriptlang.org/) · [Vitest](https://vitest.dev/)
 - **数据**:[Drizzle ORM](https://orm.drizzle.team/) · [PostgreSQL](https://www.postgresql.org/) · [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) · [Better Auth](https://www.better-auth.com/)
 - **界面**:[Tailwind CSS](https://tailwindcss.com/) · [lucide-react](https://lucide.dev/) · [TanStack Query](https://tanstack.com/query) · [i18next](https://www.i18next.com/) · Inter + Noto Sans SC
