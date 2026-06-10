@@ -11,7 +11,29 @@ import { withLocale } from "../../lib/locale";
 const REPO_IMAGE_PROMPTS = "https://github.com/RoseKhlifa/Image-Prompts";
 const REPO_IMAGE_STUDIO = "https://github.com/RoseKhlifa/Image-Studio";
 
+/**
+ * Desktop left rail. Hidden on mobile; the same content is reused inside
+ * MobileMenu via <SidebarContent /> so we don't fork the categories/tags
+ * markup between layouts.
+ */
 export default function Sidebar() {
+  return (
+    <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 self-start border-r border-border-soft md:flex md:flex-col">
+      <SidebarContent />
+    </aside>
+  );
+}
+
+/**
+ * Shared categories + tags + repo-footer body. Used by:
+ *   - <Sidebar> on desktop (wrapped in a sticky aside)
+ *   - <MobileMenu> on mobile (rendered inside the drawer)
+ *
+ * `onNavigate` is called whenever a category/tag link is clicked so the
+ * mobile drawer can auto-close on selection. Defaults to no-op for the
+ * desktop case.
+ */
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { t } = useTranslation();
   const { locale: param } = useParams<{ locale: string }>();
   const locale: Locale = isLocale(param) ? param : "zh";
@@ -48,7 +70,7 @@ export default function Sidebar() {
   const totalCount = categories.data?.reduce((n, c) => n + c.promptCount, 0);
 
   return (
-    <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-72 shrink-0 self-start border-r border-border-soft md:flex md:flex-col">
+    <>
       {/* Scrollable middle: categories + tags */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
         <SidebarSection label={t("detail.category")}>
@@ -58,6 +80,7 @@ export default function Sidebar() {
             isActive={!activeCategory && !activeTag}
             label={t("common.all")}
             count={totalCount}
+            onNavigate={onNavigate}
           />
           {categories.data?.map((c) => (
             <SidebarLink
@@ -67,6 +90,7 @@ export default function Sidebar() {
               isActive={activeCategory === c.slug}
               label={pickBilingual(c.name, locale) ?? c.slug}
               count={c.promptCount}
+              onNavigate={onNavigate}
             />
           ))}
         </SidebarSection>
@@ -90,6 +114,7 @@ export default function Sidebar() {
                 isActive={activeTag === tg.slug}
                 label={`# ${pickBilingual(tg.name, locale) ?? tg.slug}`}
                 count={tg.usageCount}
+                onNavigate={onNavigate}
               />
             );
           })}
@@ -120,7 +145,7 @@ export default function Sidebar() {
           <span className="truncate">Image-Studio</span>
         </a>
       </div>
-    </aside>
+    </>
   );
 }
 
@@ -141,16 +166,19 @@ function SidebarLink({
   isActive,
   label,
   count,
+  onNavigate,
 }: {
   locale: Locale;
   pathOverride: string;
   isActive: boolean;
   label: string;
   count?: number | undefined;
+  onNavigate?: (() => void) | undefined;
 }) {
   return (
     <Link
       to={withLocale(locale, pathOverride)}
+      onClick={onNavigate}
       className={[
         "flex items-center justify-between gap-2 rounded-md px-3 py-2 text-[15px]",
         isActive ? "bg-accent-soft text-accent" : "text-ink-muted hover:bg-surface hover:text-ink",

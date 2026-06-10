@@ -35,8 +35,7 @@ const BREAKPOINTS: MasonryBreakpoint[] = [
   { minWidth: 1280, columns: 5 },
   { minWidth: 1024, columns: 4 },
   { minWidth: 768, columns: 3 },
-  { minWidth: 640, columns: 2 },
-  { minWidth: 0, columns: 1 },
+  { minWidth: 0, columns: 2 },
 ];
 
 function asSort(v: string | null): SortOption {

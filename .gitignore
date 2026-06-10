@@ -46,3 +46,4 @@ drizzle/meta/_journal.json.bak
 apps/web/.tmp/
 # Project logo source (vector/PSD original), committed-version lives at apps/web/public/logo.png
 /Image-Prompts.png
+.tmp-mobile-audit/

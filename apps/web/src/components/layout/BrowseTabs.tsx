@@ -17,8 +17,12 @@ const TABS: { key: Tab; labelKey: string }[] = [
 
 type Props = {
   /** "header" = inline pills (sits in AppShell header next to the logo);
-   *  "strip"  = full-width strip with bottom border (sits below header). */
-  variant?: "header" | "strip";
+   *  "strip"  = full-width strip with bottom border (sits below header);
+   *  "drawer" = vertical stacked rows with big tap targets (mobile menu). */
+  variant?: "header" | "strip" | "drawer";
+  /** Called after a tab is selected. The drawer variant uses this to
+   *  auto-close the mobile menu. */
+  onNavigate?: () => void;
 };
 
 /**
@@ -33,7 +37,7 @@ type Props = {
  *
  * Active state is derived from current pathname + ?tab=.
  */
-export default function BrowseTabs({ variant = "strip" }: Props) {
+export default function BrowseTabs({ variant = "strip", onNavigate }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
@@ -57,6 +61,7 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
   function go(key: Tab) {
     if (key === "about") {
       navigate(withLocale(locale, "/about"));
+      onNavigate?.();
       return;
     }
     if (key === "gallery") {
@@ -66,10 +71,12 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
       next.delete("tab");
       const qs = next.toString();
       navigate(qs ? `${target}?${qs}` : target);
+      onNavigate?.();
       return;
     }
     // favorites / mine — these data modes only live on HomePage.
     navigate(`${withLocale(locale, "/")}?tab=${key}`);
+    onNavigate?.();
   }
 
   if (variant === "header") {
@@ -86,6 +93,29 @@ export default function BrowseTabs({ variant = "strip" }: Props) {
               active === tt.key
                 ? "bg-accent-soft text-accent"
                 : "text-ink-muted hover:text-ink"
+            }`}
+          >
+            {t(tt.labelKey)}
+          </button>
+        ))}
+      </nav>
+    );
+  }
+
+  if (variant === "drawer") {
+    return (
+      <nav role="tablist" className="flex flex-col gap-1 px-2">
+        {TABS.map((tt) => (
+          <button
+            key={tt.key}
+            type="button"
+            role="tab"
+            aria-selected={active === tt.key}
+            onClick={() => go(tt.key)}
+            className={`flex items-center rounded-md px-3 py-3 text-[15px] font-medium transition ${
+              active === tt.key
+                ? "bg-accent-soft text-accent"
+                : "text-ink-muted hover:bg-surface hover:text-ink"
             }`}
           >
             {t(tt.labelKey)}

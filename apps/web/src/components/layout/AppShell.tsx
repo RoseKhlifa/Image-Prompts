@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
-import { Plus } from "lucide-react";
+import { Menu, Plus } from "lucide-react";
 import { isLocale, type Locale } from "@ip/shared";
 import LangSwitcher from "../LangSwitcher";
 import ThemeSwitcher from "../ThemeSwitcher";
@@ -9,6 +9,7 @@ import SignInButton from "../auth/SignInButton";
 import ProfileMenu from "../auth/ProfileMenu";
 import BrandLogo from "../BrandLogo";
 import BrowseTabs from "./BrowseTabs";
+import MobileMenu from "./MobileMenu";
 import AnnouncementsBanner from "./AnnouncementsBanner";
 import AnnouncementsPopup from "./AnnouncementsPopup";
 import NotificationsBell from "../notifications/NotificationsBell";
@@ -36,10 +37,25 @@ export default function AppShell({
   const stats = useStats();
   const publishedCount = stats.data?.publishedCount ?? 0;
   const openSubmitModal = useUiStore((s) => s.openSubmitModal);
+  const openSidebar = useUiStore((s) => s.openSidebar);
+  const closeSidebar = useUiStore((s) => s.closeSidebar);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState(searchParams.get("q") ?? "");
+
+  // Drawer is mobile-only; if the viewport crosses to `md` while it's open,
+  // close it so the user doesn't see a stuck-open state if they shrink it
+  // back to mobile later.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => {
+      if (mq.matches) closeSidebar();
+    };
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [closeSidebar]);
 
   // Pull external URL changes into the input (back/forward, link clicks).
   useEffect(() => {
@@ -81,17 +97,30 @@ export default function AppShell({
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas text-ink">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border-soft bg-panel-2/85 px-6 backdrop-blur">
-        <div className="flex items-center gap-6">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-border-soft bg-panel-2/85 px-3 backdrop-blur md:gap-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-2 md:gap-6">
+          {/* Mobile hamburger — exposes the drawer that hosts search,
+              BrowseTabs, Submit, and the categories/tags sidebar. */}
+          <button
+            type="button"
+            onClick={openSidebar}
+            aria-label={t("common.open_menu")}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-ink-muted hover:bg-surface hover:text-ink md:hidden"
+          >
+            <Menu size={20} aria-hidden />
+          </button>
           <Link
             to={withLocale(locale, "/")}
-            className="inline-flex items-center gap-2.5"
+            className="inline-flex min-w-0 items-center gap-2.5"
             aria-label="Image-Prompts"
           >
             <BrandLogo size={32} />
-            <div className="flex flex-col leading-tight">
-              <span className="text-lg font-semibold tracking-tight">Image-Prompts</span>
-              <span className="text-[11px] text-ink-muted">
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="truncate text-base font-semibold tracking-tight md:text-lg">
+                Image-Prompts
+              </span>
+              {/* Subtitle eats two precious lines on mobile — desktop only. */}
+              <span className="hidden text-[11px] text-ink-muted md:inline">
                 {t("home.published_subtitle", { formattedCount: publishedCount.toLocaleString() })}
               </span>
             </div>
@@ -135,6 +164,7 @@ export default function AppShell({
         <main className="min-w-0 flex-1">{children}</main>
       </div>
       <SubmitModal />
+      <MobileMenu />
     </div>
   );
 }

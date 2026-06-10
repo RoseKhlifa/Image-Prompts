@@ -4,12 +4,15 @@ import { applyTheme, persistTheme, readPersistedTheme, systemPrefersDark } from 
 
 type UiState = {
   theme: ThemeMode;
-  /** Toolbar / sidebar state for mobile drawers — used in later tasks. */
+  /** Mobile drawer (MobileMenu) — collapses Sidebar + BrowseTabs + search +
+   *  submit CTA into a slide-in drawer below the `md` breakpoint. */
   sidebarOpen: boolean;
   /** Global Submit modal — opened from header CTA and /:locale/submit deep-link. */
   submitModalOpen: boolean;
   setTheme: (mode: ThemeMode) => void;
   toggleSidebar: () => void;
+  openSidebar: () => void;
+  closeSidebar: () => void;
   openSubmitModal: () => void;
   closeSubmitModal: () => void;
   /** Watch matchMedia and re-apply on system changes when mode is "system". */
@@ -28,6 +31,8 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  openSidebar: () => set({ sidebarOpen: true }),
+  closeSidebar: () => set({ sidebarOpen: false }),
 
   openSubmitModal: () => set({ submitModalOpen: true }),
   closeSubmitModal: () => set({ submitModalOpen: false }),

@@ -10,8 +10,7 @@ import { CardGridSkeleton } from "../Skeleton";
 const BREAKPOINTS: MasonryBreakpoint[] = [
   { minWidth: 1280, columns: 4 },
   { minWidth: 1024, columns: 3 },
-  { minWidth: 640, columns: 2 },
-  { minWidth: 0, columns: 1 },
+  { minWidth: 0, columns: 2 },
 ];
 
 export default function FavoritesTab() {
