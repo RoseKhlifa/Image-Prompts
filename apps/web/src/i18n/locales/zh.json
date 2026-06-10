@@ -83,7 +83,6 @@
   "detail": {
     "send_to_studio": "一键导入 Image-Studio 生图",
     "signin_required": "请先登录后使用",
-    "signin_to_use": "点击登录后即可使用",
     "copy_prompt": "复制",
     "favorite": "收藏",
     "more": "更多",

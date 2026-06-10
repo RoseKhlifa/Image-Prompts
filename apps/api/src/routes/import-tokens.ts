@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { bodyLimit } from "hono/body-limit";
-import { verifyAuth } from "@hono/auth-js";
 import { ImportTokenRequestSchema } from "@ip/shared";
+import { softAuth } from "../middleware/auth.ts";
 import { zv } from "../lib/validate.ts";
 import { banCheck } from "../middleware/ban-check.ts";
 import { createRateLimiter } from "../lib/rate-limit.ts";
@@ -15,13 +15,17 @@ import {
 const app = new Hono();
 
 const userLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
+// Tighter limit for guests since the IP is the only abuse-control key
+// available — signed-in visitors have their per-user budget AND the IP
+// budget on top.
 const ipLimiter = createRateLimiter({ limit: 200, windowMs: 60_000 });
+const guestIpLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
 
 const POST_MAX_BYTES = 4096;
 
 app.post(
   "/",
-  verifyAuth(),
+  softAuth(),
   banCheck(),
   bodyLimit({
     maxSize: POST_MAX_BYTES,
@@ -29,21 +33,28 @@ app.post(
   }),
   zv("json", ImportTokenRequestSchema),
   async (c) => {
-    const authUser = c.get("authUser");
-    if (!authUser?.session?.user?.id) {
-      throw new HTTPException(401, { message: "unauthorized" });
-    }
-    const userId = authUser.session.user.id as string;
+    const authUser = c.get("authUser") as
+      | { session?: { user?: { id?: string } } }
+      | undefined;
+    const userId = authUser?.session?.user?.id ?? null;
     const ip =
       c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
       c.req.header("x-real-ip") ??
       "unknown";
 
-    if (!userLimiter.check(userId)) {
-      throw new HTTPException(429, { message: "rate_limit" });
-    }
-    if (!ipLimiter.check(ip)) {
-      throw new HTTPException(429, { message: "rate_limit" });
+    if (userId) {
+      // Signed-in: per-user limit (also IP-checked below as a backstop).
+      if (!userLimiter.check(userId)) {
+        throw new HTTPException(429, { message: "rate_limit" });
+      }
+      if (!ipLimiter.check(ip)) {
+        throw new HTTPException(429, { message: "rate_limit" });
+      }
+    } else {
+      // Anonymous: only the tighter guest IP budget applies.
+      if (!guestIpLimiter.check(ip)) {
+        throw new HTTPException(429, { message: "rate_limit" });
+      }
     }
 
     const body = c.req.valid("json");

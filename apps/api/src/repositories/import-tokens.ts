@@ -8,7 +8,8 @@ import { prompts } from "../db/schema/prompts.ts";
 export const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type CreateImportTokenInput = {
-  userId: string;
+  /** Null when the visitor isn't signed in — guests are allowed since v0014. */
+  userId: string | null;
   payload: ImportTokenPayload;
   promptId?: string;
   ip?: string;

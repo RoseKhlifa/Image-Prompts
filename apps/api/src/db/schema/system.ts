@@ -20,9 +20,10 @@ export const importTokens = pgTable(
     token: text().primaryKey(),
     payload: jsonb().notNull(),
     promptId: uuid("prompt_id").references(() => prompts.id),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    // Nullable since v0014 — anonymous (guest) visitors can also generate
+    // import tokens to hand off to Image-Studio. Account deletion turns
+    // tokens anonymous rather than dropping them (set null vs cascade).
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     used: boolean().notNull().default(false),
     usedAt: timestamp("used_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

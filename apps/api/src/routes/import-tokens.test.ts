@@ -20,13 +20,21 @@ afterAll(async () => {
 });
 
 describe("POST /api/import-tokens", () => {
-  it("returns 401 when no session cookie", async () => {
+  it("returns 201 with no session cookie (guest tokens allowed since v0014)", async () => {
     const res = await app.request("/api/import-tokens", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: { en: "hello" } }),
     });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.token).toMatch(/^[0-9A-Za-z]{8}$/);
+    expect(body.expires_at).toBeDefined();
+
+    const [row] = await db.select().from(importTokens).where(eq(importTokens.token, body.token));
+    expect(row).toBeDefined();
+    // Guest token → user_id NULL
+    expect(row!.userId).toBeNull();
   });
 
   it("returns 201 + token + expires_at with valid session", async () => {
