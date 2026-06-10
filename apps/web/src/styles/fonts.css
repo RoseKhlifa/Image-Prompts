@@ -1,41 +1,20 @@
 /*
- * Self-hosted Inter (variable) + Noto Sans SC subset.
- * Files live in /public/fonts/.
+ * Self-hosted Inter (variable). Chinese glyphs fall back to the system
+ * Noto Sans / PingFang / Microsoft YaHei chain declared in tokens.css —
+ * we initially planned to self-host a Noto Sans SC subset but the
+ * placeholder woff2 files were empty (0 bytes), which actively breaks
+ * font rendering (browsers report "Failed to decode downloaded font").
+ * Better to ship Inter only and let the system serve CJK than to ship
+ * broken @font-face declarations.
  *
- * Inter Variable: https://github.com/rsms/inter/releases (woff2, ~30 KB).
- * Noto Sans SC subset: use a tool like fontmin or harfbuzz subset for ~3500 common chars.
- *
- * If files are missing on first dev run, browsers fall back to system fonts
- * (the next family in the stack) — no crash, just a slight visual mismatch.
+ * To self-host CJK later: subset a real Noto Sans SC with fontmin or
+ * harfbuzz (~3500 common chars → ~500 KB woff2), drop in
+ * /public/fonts/, and add the three @font-face blocks back.
  */
 @font-face {
   font-family: "Inter";
   src: url("/fonts/inter-variable.woff2") format("woff2-variations");
   font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Noto Sans SC";
-  src: url("/fonts/noto-sans-sc-400.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Noto Sans SC";
-  src: url("/fonts/noto-sans-sc-500.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Noto Sans SC";
-  src: url("/fonts/noto-sans-sc-700.woff2") format("woff2");
-  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }

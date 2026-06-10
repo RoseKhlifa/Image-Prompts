@@ -59,12 +59,14 @@ export const OptionalBilingualTextSchema = z.object({
 
 export const UuidSchema = z.string().uuid();
 // Accepts lowercase ASCII + digits + CJK characters (U+4E00–U+9FFF) joined
-// by single dashes. Imported tags carry Chinese-character slugs (e.g.
-// "海报", "ui界面") to preserve readability without forcing transliteration;
-// owner-created tags still use the stricter ASCII-only regex declared in
-// apps/api/src/routes/owner.ts so manually-entered slugs stay clean.
+// by `-` OR `_`. Imported tags carry Chinese-character slugs (e.g. "海报",
+// "ui界面") to preserve readability without forcing transliteration; the
+// bulk-import categories use snake_case `graphic_design` / `character_design`
+// from upstream JSONL — both join styles legal here. Owner-created tags
+// still use the stricter ASCII-only regex declared in apps/api/src/routes/
+// owner.ts so manually-entered slugs stay clean.
 export const SlugSchema = z
   .string()
   .min(1)
   .max(80)
-  .regex(/^[a-z0-9一-鿿]+(?:-[a-z0-9一-鿿]+)*$/);
+  .regex(/^[a-z0-9一-鿿]+(?:[_-][a-z0-9一-鿿]+)*$/);
