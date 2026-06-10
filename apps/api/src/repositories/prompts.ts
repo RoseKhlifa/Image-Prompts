@@ -14,21 +14,41 @@ type PromptListQuery = z.infer<typeof PromptListQuerySchema>;
 // owner curated as a baseline. SECONDARY: the user-selected sort criterion.
 const sourcePriorityAsc = sql`CASE WHEN ${prompts.source} = 'site' THEN 0 ELSE 1 END`;
 
+// Daily-seeded shuffle hash. Same value all day → pagination is stable;
+// changes at midnight → list rotates every day so visitors get a different
+// face on the homepage without us having to do anything. Used as either
+// (a) the active sort key for the imported tier under `sort=latest` (where
+// chronological order is meaningless — every imported row was approved
+// within seconds of every other), or (b) a tiebreaker for the other sorts
+// (where imported rows currently all share the same metric value of 0).
+function dailySeed(): string {
+  // YYYY-MM-DD in UTC. Server's clock; doesn't have to match user timezone.
+  return new Date().toISOString().slice(0, 10);
+}
+
 const orderBy = (sort: PromptListQuery["sort"]) => {
-  const secondary = (() => {
-    switch (sort) {
-      case "popular":
-        return desc(prompts.viewCount);
-      case "liked":
-        return desc(prompts.likeCount);
-      case "sent":
-        return desc(prompts.sendCount);
-      case "latest":
-      default:
-        return desc(prompts.approvedAt);
-    }
-  })();
-  return [asc(sourcePriorityAsc), secondary];
+  const seed = dailySeed();
+  const tiebreaker = sql`md5(${prompts.id}::text || ${seed})`;
+
+  switch (sort) {
+    case "popular":
+      return [asc(sourcePriorityAsc), desc(prompts.viewCount), tiebreaker];
+    case "liked":
+      return [asc(sourcePriorityAsc), desc(prompts.likeCount), tiebreaker];
+    case "sent":
+      return [asc(sourcePriorityAsc), desc(prompts.sendCount), tiebreaker];
+    case "latest":
+    default:
+      // For source='site' rows: real chronological order on approved_at.
+      // For source='imported' rows: NULL in this clause so they fall through
+      //   to the tiebreaker (daily hash) — bulk imports approved within
+      //   seconds of each other make approved_at meaningless for them.
+      return [
+        asc(sourcePriorityAsc),
+        sql`CASE WHEN ${prompts.source} = 'site' THEN ${prompts.approvedAt} END DESC NULLS LAST`,
+        tiebreaker,
+      ];
+  }
 };
 
 export async function listPrompts(q: PromptListQuery, currentUserId?: string) {
