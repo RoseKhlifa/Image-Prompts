@@ -13,7 +13,11 @@ type Props = {
 
 type State = "idle" | "creating" | "launching";
 
-const VISIBILITY_CHECK_MS = 1500;
+// Bumped from 1500ms to 3000ms to give Windows browsers time to surface
+// the "Open Image Studio?" confirmation dialog before we decide the launch
+// failed. On macOS LaunchServices dispatches near-instantly; on Windows
+// Chromium-based browsers add a noticeable round-trip.
+const LAUNCH_DETECT_MS = 3000;
 
 // "Send to Image-Studio" — available to everyone (guests included) since
 // the import-token endpoint accepts anonymous callers. Rate limits are
@@ -40,11 +44,33 @@ export default function SendToStudioButton({ promptId, payload }: Props) {
         }),
       });
       setState("launching");
+
+      // Multi-signal launch detection. Listening to visibilityState ALONE
+      // false-positives on Windows: Chrome/Edge show an "Open Image Studio?"
+      // confirmation dialog (browser stays foregrounded), and after the user
+      // clicks Open, Image-Studio launches in the background per Windows
+      // Foreground Lock — visibilityState never flips to "hidden", so the
+      // 3s timer thinks the launch failed even when it succeeded.
+      //
+      // `blur` reliably fires when the confirmation dialog steals focus on
+      // Windows; `visibilitychange` covers macOS where LaunchServices brings
+      // the launched app to the foreground. Either signal counts as success.
+      let launched = false;
+      const markLaunched = () => { launched = true; };
+      const onVisibility = () => {
+        if (document.visibilityState === "hidden") markLaunched();
+      };
+      window.addEventListener("blur", markLaunched, { once: true });
+      document.addEventListener("visibilitychange", onVisibility);
+
       window.location.href = `image-studio://import?token=${res.token}`;
+
       setTimeout(() => {
-        if (document.visibilityState === "visible") setShowFallback(true);
+        window.removeEventListener("blur", markLaunched);
+        document.removeEventListener("visibilitychange", onVisibility);
+        if (!launched) setShowFallback(true);
         setState("idle");
-      }, VISIBILITY_CHECK_MS);
+      }, LAUNCH_DETECT_MS);
     } catch (e) {
       setState("idle");
       if (e instanceof ApiError) {
